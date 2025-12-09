@@ -1,3 +1,5 @@
+See [*<span style="text-decoration: underline">docs</span>*](https://banana-bred.github.io/ROTEX/) for more detail.
+
 ## ROTational EXcitation of ions by electron impact (ROTEX)
 
 Calculates electron-impact rotational (de-)excitation cross sections for asymmetric top molecules, using
