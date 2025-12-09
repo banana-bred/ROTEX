@@ -1,0 +1,12 @@
+[submodule "external/forbear"]
+	path = external/forbear
+	url = https://github.com/szaghi/forbear
+[submodule "external/FACE"]
+	path = external/FACE
+	url = https://github.com/szaghi/FACE
+[submodule "external/CDMSreader"]
+	path = external/CDMSreader
+	url = https://github.com/banana-bred/CDMSreader
+[submodule "external/bspline-fortran"]
+	path = external/bspline-fortran
+	url = https://github.com/banana-bred/bspline-fortran

@@ -1,0 +1,32 @@
+name = "ROTEX"
+version = "0.1.1"
+license = "MIT"
+author = "Josh Forer"
+maintainer = "jbf2177@columbia.edu"
+copyright = "2025 Josh Forer"
+
+[library]
+source-dir = "src"
+
+[build]
+link = ["lapack"]
+[preprocess]
+[preprocess.cpp]
+suffixes = [".f"]
+macros = ["USE_FORBEAR", "USE_CDMSREADER", "USE_OPENMP"]
+
+[dependencies]
+forbear         = { git = "https://github.com/szaghi/forbear",              branch = "master" }
+CDMSreader      = { git = "https://github.com/banana-bred/CDMSreader",      branch = "main" }
+bspline-fortran = { git = "https://github.com/banana-bred/bspline-fortran", branch = "master" }
+openmp = "*"
+
+[[executable]]
+main="rotex.f"
+source-dir="main"
+name="rotex"
+
+[fortran]
+implicit-typing = false
+implicit-external = false
+source-form = "free"

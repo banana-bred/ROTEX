@@ -1,0 +1,227 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Calculates electron-impact rotational excitation cross sections for linear and nonlinear molecules in the rigid rotor approximation.">
+    <meta name="author" content="" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>All Modules &ndash; ROTEX
+</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">ROTEX </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../program/rotex.html">Program</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-12" id='text'>
+			 <h1>Modules</h1>
+			 <table class="table">
+			 <thead><tr><th>Module</th><th>Source File</th><th>Description</th></tr></thead>
+			 <tbody>
+			   <tr class="active">
+                 <td><a href='../module/rotex__arrays.html'>rotex__arrays</a></td>
+                 <td><a href='../sourcefile/rotex__arrays.f.html'>rotex__arrays.f</a></td>
+                 <td><p>Various routines for arrays</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__cbxs.html'>rotex__CBXS</a></td>
+                 <td><a href='../sourcefile/rotex__cbxs.f.html'>rotex__cbxs.f</a></td>
+                 <td><p>Routines to calculate cross sections in the Coulomb-Born approximation</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__characters.html'>rotex__characters</a></td>
+                 <td><a href='../sourcefile/rotex__characters.f.html'>rotex__characters.f</a></td>
+                 <td><p>Contains procedures related to characters and character arrays, such as converting integers to characters</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__constants.html'>rotex__constants</a></td>
+                 <td><a href='../sourcefile/rotex__constants.f.html'>rotex__constants.f</a></td>
+                 <td><p>Contains most (but not all) defined constants used throughout the code.</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__drivers.html'>rotex__drivers</a></td>
+                 <td><a href='../sourcefile/rotex__drivers.f.html'>rotex__drivers.f</a></td>
+                 <td><p>Driver used by the PROGRAM (helps me keep variables local and be sure I'm not accidentally
+using globals if I make typos or something)</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__functions.html'>rotex__functions</a></td>
+                 <td><a href='../sourcefile/rotex__functions.f.html'>rotex__functions.f</a></td>
+                 <td><p>Contains various small functions used in the code</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__hamilton.html'>rotex__hamilton</a></td>
+                 <td><a href='../sourcefile/rotex__hamilton.f.html'>rotex__hamilton.f</a></td>
+                 <td><p>Module containing procedures to construct and diagonalize rotational Hamiltonians</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__hypergeometric.html'>rotex__hypergeometric</a></td>
+                 <td><a href='../sourcefile/rotex__hypergeometric.f.html'>rotex__hypergeometric.f</a></td>
+                 <td><p>For calculating the Gauss hypergeometric function ₂F₁(a,b;c;z)</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__kinds.html'>rotex__kinds</a></td>
+                 <td><a href='../sourcefile/rotex__kinds.f.html'>rotex__kinds.f</a></td>
+                 <td><p>Contains kind definitions (double, xtended double, quad precision)</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__linalg.html'>rotex__linalg</a></td>
+                 <td><a href='../sourcefile/rotex__linalg.f.html'>rotex__linalg.f</a></td>
+                 <td><p>Linear algebra interfaces to LAPACK routines and other linear algebra stuff</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__mqdtxs.html'>rotex__MQDTXS</a></td>
+                 <td><a href='../sourcefile/rotex__mqdtxs.f.html'>rotex__mqdtxs.f</a></td>
+                 <td><p>Routines to calculate cross sections with MQDT + S-matrix</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__polygamma.html'>rotex__polygamma</a></td>
+                 <td><a href='../sourcefile/rotex__polygamma.f.html'>rotex__polygamma.f</a></td>
+                 <td><p>Routines for calculating Γ(z) and ln(Γ(z)).</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__progress.html'>rotex__progress</a></td>
+                 <td><a href='../sourcefile/rotex__progress.f.html'>rotex__progress.f</a></td>
+                 <td><p>Interface to <a href="https://github.com/szaghi/forbear">forbear</a>, the Fortran (progress) B(e)ar environment</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__reading.html'>rotex__reading</a></td>
+                 <td><a href='../sourcefile/rotex__reading.f.html'>rotex__reading.f</a></td>
+                 <td><p>Contains procedures used in reading data (K-matrices and namelist data)</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__rft.html'>rotex__RFT</a></td>
+                 <td><a href='../sourcefile/rotex__rft.f.html'>rotex__rft.f</a></td>
+                 <td><p>Procedures used to carry out the rotational frame transformation</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__splines.html'>rotex__splines</a></td>
+                 <td><a href='../sourcefile/rotex__splines.f.html'>rotex__splines.f</a></td>
+                 <td><p>Wrapper routines for the spline fitting procedures</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__symmetry.html'>rotex__symmetry</a></td>
+                 <td><a href='../sourcefile/rotex__symmetry.f.html'>rotex__symmetry.f</a></td>
+                 <td><p>All things related to symmetry</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__system.html'>rotex__system</a></td>
+                 <td><a href='../sourcefile/rotex__system.f.html'>rotex__system.f</a></td>
+                 <td><p>Contains the definitions of stdout, stdin, stderr, and procedures to interact with the program/system
+such as producing warnings and stopping the execution of the code while producing error messages</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__types.html'>rotex__types</a></td>
+                 <td><a href='../sourcefile/rotex__types.f.html'>rotex__types.f</a></td>
+                 <td><p>Contains type definitions and procedures for those types used throughout the program</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__utils.html'>rotex__utils</a></td>
+                 <td><a href='../sourcefile/rotex__utils.f.html'>rotex__utils.f</a></td>
+                 <td><p>Some small utilities</p></td>
+               </tr>
+<!---->			   <tr class="active">
+                 <td><a href='../module/rotex__wigner.html'>rotex__wigner</a></td>
+                 <td><a href='../sourcefile/rotex__wigner.f.html'>rotex__wigner.f</a></td>
+                 <td><p>Calculate the Wigner 3j symbols</p></td>
+               </tr>
+<!--active-->			   <tr class="">
+                 <td><a href='../module/rotex__writing.html'>rotex__writing</a></td>
+                 <td><a href='../sourcefile/rotex__writing.f.html'>rotex__writing.f</a></td>
+                 <td><p>Procedures for writing data to disk</p></td>
+               </tr>
+<!---->			 </tbody></table>
+             
+        </div>
+      </div>
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              ROTEX
+              &copy; 2025 <a rel="license" href="https://opensource.org/licenses/MIT">MIT</a>
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+  </body>
+</html>

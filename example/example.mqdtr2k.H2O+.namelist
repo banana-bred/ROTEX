@@ -1,0 +1,176 @@
+! =============================================================================================
+$control_namelist
+! =============================================================================================
+
+  output_directory = "example/output/H2O+.mqdtr2k"
+    !! Output directory for the code
+  Nmin = 0
+    !! Smallest N (rotational quantum number) for excitation
+  Nmax = 4
+    !! Largest N (rotational quantum number) for excitation
+  use_kmat = .true.
+    !! Use K-matrices to get cross sections ? If .true., use KMAT_NAMELIST variables
+  use_CB = .true.
+    !! Use the Culomb-Born approximation to get cross sections ? If .true., use COULOMB_NAMELIST variables
+  rotor_kind = "a"
+    !! The rotor kind of the target
+    !!   "a": asymmetric top
+    !!   "s": symmetric top (not implemented yet)
+    !!   "l": symmetric top (not implemented yet)
+  target_charge = 1
+    !! The target charge (integer)
+  spin_isomer_kind =
+    !! The spin isomer kind to enforce for the molecule.
+    !!   0*: none (spin symmetry may be self-enforced by the underlying calculations and dipole vector)
+    !!   2 : Ka+Kc parity (odd or even)
+  zaxis = "b"
+    !! The inertial axis along which the molecular z-axis is fixed. Values
+    !! must be either "A", "B", or "C" (case independent). It is up to the user to ensure that
+    !! the x, y, z axes are properly aligned with the A, B, C axes in the K-matrix calculations
+    !! (if used) and the for the dipole moment vector. The following are the three possible cases:
+    !!   ZAXIS | X   Y   Z
+    !!   ⁻⁻⁻⁻⁻⁻|⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻
+    !!   "A"   | B   C   A
+    !!   "B"   | C   A   B
+    !!   "C"   | A   B   C
+  ABC = 29.039328888249521, 12.420704910253077, 8.4684880765245136 ! cm⁻¹
+    !! The A, B, and C rotationa constants (cm⁻¹) of the target molecule, such that
+    !! A = ABC(1)
+    !! B = ABC(2)
+    !! C = ABC(3)
+  xs_zero_threshold =
+    !! Cross sections (cm²) that are below this threshold (for both excitation AND de-excitation) will
+    !! be excluded from the list of transitions in each method (KMAT or CB). This is essentially a
+    !! filter to reduce the number of files that are generated from K-matrix cross sections that have
+    !! negligible magnitude. DEFAULT: 0.0, i.e. get the first matrix that we see
+  ! -- 4th order centrifugal distortion
+  add_cd4 =
+    !! Whether to add 4th order centrifugal distortion. DEFAULT: .false.
+  add_cd6 =
+    !! Whether to add 6th order centrifugal distortion. DEFAULT: .false.
+
+  ! -- 4th order centrifugal distortion constants (all DEFAULT 0.0)
+  DN     = !! ΔN (ΔJ)
+  DNK    = !! ΔNK (ΔJK)
+  DK     = !! ΔK
+  deltan = !! δN (δJ)
+  deltak = !! δK
+  ! -- 6th order centrifugal distortion constnats (all DEFAULT 0.0)
+  HN    = !! HN (HJ)
+  HNK   = !! HNK (HJK)
+  HKN   = !! HKN (HKJ)
+  HK    = !! HK
+  etan  = !! ηN (ηJ)
+  etank = !! ηNK (ηJK)
+  etak  = !! ηK
+
+/
+
+! =============================================================================================
+$kmat_namelist
+! =============================================================================================
+  kmat_dir = "example/MQDTR2K"
+    !! The directory containing the K-matrices that the code will read
+  channels_dir =
+    !! The directory containing the channel files that the code will read (unused if
+    !! KMAT_OUTPUT_TYPE is "mqdtr2k")
+  lmax_kmat = 5
+    !! The max value of the partial wave orbital angular momentum quantum number l in the K-matrix files
+  point_group = "C2v"
+    !! The Abelian point group for the K-matrix files:
+    !!   untested: C1, C2, Ci, C2h, D2, D2h
+    !!   tested:   C2v, Cs
+  spinmults = 1, 3
+    !! Array of spin multiplicities 2S+1 to consider. K-matrix cross sections will be averaged
+    !! over spin multiplicities if there are more than one
+  kmat_output_type = "mqdtr2k"
+    !! The K-matrix format/type that we will read, for use by this code. Two possible values:
+    !!   ukrmol+: the default output of the UKRmol+ codes
+    !!   mqdtr2k: explained in the writeup
+  real_spherical_harmonics = .true.
+    !! Whether the spherical harmonics basis used to generate the K-matrices are real-valued
+    !!   .true.: real-valued Ylm (will be transformed to complex-valued Ylλ for frame transformation)
+    !!   .false.: complex-valued Ylλ (nothing to do)
+  num_egrid_segs = 4
+    !! The number of segments in the total energy grid. Must be ≥ 1
+  num_egrid = 4*1000
+    !! Array of number of energies per grid segment (length: NUM_EGRID_SEGS)
+  egrid_segs = 1e-3, 1e-2, 1e-1, 1., 2. ! eV
+    !! Array of the bounds (non-degenerate) of the TOTAL energy grid segments
+    !! (length: NUM_EGRID_SEGS + 1, units: eV)
+  egrid_spacing = "lin"
+    !! How each energy grid segment is spaced. 'lin' for linear, 'log' for logarithmic
+  kmat_energy_closest =
+    !! The target energy (eV) at which to evaluate the K-matrix. In both cases of KMAT_OUTPUT_TYPE
+    !! (which for this code should really be kmat_INPUT_type, but oh well), there may be
+    !! several evaluation energies for the K-matrix, which means that one K-matrix exists per
+    !! evaluation energy. The code tries to pick the first match that is closest to this energy
+  kmat_energy_units_override =
+    !! Force the code to interpret the K-matrix evaluation energy units as something other than
+    !! the default for KMAT_OUTPUT_TYPE. Choices:
+    !!   "h": hartree atomic units
+    !!   "e": eV
+    !!   "r": Rydberg
+  channel_energy_units_override =
+    !! Force the code to interpret the channel energy units as something other than
+    !! the default for KMAT_OUTPUT_TYPE. Choices:
+    !!   "h": hartree atomic units
+    !!   "e": eV
+    !!   "r": Rydberg
+/
+
+! =============================================================================================
+$coulomb_namelist
+! =============================================================================================
+  use_CDMS_einstA = .true.
+    !! Whether to use CDMS data to get Einstein A coefficients, which will be used
+    !! in determining cross sections in the Coulomb-Born approximation (if that transition
+    !! is available)
+  CDMS_file = "example/H2OX.CDMS.MHz.log.dat"
+    !! The file to use for reading the CDMS data if USE_CDMS_EINSTA is true.
+  only_einsta =
+    !! Whether to ONLY calculate Einstein A coefficients and ignore cross section calculations
+    !! For the Coulomb-Born approximation. [DEFAULT .false.]
+  do_dipole =
+    !! Whether to use the Coulomb-Born approximation for the DIPOLE term of the
+    !! interaction potential expansion over the multipoles [DEFAULT .true.]
+  do_quadrupole =
+    !! Whether to use the Coulomb-Born approximation for the QUADRUPOLE term of the
+    !! interaction potential expansion over the multipoles [DEFAULT .false.]
+  cartesian_dipole_moments = 0., 0., 2.3978834370408175 ! Debye
+    !! Array of dipole moments (Debye) in the order μx, μy, μz such that
+    !!   μx = cartesian_dipole_moments(1)
+    !!   μy = cartesian_dipole_moments(2)
+    !!   μz = cartesian_dipole_moments(3)
+  Ei = 1.2e-3 ! eV
+    !! The smallest energy (eV) above the upper state threshold
+    !! at which to start performing scattering calculations. This should not be 0
+    !! and should not be too close to 0 because the hypergeometric functions are not
+    !! well-behaved there.
+  Ef = 2 ! eV
+    !! The largest energy (eV) above the lower state threshold t oconsider for performing
+    !! cross section calculations. This is the endpoint of the electron energy grid for CB calculations
+  nE = 100
+    !! The number of energies for which to calculate cross sections in the CB approx
+  do_xtrap = .true.
+    !! Whether to extrapolate the CB (de-)excitation cross sections to the excitation threshold
+    !! assuming a 1/E dependence (this way, we don't need to calculate ₂F₁(a,b;c;z) with huge
+    !! a,b,c)
+  Ei_xtrap = 1e-8 ! eV
+    !! The smallest energy above the excitation (upper state) threshold to which we extrapolate
+    !! CB cross sections. This should not be 0.0. (units: eV)
+  nE_xtrap = 100
+    !! The number of extrapolation energies down to the excitation threshold. The total number
+    !! of CB cross sections per transition will be approximately nE + nE_xtrap.
+  analytic_total_cb = .true., .false.
+    !! Whether to use the analytic formula to determine the Total CB cross sections.
+    !!   .true.:  use the analytic formula
+    !!   .false.: take the sum from l=0 to lmax_total and consider that as the "Total" converged
+    !!     result
+  lmax_partial = 5
+    !! The partial waves to consider for the Partial CB cross sections.
+  lmax_total =
+    !! The partial waves to consider for the Total CB cross section if analytic_total_cb is .false.
+    !! For a particular multipole expansion (quadrupole is not used, so this only needs to be specified
+    !! if analytic_total_cb(1) is .false.)
+/
