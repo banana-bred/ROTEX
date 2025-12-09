@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 3.7% of total for procedures.">105 statements</a>
+                 title=" 3.8% of total for procedures.">107 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -153,7 +153,7 @@
     </div>
     
     <div class="col-md-9" id='text'>
-    <h2>public module subroutine read_kmats(kmat_dir, channels_dir, point_group, spinmult, Kmat, elec_channels, channel_E_units, kmat_eval_E_units, kmat_output_type, kmat_e_closest)  
+    <h2>public module subroutine read_kmats(kmat_dir, channels_dir, point_group, spinmult, kmat_lmax, Kmat, elec_channels, channel_E_units, kmat_eval_E_units, kmat_output_type, kmat_e_closest)  
 </h2>
         <div class="card mb-4">
       <h3 class="card-header card-title bg-light">Uses</h3>
@@ -162,11 +162,11 @@
             <li class="list-group-item">
               <ul class="list-inline">
                   <li class="list-inline-item"><a href='../module/rotex__utils.html'>rotex__utils</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__characters.html'>rotex__characters</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__constants.html'>rotex__constants</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__symmetry.html'>rotex__symmetry</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__characters.html'>rotex__characters</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__arrays.html'>rotex__arrays</a></li>
               </ul>
             </li>
@@ -221,7 +221,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-point_group"></span>
+              <span class="anchor" id="variable-point_group~4"></span>
               character(len=*),
             </td>
 <td>intent(in)</td>
@@ -251,7 +251,22 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-kmat~3"></span>
+              <span class="anchor" id="variable-kmat_lmax"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kmat_lmax</strong></td>
+            <td>
+                <p>The max value of l in the electronic partial wave basis</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kmat"></span>
               real(kind=dp),
             </td>
 <td>intent(out),</td>
@@ -266,7 +281,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-elec_channels~7"></span>
+              <span class="anchor" id="variable-elec_channels~2"></span>
               type(<a href='../type/elec_channel_type.html'>elec_channel_type</a>),
             </td>
 <td>intent(out),</td>

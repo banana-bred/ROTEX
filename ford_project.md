@@ -8,4 +8,4 @@ display: public
 license: MIT
 ---
 
-{!README.md!}
+{!README.html!}

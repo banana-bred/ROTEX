@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 1.5% of total for procedures.">43 statements</a>
+                 title=" 1.6% of total for procedures.">44 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -153,7 +153,7 @@
     </div>
     
     <div class="col-md-9" id='text'>
-    <h2>public module subroutine RFT_nonlinear(Kmat, Jmin, Jmax, Smat_J, elec_channels, N_states, asymtop_rot_channels_l, asymtop_rot_channels_l_J, spin_isomer_kind, symaxis, real_spherical_harmonics)  
+    <h2>public module subroutine RFT_nonlinear(Kmat, Jmin, Jmax, Smat_J, elec_channels, N_states, asymtop_rot_channels_l, asymtop_rot_channels_l_J, spin_isomer_kind, symaxis, real_spherical_harmonics, point_group)  
 </h2>
         <div class="card mb-4">
       <h3 class="card-header card-title bg-light">Uses</h3>
@@ -161,10 +161,10 @@
         <ul class="list-group list-group-flush">
             <li class="list-group-item">
               <ul class="list-inline">
-                  <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__constants.html'>rotex__constants</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__symmetry.html'>rotex__symmetry</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__arrays.html'>rotex__arrays</a></li>
               </ul>
             </li>
@@ -189,7 +189,7 @@
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-kmat"></span>
+              <span class="anchor" id="variable-kmat~2"></span>
               real(kind=dp),
             </td>
 <td>intent(inout),</td>
@@ -249,7 +249,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-elec_channels~2"></span>
+              <span class="anchor" id="variable-elec_channels~6"></span>
               type(<a href='../type/elec_channel_type.html'>elec_channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -309,7 +309,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-spin_isomer_kind"></span>
+              <span class="anchor" id="variable-spin_isomer_kind~5"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -324,7 +324,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-symaxis"></span>
+              <span class="anchor" id="variable-symaxis~6"></span>
               character(len=1),
             </td>
 <td>intent(in)</td>
@@ -339,7 +339,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-real_spherical_harmonics"></span>
+              <span class="anchor" id="variable-real_spherical_harmonics~3"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -352,6 +352,21 @@
                 <p>Whether the input K-matrices are evaluated in a basis of real spherical harmonics
 for the scattering electron. If .true., transform the S-matrix into a basis of
 complex-valued spherical harmonics</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-point_group~8"></span>
+              character(len=*),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>point_group</strong></td>
+            <td>
+                <p>The point group of the calculation</p>
             </td>
         </tr>
     </tbody>

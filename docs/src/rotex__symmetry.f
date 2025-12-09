@@ -24,33 +24,41 @@ module rotex__symmetry
     module procedure :: is_spin_forbidden_qnums
   end interface is_spin_forbidden
 
+  integer, allocatable, public, save :: m_parity(:)
+    !! Array containing the parity (1/even or -1/odd) of an electronic channel
+    !! based on its label m. This array is indexed by m directly. This is only
+    !! for calculation in the Cs point group
+
   character(33), parameter :: abelian_point_groups = "C1, Cs, C2, Ci, C2v, C2h, D2, D2h"
 
   ! ---------------------------------------- !
   ! The integer labels of the various irreps !
   ! ---------------------------------------- !
   ! -- Cs
-  integer, parameter :: Ap  = 1
-  integer, parameter :: App = 2
+  integer, parameter, public :: Ap  = 1
+  integer, parameter, public :: App = 2
   ! -- Ci, C2h
-  integer, parameter :: Ag = 1
-  integer, parameter :: Au = 2
-  integer, parameter :: Bg = 3
-  integer, parameter :: Bu = 4
+  integer, parameter, public :: Ag = 1
+  integer, parameter, public :: Au = 2
+  integer, parameter, public :: Bg = 3
+  integer, parameter, public :: Bu = 4
   ! -- C1, C2, C2v, D2, D2h
-  integer, parameter :: A  = 1
-  integer, parameter :: A1 = 1
-  integer, parameter :: A2 = 4
-  integer, parameter :: B  = 2
-  integer, parameter :: B1 = 2
-  integer, parameter :: B2 = 3
-  integer, parameter :: B3 = 4
-  integer, parameter :: B1g = 3
-  integer, parameter :: B1u = 4
-  integer, parameter :: B2g = 5
-  integer, parameter :: B2u = 6
-  integer, parameter :: B3g = 7
-  integer, parameter :: B3u = 8
+  integer, parameter, public :: A  = 1
+  integer, parameter, public :: A1 = 1
+  integer, parameter, public :: A2 = 4
+  integer, parameter, public :: B  = 2
+  integer, parameter, public :: B1 = 2
+  integer, parameter, public :: B2 = 3
+  integer, parameter, public :: B3 = 4
+  integer, parameter, public :: B1g = 3
+  integer, parameter, public :: B1u = 4
+  integer, parameter, public :: B2g = 5
+  integer, parameter, public :: B2u = 6
+  integer, parameter, public :: B3g = 7
+  integer, parameter, public :: B3u = 8
+
+  integer, parameter, public :: even = 1
+  integer, parameter, public :: odd  =-1
 
 ! ================================================================================================================================ !
 contains

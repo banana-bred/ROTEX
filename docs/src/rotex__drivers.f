@@ -450,6 +450,7 @@ contains
         , channels_dir      = cfg%channels_dir         &
         , point_group       = cfg%point_group         &
         , spinmult          = cfg%spinmults(ispin)    &
+        , kmat_lmax         = cfg%lmax_kmat &
         , kmat              = kmat                    &
         , elec_channels     = elec_channels           &
         , channel_e_units   = channel_e_units         &
@@ -489,6 +490,7 @@ contains
                         , cfg%spin_isomer_kind   &
                         , cfg%zaxis              &
                         , cfg%real_spherical_harmonics &
+                        , cfg%point_group &
       )
       deallocate(elec_channels)
 
@@ -523,7 +525,6 @@ contains
       deallocate(asymtop_rot_channels_l_j)
 
       ! -- this routine also remove transitions whose cross sectiosn are too small
-    ! print*, size(transitions_this_spin)
       call get_xs_from_smat(    &
           prob_smat             &
         , transitions_this_spin &
@@ -532,10 +533,6 @@ contains
         , xs_dxcite             &
         , cfg%xs_zero_threshold &
       )
-    ! print*, size(transitions_this_spin)
-    ! stop
-    ! print*,cfg%xs_zero_threshold
-    ! stop
 
       write(stdout, *)
       write(stdout, '(A)') "Writing " // spinmult_names(cfg%spinmults(ispin)) // " S-matrix cross sections to disk"

@@ -637,7 +637,7 @@ contains
           write(stderr, '(6(A15))') "λ", "l", "kf", "ki", "ηf", "ηi"
           write(stderr, '(2I15, 4e15.6)') lambda, ltarg, kf, ki, etaf, etai
           write(stderr, *) res
-          stop
+          call die("NaNs detected")
         endif
       end block
       return

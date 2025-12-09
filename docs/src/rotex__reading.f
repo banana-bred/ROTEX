@@ -20,6 +20,7 @@ contains
                               , channels_dir      &
                               , point_group       &
                               , spinmult          &
+                              , kmat_lmax         &
                               , Kmat              &
                               , elec_channels     &
                               , channel_E_units   &
@@ -46,6 +47,8 @@ contains
       !! The point group of the calculations
     integer, intent(in) :: spinmult
       !! The spin multiplicity (2S+1) of the system (target + e⁻)
+    integer, intent(in) :: kmat_lmax
+      !! The max value of l in the electronic partial wave basis
     real(dp), intent(out), allocatable :: Kmat(:,:)
       !! K(i, j)
     type(elec_channel_type), intent(out), allocatable :: elec_channels(:)
@@ -151,6 +154,9 @@ contains
         call die("KMAT_OUTPUT_TYPE must be "//UKRMOLX//" or "//MQDTR2K)
       end select
 
+      ! -- if we need to focus on channel parity
+      if(point_group .eq. "cs") call fill_parity_array_this_irrep(kmat_lmax, elec_channels_this_irrep, irrep, point_group)
+
       call append(elec_channels, elec_channels_this_irrep)
 
       if(skip_this_irrep .eqv. .true.) cycle irrep_loop_kmats
@@ -200,6 +206,42 @@ contains
     call die("The K-matrix is not symmeric !")
 
   end subroutine read_kmats
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine fill_parity_array_this_irrep(lmax_kmat, elec_channels, irrep, point_group)
+    !! Fill the array M_PARITY, stored in the module ROTEX__SYMMETRY, that will later be accessed
+    !! by the rotational frame transformation to determine which values of m from -lmax_kmat to lmax_kmat
+    !! correspond to even and odd combinations of partial waves
+    use rotex__types,      only: elec_channel_type
+    use rotex__system,     only: die
+    use rotex__symmetry,   only: Ap, App, m_parity, even, odd
+    use rotex__characters, only: i2c => int2char
+    implicit none
+    integer, intent(in) :: lmax_kmat
+      !! Max value of l for the electronic channels
+    type(elec_channel_type), intent(in) :: elec_channels(:)
+      !! The electronic channels for the current irrep
+    integer, intent(in) :: irrep
+      !! The current irrep index
+    character(*), intent(in) :: point_group
+      !! The point group for the scattering calculations
+    integer :: ichan, m
+    if(point_group .ne. "cs") call die("Attempting to fill m_parity array for a point group&
+      & other than Cs: " // point_group)
+    if(allocated(m_parity) .eqv. .false.) allocate(m_parity(-lmax_kmat:lmax_kmat), source = 0)
+    do ichan=1, size(elec_channels, 1)
+      m = elec_channels(ichan) % ml
+      if(m_parity(m) .ne. 0) cycle ! skip if set, but this probably should not happen
+      select case(irrep)
+      case(Ap)
+        m_parity(m) = even
+      case(App)
+        m_parity(m) = odd
+      case default
+        call die("Somehow, irrep ("//i2c(irrep)//") is not one of the valid values for the point group " // point_group)
+      end select
+    enddo
+  end subroutine fill_parity_array_this_irrep
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine get_flat_kmat_and_channels_ukrmolx( &

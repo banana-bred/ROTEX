@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 6.5% of total for modules and submodules.">359 statements</a>
+                 title=" 7.2% of total for modules and submodules.">399 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -178,7 +178,7 @@
         <section>
           <h2>Subroutines</h2>
               <div class="card">
-    <div class="card-header codesum"><span class="anchor" id="proc-rft_nonlinear"></span> <h3>public module subroutine <a href='../proc/rft_nonlinear.html'>RFT_nonlinear</a>(Kmat, Jmin, Jmax, Smat_J, elec_channels, N_states, asymtop_rot_channels_l, asymtop_rot_channels_l_J, spin_isomer_kind, symaxis, real_spherical_harmonics)  
+    <div class="card-header codesum"><span class="anchor" id="proc-rft_nonlinear"></span> <h3>public module subroutine <a href='../proc/rft_nonlinear.html'>RFT_nonlinear</a>(Kmat, Jmin, Jmax, Smat_J, elec_channels, N_states, asymtop_rot_channels_l, asymtop_rot_channels_l_J, spin_isomer_kind, symaxis, real_spherical_harmonics, point_group)  
 </h3></div>
     <div class="card-body">
           
@@ -197,7 +197,7 @@
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-kmat"></span>
+              <span class="anchor" id="variable-kmat~2"></span>
               real(kind=dp),
             </td>
 <td>intent(inout),</td>
@@ -257,7 +257,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-elec_channels~2"></span>
+              <span class="anchor" id="variable-elec_channels~6"></span>
               type(<a href='../type/elec_channel_type.html'>elec_channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -317,7 +317,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-spin_isomer_kind"></span>
+              <span class="anchor" id="variable-spin_isomer_kind~5"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -332,7 +332,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-symaxis"></span>
+              <span class="anchor" id="variable-symaxis~6"></span>
               character(len=1),
             </td>
 <td>intent(in)</td>
@@ -347,7 +347,7 @@
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-real_spherical_harmonics"></span>
+              <span class="anchor" id="variable-real_spherical_harmonics~3"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -360,6 +360,21 @@
 <p>Whether the input K-matrices are evaluated in a basis of real spherical harmonics
 for the scattering electron. If .true., transform the S-matrix into a basis of
 complex-valued spherical harmonics</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-point_group~8"></span>
+              character(len=*),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>point_group</strong></td>
+            <td>
+<p>The point group of the calculation</p>
             </td>
         </tr>
     </tbody>

@@ -1,5 +1,5 @@
 ! =============================================================================================
-$control_namelist
+&control_namelist
 ! =============================================================================================
 
   output_directory = "example/output/H2O+.mqdtr2k"
@@ -67,7 +67,7 @@ $control_namelist
 /
 
 ! =============================================================================================
-$kmat_namelist
+&kmat_namelist
 ! =============================================================================================
   kmat_dir = "example/MQDTR2K"
     !! The directory containing the K-matrices that the code will read
@@ -120,7 +120,7 @@ $kmat_namelist
 /
 
 ! =============================================================================================
-$coulomb_namelist
+&coulomb_namelist
 ! =============================================================================================
   use_CDMS_einstA = .true.
     !! Whether to use CDMS data to get Einstein A coefficients, which will be used

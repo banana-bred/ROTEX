@@ -1,4 +1,17 @@
 #let link2(label, dest) = link(dest)[#emph(underline(label))]
+
+// make sure HTML renders equations
+#let target = dictionary(std).at("target", default: () => "paged")
+#show math.equation: it => context {
+  if target() == "html" {
+    // For inline equations, wrap in a box so they don't break paragraphs
+    show: if it.block { it => it } else { box }
+    html.frame(it)
+  } else {
+    it
+  }
+}
+
 = ROTational EXcitation of ions by electron impact (ROTEX)
 Calculates electron-impact rotational (de-)excitation cross sections for asymmetric top molecules, using
 + the _Coulomb-Born (CB) approximation_ and
@@ -15,14 +28,18 @@ The quantity $l_"max"$ is the largest $l$ value for the partial waves in the sca
 
 In principle, this also works for symmetric tops and linear rotors, but those special cases have not been explicitly programmed in.
 
+=== Build dependencies
+Neither of these are necessary of course, but it will be much easier to build with one of them.
+- (_optional)_ The #link2("Fortran Package Manager (fpm)", "https://github.com/fortran-lang/fpm")
+- (_optional_) #link2("GNU Make", "https://www.gnu.org/software/make/")
+Currently, `make` gives more flexibility, as the user can choose which optional dependencies to exclude (because they are included by default), but `fpm` easily saves and automatically targets differently compiled versions of the code (e.g., "release" and "debug" profiles).
+
 === Dependencies
 - A LAPACK implementation
 - #link2("Bspline-fortran","https://github.com/banana-bred/bspline-fortran") for combining cross sections on the same energy grid
-- (_optional)_ The #link2("Fortran Package Manager (fpm)", "https://github.com/fortran-lang/fpm") for easy building.
 - (_optional_) #link2("CDMSreader", "https://github.com/banana-bred/CDMSreader") for optionally reading in #link2("CDMS", "https://cdms.astro.uni-koeln.de/") data to use in the Coulomb-Born approximation
 - (_optional_) #link2("Forbear", "https://github.com/szaghi/forbear") for progress bars
 - (_optional_) #link2("OpenMP", "https://www.openmp.org/") for easy thread parallelization
-- (_optional_) #link2("GNU Make", "https://www.gnu.org/software/make/")
 
 === Building with fpm
 In the package directory, just run
@@ -45,29 +62,39 @@ For example,
 `make clean build USE_CDMSREADER=0 USE_FORBEAR=0 USE_OPENMP=0`
 
 disables those three optional dependencies.
-
+Be sure to change the `FC` variable if `gfortran` is not your compiler of choice (and adjust `FFLAGS` accordingly).
+See the `Makefile` for more detail.
 
 == Usage
 An executable will be built by fpm which can be run directly, but fpm can also be invoked to run the code, which expects a namelist file to be given via stdin, i.e.
 
 `fpm run --profile release < example/example.mqdtr2k.H2O+.namelist`
 
+or if you built with `make`
+
+`./bin/rotex < example/example.mqdtr2k.H2O+.namelist`
+
+=== Compatibility with different operating systems
+This has only been tested on Linux-based systems for now.
+In principle, it should work on others but that is not a guarantee.
+
 === Structure of the input (namelist) files
 Namelists are used to read in values to whole groups of variables that will control program execution.
 A namelist group name is defined with the ampersand (&) and the namelist group is terminated with with a foward slash (/).
 The program contains three namelists:
-- &control_namelist
-- &kmat_namelist
-- &coulomb_namelist
++ &control_namelist
++ &kmat_namelist
++ &coulomb_namelist
 The namelist variables are declared in `src/rotex__reading.f`
 The order of the namelist groups in the input file is unimportant.
 Example namelists that should produce successful runes are given in the `example` directory.
 
+==== #underline[&control_namelist]
 The first and main namelist group is always used: *&control_namelist*.
 It controls the main flow of the program and contains the following variables.
 
 ```
-$control_namelist
+&control_namelist
   output_directory
     !! Output directory for the code
   Nmin =
@@ -132,12 +159,13 @@ $control_namelist
 /
 ```
 
+==== #underline[&coulomb_namelist]
 Next is *&coulomb_namelist*, which controls the execution of the code with respect to the CB approximation.
 This can be run with only the data that is included in the namelist group, but can also use data from the CDMS to get Einstein A coefficients, which are used to determine transition dipole moments between rotational state, but can also use data from the CDMS to get Einstein A coefficients, which are used to determine transition dipole moments between rotational states.
 
 ```
 ! =============================================================================================
-$coulomb_namelist
+&coulomb_namelist
 ! =============================================================================================
   use_CDMS_einstA =
     !! Whether to use CDMS data to get Einstein A coefficients, which will be used
@@ -193,13 +221,14 @@ $coulomb_namelist
 /
 ```
 
+==== #underline[&kmat_namelist]
 Next is the *&kmat_namelist* <kmat_namelist> group.
 It controls behavior of the code with respect to the MQDT implementation (K-matrices from scattering calculations -> rotational frame transformation -> closed-channel elimination -> cross sections).
 This requires the output of electron-scattering calculations, which is detailed below.
 
 ```
 ! =============================================================================================
-$kmat_namelist
+&kmat_namelist
 ! =============================================================================================
   kmat_dir =
     !! The directory containing the K-matrices that the code will read
@@ -284,7 +313,7 @@ where `<<IRREP>>` is the same as above but `<<SPINMULT>>` is the actual spin mul
 - `2` (*not* `doublet`)
 - etc.
 
-The line-by line structure is given as follows (values separated by whitespace):
+The line-by line structure is given as follows (values separated by some whitespace, unformatted read (`*`) can be used):
 
 - header (no information to read)
 - `nchan`
