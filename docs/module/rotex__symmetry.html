@@ -681,7 +681,7 @@ parameter
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-spin_isomer_kind~2"></span>
+              <span class="anchor" id="variable-spin_isomer_kind~4"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -690,6 +690,155 @@ parameter
             </td>
             <td>::</td>
             <td><strong>spin_isomer_kind</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-symaxis~5"></span>
+              character(len=1),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>symaxis</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>logical</small>
+    </h4>
+    
+
+          </li>
+          <li class="list-group-item">
+                <h3>
+    private pure elemental module function is_spin_allowed_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis) result(res)  
+
+    </h3>
+  <p>Determine if the transition Nlo,Kalo,Kclo -&gt; Nup,Kaup,Kcup is allowed by nuclear spin symmetry
+selection rules</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-nlo"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>nlo</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kalo"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kalo</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kclo"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kclo</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-nup"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>nup</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kaup"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kaup</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kcup"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kcup</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kind~3"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kind</strong></td>
             <td>
                 
             </td>
@@ -719,12 +868,110 @@ parameter
     
 
           </li>
+    </ul>
+  </div>
+
+              <div class="card">
+    <div class="card-header bg-light codesum">
+      <span class="anchor" id="interface-is_spin_forbidden"></span>
+      <h3>public        interface <a href='../interface/is_spin_forbidden.html'>is_spin_forbidden</a> 
+      </h3>
+    </div>
+    <ul class="list-group">
           <li class="list-group-item">
                 <h3>
-    private pure elemental module function is_spin_allowed_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis) result(res)  
+    private pure elemental module function is_spin_forbidden_chan(channel1, channel2, spin_isomer_kind, symaxis) result(res)  
 
     </h3>
-  <p>Determine if the transition Nlo,Kalo,Kclo -&gt; Nup,Kaup,Kcup is allowed by nuclear spin symmetry
+  <p>Test if two rotational channels respect ortho/para symmetry</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-channel1~2"></span>
+              type(<a href='../type/asymtop_rot_channel_type.html'>asymtop_rot_channel_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>channel1</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-channel2~2"></span>
+              type(<a href='../type/asymtop_rot_channel_type.html'>asymtop_rot_channel_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>channel2</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-spin_isomer_kind~5"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>spin_isomer_kind</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-symaxis~7"></span>
+              character(len=1),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>symaxis</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>logical</small>
+    </h4>
+    
+
+          </li>
+          <li class="list-group-item">
+                <h3>
+    private pure elemental module function is_spin_forbidden_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis) result(res)  
+
+    </h3>
+  <p>Determine if the transition Nlo,Kalo,Kclo -&gt; Nup,Kaup,Kcup is forbidden by nuclear spin symmetry
 selection rules</p>
 
   <h4>Arguments</h4>
@@ -830,253 +1077,6 @@ selection rules</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-kind~3"></span>
-              integer,
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>kind</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-symaxis~3"></span>
-              character(len=1),
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>symaxis</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-    </tbody>
-  </table>
-
-    <h4>
-    Return Value
-    <small>logical</small>
-    </h4>
-    
-
-          </li>
-    </ul>
-  </div>
-
-              <div class="card">
-    <div class="card-header bg-light codesum">
-      <span class="anchor" id="interface-is_spin_forbidden"></span>
-      <h3>public        interface <a href='../interface/is_spin_forbidden.html'>is_spin_forbidden</a> 
-      </h3>
-    </div>
-    <ul class="list-group">
-          <li class="list-group-item">
-                <h3>
-    private pure elemental module function is_spin_forbidden_chan(channel1, channel2, spin_isomer_kind, symaxis) result(res)  
-
-    </h3>
-  <p>Test if two rotational channels respect ortho/para symmetry</p>
-
-  <h4>Arguments</h4>
-      <table class="table table-striped varlist">
-    <thead>
-      <tr>
-        <th scope="col">Type</th>
-<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
-        <th scope="col"></th>
-        <th scope="col">Name</th>
-        <th scope="col"></th>
-    </thead>
-    <tbody>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-channel1~2"></span>
-              type(<a href='../type/asymtop_rot_channel_type.html'>asymtop_rot_channel_type</a>),
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>channel1</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-channel2~2"></span>
-              type(<a href='../type/asymtop_rot_channel_type.html'>asymtop_rot_channel_type</a>),
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>channel2</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-spin_isomer_kind~3"></span>
-              integer,
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>spin_isomer_kind</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-symaxis~6"></span>
-              character(len=1),
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>symaxis</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-    </tbody>
-  </table>
-
-    <h4>
-    Return Value
-    <small>logical</small>
-    </h4>
-    
-
-          </li>
-          <li class="list-group-item">
-                <h3>
-    private pure elemental module function is_spin_forbidden_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis) result(res)  
-
-    </h3>
-  <p>Determine if the transition Nlo,Kalo,Kclo -&gt; Nup,Kaup,Kcup is forbidden by nuclear spin symmetry
-selection rules</p>
-
-  <h4>Arguments</h4>
-      <table class="table table-striped varlist">
-    <thead>
-      <tr>
-        <th scope="col">Type</th>
-<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
-        <th scope="col"></th>
-        <th scope="col">Name</th>
-        <th scope="col"></th>
-    </thead>
-    <tbody>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-nlo~3"></span>
-              integer,
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>nlo</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-kalo~3"></span>
-              integer,
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>kalo</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-kclo~3"></span>
-              integer,
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>kclo</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-nup~3"></span>
-              integer,
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>nup</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-kaup~3"></span>
-              integer,
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>kaup</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-kcup~3"></span>
-              integer,
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>kcup</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
               <span class="anchor" id="variable-kind~4"></span>
               integer,
             </td>
@@ -1092,7 +1092,7 @@ selection rules</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-symaxis~5"></span>
+              <span class="anchor" id="variable-symaxis~6"></span>
               character(len=1),
             </td>
 <td>intent(in)</td>
@@ -1145,7 +1145,7 @@ selection rules</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-point_group"></span>
+              <span class="anchor" id="variable-point_group~9"></span>
               character(len=*),
             </td>
 <td>intent(in)</td>
@@ -1190,7 +1190,7 @@ selection rules</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-irrep"></span>
+              <span class="anchor" id="variable-irrep~3"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -1205,7 +1205,7 @@ selection rules</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-point_group~3"></span>
+              <span class="anchor" id="variable-point_group~11"></span>
               character(len=*),
             </td>
 <td>intent(in)</td>
@@ -1295,7 +1295,7 @@ selection rules</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-n~14"></span>
+              <span class="anchor" id="variable-n~21"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -1310,7 +1310,7 @@ selection rules</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-ka"></span>
+              <span class="anchor" id="variable-ka~2"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -1325,7 +1325,7 @@ selection rules</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-kc"></span>
+              <span class="anchor" id="variable-kc~2"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -1355,7 +1355,7 @@ selection rules</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-symaxis~2"></span>
+              <span class="anchor" id="variable-symaxis~3"></span>
               character(len=1),
             </td>
 <td>intent(in)</td>
@@ -1406,7 +1406,7 @@ Only Abelian point groups are considered. Irreps in the code will be referred to
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-point_group~2"></span>
+              <span class="anchor" id="variable-point_group~10"></span>
               character(len=*),
             </td>
 <td>intent(in)</td>
