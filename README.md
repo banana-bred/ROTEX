@@ -1,4 +1,4 @@
-See [*<span style="text-decoration: underline">docs</span>*](https://banana-bred.github.io/ROTEX/) for more detail. Github markdown may have trouble rendering some things.
+See [*<span style="text-decoration: underline">docs</span>*](https://banana-bred.github.io/ROTEX/indedx.html) for more detail. Github markdown may have trouble rendering some things.
 
 ## ROTational EXcitation of ions by electron impact (ROTEX)
 
