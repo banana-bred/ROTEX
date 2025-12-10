@@ -8,4 +8,7 @@ display: public
 license: MIT
 ---
 
+The program (main driver) can be found in main/[[rotex.f(file)]].
+It calls a small number of driver routines from [[rotex__drivers]], which do (or call other routines that do) most of the work.
+
 {!README.html!}

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+typst compile README.typ README.pdf
+
 typst compile --format=html --features=html README.typ README.html
 
 pandoc README.html -f html -t gfm --wrap=preserve -o README.md
