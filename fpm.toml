@@ -1,5 +1,5 @@
 name = "ROTEX"
-version = "0.1.2"
+version = "0.1.3"
 license = "MIT"
 author = "Josh Forer"
 maintainer = "jbf2177@columbia.edu"
@@ -16,10 +16,10 @@ suffixes = [".f"]
 macros = ["USE_FORBEAR", "USE_CDMSREADER", "USE_OPENMP"]
 
 [dependencies]
-forbear         = { git = "https://github.com/szaghi/forbear",              branch = "master" }
-CDMSreader      = { git = "https://github.com/banana-bred/CDMSreader",      branch = "main" }
-wignerd         = { git = "https://github.com/banana-bred/wignerd",         branch = "main" }
-bspline-fortran = { git = "https://github.com/banana-bred/bspline-fortran", branch = "master" }
+forbear         = { git = "https://github.com/szaghi/forbear",                branch = "master" }
+CDMSreader      = { git = "https://github.com/banana-bred/CDMSreader",        branch = "main" }
+wignerd         = { git = "https://github.com/banana-bred/wignerd",           branch = "main" }
+bspline-fortran = { git = "https://github.com/jacobwilliams/bspline-fortran", branch = "master" }
 openmp = "*"
 
 [[executable]]

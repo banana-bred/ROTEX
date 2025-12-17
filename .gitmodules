@@ -9,4 +9,7 @@
 	url = https://github.com/banana-bred/CDMSreader
 [submodule "external/bspline-fortran"]
 	path = external/bspline-fortran
-	url = https://github.com/banana-bred/bspline-fortran
+	url = https://github.com/jacobwilliams/bspline-fortran
+[submodule "external/WignerD"]
+	path = external/WignerD
+	url = https://github.com/banana-bred/WignerD

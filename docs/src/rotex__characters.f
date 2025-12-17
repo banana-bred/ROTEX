@@ -15,8 +15,10 @@ module rotex__characters
   public :: int2char
   public :: dJ2char
   public :: add_trailing
-  public :: to_lower
+  public :: upper
   public :: to_upper
+  public :: lower
+  public :: to_lower
   public :: sup
   public :: sub
 
@@ -176,7 +178,25 @@ contains
   end function dJ2char
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! simple elemental subroutine to_lower(chr)
+  pure function lower(chr) result(res)
+    !! returns a lower case character
+    implicit none
+    character(*), intent(in) :: chr
+    character(:), allocatable :: res
+    integer, parameter :: shift = ichar('a') - ichar("A")
+    integer, parameter :: uppercase_a = ichar('A')
+    integer, parameter :: uppercase_z = ichar('Z')
+    integer :: i, n, ic
+    n = len(chr)
+    res = chr
+    do i = 1, n
+      ic = ichar(res(i:i))
+      ! -- cycle if the character isn't in [A,Z]
+      if(ic .lt. uppercase_a) cycle
+      if(ic .gt. uppercase_z) cycle
+      res(i:i) = char(ic + shift)
+    enddo
+  end function lower
   pure elemental subroutine to_lower(chr)
     !! converts a character to lower case
     implicit none
@@ -194,7 +214,25 @@ contains
       chr(i:i) = char(ic + shift)
     enddo
   end subroutine to_lower
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function upper(chr) result(res)
+    !! returns an upper case character
+    implicit none
+    character(*), intent(in) :: chr
+    character(:), allocatable :: res
+    integer, parameter :: shift = ichar('a') - ichar("A")
+    integer, parameter :: lowercase_a = ichar('a')
+    integer, parameter :: lowercase_z = ichar('z')
+    integer :: i, n, ic
+    n = len(chr)
+    res = chr
+    do i = 1, n
+      ic = ichar(res(i:i))
+      ! -- cycle if the character isn't in [A,Z]
+      if(ic .lt. lowercase_a) cycle
+      if(ic .gt. lowercase_z) cycle
+      res(i:i) = char(ic - shift)
+    enddo
+  end function upper
   pure elemental subroutine to_upper(chr)
     !! converts a character to upper case
     implicit none

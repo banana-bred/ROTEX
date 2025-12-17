@@ -9,7 +9,8 @@ SRCDIR_FACE ?= external/FACE/src/lib
 SRCDIR_FORBEAR ?= external/forbear/src/lib
 SRCDIR_BSPLINE_FORTRAN  ?= external/bspline-fortran/src
 SRCDIR_CDMSREADER ?= external/CDMSreader/src
-VPATH := $(SRCDIR):$(SRCDIR_FACE):$(SRCDIR_FORBEAR):$(SRCDIR_CDMSREADER):$(SRCDIR_BSPLINE_FORTRAN):$(PRGDIR)
+SRCDIR_WIGNERD ?= external/WignerD/src
+VPATH := $(SRCDIR):$(SRCDIR_FACE):$(SRCDIR_FORBEAR):$(SRCDIR_CDMSREADER):$(SRCDIR_BSPLINE_FORTRAN):$(SRCDIR_WIGNERD):$(PRGDIR)
 USE_FORBEAR    ?= 1
 USE_OPENMP     ?= 1
 USE_CDMSREADER ?= 1
@@ -62,12 +63,18 @@ ifeq ($(USE_CDMSREADER),1)
   OBJ_CDMSREADER := $(OBJ_CDMSREADER:.f=.o)
   OBJ_CDMSREADER := $(addprefix $(OBJDIR)/,$(OBJ_CDMSREADER))
 endif
+# -- Bspline Fortran
 SRC_BSPLINE_FORTRAN := $(shell find $(SRCDIR_BSPLINE_FORTRAN) -type f \( -name '*.f' -o -name '*.f90' -o -name '*.F90' \))
 OBJ_BSPLINE_FORTRAN := $(notdir $(SRC_BSPLINE_FORTRAN))
 OBJ_BSPLINE_FORTRAN := $(OBJ_BSPLINE_FORTRAN:.f90=.o)
 OBJ_BSPLINE_FORTRAN := $(OBJ_BSPLINE_FORTRAN:.F90=.o)
 OBJ_BSPLINE_FORTRAN := $(OBJ_BSPLINE_FORTRAN:.f=.o)
 OBJ_BSPLINE_FORTRAN := $(addprefix $(OBJDIR)/,$(OBJ_BSPLINE_FORTRAN))
+# -- WignerD
+SRC_WIGNERD:= $(shell find $(SRCDIR_WIGNERD) -type f \( -name '*.f' \))
+OBJ_WIGNERD := $(notdir $(SRC_WIGNERD))
+OBJ_WIGNERD := $(OBJ_WIGNERD:.f=.o)
+OBJ_WIGNERD := $(addprefix $(OBJDIR)/,$(OBJ_WIGNERD))
 
 # -- ROTEX src and object files
 PRG := $(shell find $(PRGDIR) -name '*.f')
@@ -77,7 +84,7 @@ OBJ := $(OBJ:.f=.o)
 OBJ := $(addprefix $(OBJDIR)/,$(OBJ))
 
 # -- all objects
-OBJ_ALL := $(OBJ_FACE) $(OBJ_FORBEAR) $(OBJ_BSPLINE_FORTRAN) $(OBJ_CDMSREADER) $(OBJ)
+OBJ_ALL := $(OBJ_FACE) $(OBJ_FORBEAR) $(OBJ_BSPLINE_FORTRAN) $(OBJ_CDMSREADER) $(OBJ_WIGNERD) $(OBJ)
 
 # -- default target
 build: dirs $(BINDIR)/$(PROGRAM)
@@ -98,10 +105,17 @@ ifeq ($(USE_CDMSREADER),1)
   $(OBJDIR)/CDMSreader__constants.o: $(OBJDIR)/CDMSreader__types.o
 	$(OBJDIR)/CDMSreader__readwrite.o: $(OBJDIR)/CDMSreader__constants.o $(OBJDIR)/CDMSreader__types.o $(OBJDIR)/CDMSreader__system.o
 endif
+# -- bspline deps
 $(OBJDIR)/bspline_defc_module.o: $(OBJDIR)/bspline_kinds_module.o $(OBJDIR)/bspline_blas_module.o
 $(OBJDIR)/bspline_sub_module.o: $(OBJDIR)/bspline_kinds_module.o
 $(OBJDIR)/bspline_oo_module.o: $(OBJDIR)/bspline_kinds_module.o $(OBJDIR)/bspline_sub_module.o
 $(OBJDIR)/bspline_module.o: $(OBJDIR)/bspline_oo_module.o $(OBJDIR)/bspline_sub_module.o $(OBJDIR)/bspline_kinds_module.o $(OBJDIR)/bspline_defc_module.o $(OBJDIR)/bspline_blas_module.o
+# -- WignerD deps
+$(OBJDIR)/wignerd.o: $(OBJDIR)/wignerd__types.o $(OBJDIR)/wignerd__constants.o $(OBJDIR)/wignerd__characters.o $(OBJDIR)/wignerd__system.o $(OBJDIR)/wignerd__functions.o
+$(OBJDIR)/wignerd__characters.o: $(OBJDIR)/wignerd__types.o $(OBJDIR)/wignerd__constants.o
+$(OBJDIR)/wignerd__functions.o: $(OBJDIR)/wignerd__types.o $(OBJDIR)/wignerd__constants.o
+$(OBJDIR)/wignerd__system.o: $(OBJDIR)/wignerd__types.o
+$(OBJDIR)/wignerd__constants.o: $(OBJDIR)/wignerd__types.o
 
 # -- ROTEX build dependencies
 $(OBJDIR)/rotex__arrays.o: $(OBJDIR)/rotex__types.o $(OBJDIR)/rotex__system.o $(OBJDIR)/rotex__characters.o $(OBJDIR)/rotex__constants.o
@@ -126,7 +140,7 @@ $(OBJDIR)/rotex__wigner.o: $(OBJDIR)/rotex__constants.o $(OBJDIR)/rotex__functio
 $(OBJDIR)/rotex__writing.o: $(OBJDIR)/rotex__arrays.o $(OBJDIR)/rotex__characters.o $(OBJDIR)/rotex__constants.o $(OBJDIR)/rotex__functions.o $(OBJDIR)/rotex__kinds.o $(OBJDIR)/rotex__symmetry.o $(OBJDIR)/rotex__system.o $(OBJDIR)/rotex__types.o
 
 # -- dependencies
-$(OBJ): $(OBJ_FACE) $(OBJ_FORBEAR) $(OBJ_CDMSREADER) $(OBJ_BSPLINE_FORTRAN)
+$(OBJ): $(OBJ_FACE) $(OBJ_FORBEAR) $(OBJ_CDMSREADER) $(OBJ_BSPLINE_FORTRAN) $(OBJ_WIGNERD)
 
 # -- link
 $(BINDIR)/$(PROGRAM): $(OBJ_ALL) $(PRGDIR)/rotex.f | dirs
@@ -168,6 +182,9 @@ debug:
 > @echo ""
 > @echo "  Bspline-fortran source files:"
 > @echo "    $(SRC_BSPLINE_FORTRAN)"
+> @echo ""
+> @echo "  WignerD source files:"
+> @echo "    $(SRC_WIGNERD)"
 > @echo ""
 > @echo "  FACE source files:"
 > @echo "    $(SRC_FACE)"

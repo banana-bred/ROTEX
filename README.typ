@@ -39,7 +39,8 @@ Currently, `make` gives more flexibility, as the user can choose which optional 
 
 === Dependencies
 - A LAPACK implementation
-- #link2("Bspline-fortran","https://github.com/banana-bred/bspline-fortran") for combining cross sections on the same energy grid
+- #link2("Bspline-fortran","https://github.com/jacobwilliams/bspline-fortran") for combining cross sections on the same energy grid
+- #link2("WignerD","https://github.com/banana-bred/WignerD") for rotating rigid rotor eigenvectors
 - (_optional_) #link2("CDMSreader", "https://github.com/banana-bred/CDMSreader") for optionally reading in #link2("CDMS", "https://cdms.astro.uni-koeln.de/") data to use in the Coulomb-Born approximation
 - (_optional_) #link2("Forbear", "https://github.com/szaghi/forbear") for progress bars
 - (_optional_) #link2("OpenMP", "https://www.openmp.org/") for easy thread parallelization

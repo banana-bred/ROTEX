@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 3.3% of total for modules and submodules.">183 statements</a>
+                 title=" 4.7% of total for modules and submodules.">267 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -146,6 +146,7 @@
         <div class="list-group list-group-flush">
             <a class="list-group-item" href="../module/rotex__hamilton.html#proc-h_asym">H_asym</a>
             <a class="list-group-item" href="../module/rotex__hamilton.html#proc-assign_projections">assign_projections</a>
+            <a class="list-group-item" href="../module/rotex__hamilton.html#proc-rotate_eigvecs">rotate_eigvecs</a>
         </div>
       </div>
     </div>
@@ -290,7 +291,7 @@ The angular momentum number <script type="math/tex">N</script>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-cd4"></span>
+              <span class="anchor" id="variable-cd4~2"></span>
               type(<a href='../type/cd4_type.html'>cd4_type</a>),
             </td>
 <td>intent(in),</td>
@@ -305,7 +306,7 @@ The angular momentum number <script type="math/tex">N</script>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-cd6"></span>
+              <span class="anchor" id="variable-cd6~2"></span>
               type(<a href='../type/cd6_type.html'>cd6_type</a>),
             </td>
 <td>intent(in),</td>
@@ -326,7 +327,7 @@ The angular momentum number <script type="math/tex">N</script>
   </div>
 
               <div class="card">
-    <div class="card-header codesum"><span class="anchor" id="proc-assign_projections"></span> <h3>public module subroutine <a href='../proc/assign_projections.html'>assign_projections</a>(N, eigenH, absKvals, sort_eigvecs)  
+    <div class="card-header codesum"><span class="anchor" id="proc-assign_projections"></span> <h3>public module subroutine <a href='../proc/assign_projections.html'>assign_projections</a>(N, eigvecs, absKvals, sort_eigvecs)  
 </h3></div>
     <div class="card-body">
           
@@ -364,18 +365,17 @@ contributes the most to a particular eigenvector</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-eigenh~2"></span>
-              type(<a href='../type/eigenh_type.html'>eigenH_type</a>),
+              <span class="anchor" id="variable-eigvecs~2"></span>
+              complex(kind=dp),
             </td>
 <td>intent(in)</td>
               <td></td>            <td>
               
             </td>
             <td>::</td>
-            <td><strong>eigenH</strong></td>
+            <td><strong>eigvecs</strong>(:,:)</td>
             <td>
-<p>Contains the eigenvalues and eigenvectors of the rotational Hamiltonian for the given value of N, digaonalized in
-the Ka or the Kc symmetric top basis</p>
+<p>Eigenvectors</p>
             </td>
         </tr>
         <tr>
@@ -406,6 +406,92 @@ the Ka or the Kc symmetric top basis</p>
             <td><strong>sort_eigvecs</strong></td>
             <td>
 <p>Sort the eigenvectors ?</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-rotate_eigvecs"></span> <h3>public module subroutine <a href='../proc/rotate_eigvecs.html'>rotate_eigvecs</a>(N, from_axis, to_axis, eigvecs)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>Rotate the rigid rotor eigenvectors from one of the principal axes A,B,C to another
+principal axis A,B,C using the Wigner D-matrix</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~6"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>N</strong></td>
+            <td>
+<p>The rotational angular moment quantum number</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-from_axis"></span>
+              character(len=1),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>from_axis</strong></td>
+            <td>
+<p>On input, the starting z-axis. On output, the new z-axis</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-to_axis"></span>
+              character(len=1),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>to_axis</strong></td>
+            <td>
+<p>The target z-axis to which we rotate</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eigvecs~3"></span>
+              complex(kind=dp),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eigvecs</strong>(:,:)</td>
+            <td>
+<p>The eigenvectors</p>
             </td>
         </tr>
     </tbody>

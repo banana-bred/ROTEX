@@ -81,7 +81,7 @@ contains
     real(dp) :: einsta
     real(dp), allocatable :: Eel(:)
     real(dp), allocatable :: sigma_pcb(:), sigma_tcb(:)
-    real(dp), allocatable :: eigveclo(:), eigvecup(:)
+    complex(dp), allocatable :: eigveclo(:), eigvecup(:)
 
     complex(dp) :: spherical_dipole_moments(3)
     complex(dp) :: spherical_quadrupole_moments(5)
@@ -856,16 +856,19 @@ contains
     use rotex__types,    only: dp, n_states_type, eigenh_type, config_type
     use rotex__system,   only: die
     use rotex__arrays,   only: size_check
-    use rotex__hamilton, only: h_asym, assign_projections!, get_different_K_projections
+    use rotex__hamilton, only: h_asym, assign_projections, rotate_eigvecs
     implicit none
     type(config_type),   intent(in)  :: cfg
     integer,             intent(in)  :: num_n, n_values(:)
     type(n_states_type), intent(out) :: n_states(:)
     integer :: i_n, n
     type(eigenh_type) :: hka, hkb, hkc
+    complex(dp), allocatable :: eigvecs(:,:)
+    character(1) :: current_axis
     call size_check(n_values, num_n, "N_VALUES")
     call size_check(n_states, num_n, "N_STATES")
     do i_n = 1, num_n
+      ! if (i_n .eq. 3) stop "test"
       n = n_values(i_n)
       allocate(n_states(i_n) % einsta(2*n+1))
       n_states(i_n) % n = n
@@ -873,21 +876,28 @@ contains
       select case(cfg%rotor_kind)
       case("l", "a", "s")
         associate(a => cfg%abc(1), b => cfg%abc(2), c => cfg%abc(3))
-          call rigid_rotor(n, hka, b, c, a) ! <-- A basis, Ka = Kz
-          call rigid_rotor(n, hkb, c, a, b) ! <-- B basis, Kb = Kz
+
+          ! -- diagonalize in z=A frame so that we can use the CD coefficients and get Ka
+          current_axis = "a"
+          call rigid_rotor(n, hka, b, c, a, cfg%cd4, cfg%cd6) ! <-- A basis, Ka = Kz
+          N_states(i_N) % eigenH = HKa
+          eigvecs = HKa % eigvecs
+          call assign_projections(N, eigvecs, N_states(i_N) % Ka) ! Ka labels
+
+          ! -- rotate basis to z=C frame so that we can get Kc
+          ! call rotate_eigvecs(N, current_axis, "c", eigvecs)
+          ! call assign_projections(N, eigvecs, N_states(i_N) % Kc) ! Kc labels
+          ! -- diagonalize (without CD) in C=z basis to get Kc labels
           call rigid_rotor(n, hkc, a, b, c) ! <-- C basis, Kc = Kz
+          call assign_projections(N, hkc%eigvecs, N_states(i_N) % Kc) ! Kc labels
+
+          ! -- rotate to the desired z=A,B,C frame so that our eigenvectors agree with
+          !    the scattering calculations if needed
+          call rotate_eigvecs(N, current_axis, cfg%zaxis, eigvecs)
+          ! call rotate_eigvecs(N, "a", cfg%zaxis, eigvecs)
+          N_states(i_N) % eigenH % eigvecs = eigvecs
+
         end associate
-        ! -- Select the right basis
-        select case(cfg%zaxis)
-        case("a") ; N_states(i_N) % eigenH = HKa
-        case("b") ; N_states(i_N) % eigenH = HKb
-        case("c") ; N_states(i_N) % eigenH = HKc
-        case default
-          call die("ZAXIS must be A, B, or C")
-        end select
-        ! -- assign Ka and Kc labels
-        call assign_projections(N, Hka, N_states(i_N) % Ka) ! Ka labels
-        call assign_projections(N, Hkc, N_states(i_N) % Kc) ! Kc labels
       case default
         call die("Undefined value for namelist variable ROTOR_KIND: " // cfg%rotor_kind)
       end select
@@ -895,20 +905,26 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-    subroutine rigid_rotor(nn, ham, bx, by, bz)
+    subroutine rigid_rotor(nn, ham, bx, by, bz, cd4, cd6)
       !! Wrapper for calling the hamiltonian routine
+      use rotex__types, only: cd4_type, cd6_type
       implicit none
       integer,           intent(in)  :: nn
       type(eigenh_type), intent(out) :: ham
       real(dp),          intent(in)  :: bx, by, bz
+      type(cd4_type), intent(in), optional :: cd4
+      type(cd6_type), intent(in), optional :: cd6
+      logical :: add_cd4, add_cd6
       integer :: test
+      add_cd4 = present(cd4)
+      add_cd6 = present(cd6)
       ! -- add cd4 ?
-      test = merge(1, 0, cfg%add_cd4 .eqv. .true.)
+      test = merge(1, 0, add_cd4 .eqv. .true.)
       ! -- add cf4 & cd6 ?
-      test = merge(2, test, (cfg%add_cd6 .eqv. .true.) .AND. (cfg%add_cd4 .eqv. .true.))
+      test = merge(2, test, (add_cd6 .eqv. .true.) .AND. (add_cd4 .eqv. .true.))
       select case(test)
-        case(2) ; call h_asym(nn, ham, bx, by, bz, cfg%cd4, cfg%cd6)
-        case(1) ; call h_asym(nn, ham, bx, by, bz, cfg%cd4)
+        case(2) ; call h_asym(nn, ham, bx, by, bz, cd4, cd6)
+        case(1) ; call h_asym(nn, ham, bx, by, bz, cd4)
         case(0) ; call h_asym(nn, ham, bx, by, bz)
         case default
           call die("Somehow got something other than 0,1,2 !")

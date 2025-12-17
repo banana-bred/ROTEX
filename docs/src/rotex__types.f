@@ -47,7 +47,7 @@ module rotex__types
   type eigenH_type
     !! Contains the eigenvectors and eigenvalues of a hamiltonian
     real(dp), allocatable :: eigvals(:)
-    real(dp), allocatable :: eigvecs(:,:)
+    complex(dp), allocatable :: eigvecs(:,:)
   end type eigenH_type
 
   type N_states_type

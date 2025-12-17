@@ -10,6 +10,7 @@ module rotex__hamilton
   ! public :: H_linear
   public :: H_asym
   public :: assign_projections
+  public :: rotate_eigvecs
   ! public :: get_different_K_projections
 
 ! ================================================================================================================================ !
@@ -97,10 +98,10 @@ contains
       uplo    = "U" ! -- use upper triangle "ads"
       lda     = max(1, num_K)
       lwork   = max(1, 3*num_K - 1)
-      eigenH % eigvecs = H
       allocate(work(lwork))
-      call dsyev(jobz, uplo, num_K, eigenH % eigvecs, lda, eigenH % eigvals, work, lwork, info)
+      call dsyev(jobz, uplo, num_K, H, lda, eigenH % eigvals, work, lwork, info)
       if(info .ne. 0) call die("Procedure DSYEV returned with INFO = " // int2char(info))
+      eigenH%eigvecs = cmplx(H, 0.0_dp, kind=dp)
     end block diag
 
   end subroutine H_asym
@@ -240,7 +241,7 @@ contains
   end subroutine add_cd6
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine assign_projections(N, eigenH, absKvals, sort_eigvecs)
+  module subroutine assign_projections(N, eigvecs, absKvals, sort_eigvecs)
     use rotex__arrays, only: realloc
     !! Using the eigenvectors and energies from a diagonalized rotational Hamiltonian,
     !! determine which projection is maximal. The eigenvectors can be in the Ka or Kc basis.
@@ -253,9 +254,8 @@ contains
       !! The rotational quantum number \(N\)
     integer, intent(out), allocatable :: absKvals(:)
       !! Array of the absolte value of |K| that contributes the most to a particular eigenvector
-    type(eigenH_type), intent(in) :: eigenH
-      !! Contains the eigenvalues and eigenvectors of the rotational Hamiltonian for the given value of N, digaonalized in
-      !! the Ka or the Kc symmetric top basis
+    complex(dp), intent(in) :: eigvecs(:,:)
+      !! Eigenvectors
     logical, intent(in), optional :: sort_eigvecs
       !! Sort the eigenvectors ?
 
@@ -274,27 +274,122 @@ contains
 
     ! -- determine the projections
     do concurrent (i=1:num_K)
-      absKvals(i) = abs( Kvals( maxloc(abs(eigenH % eigvecs(:,i))**2, 1) ) )
+      absKvals(i) = abs( Kvals( maxloc(abs(eigvecs(:,i))**2, 1) ) )
     enddo
 
   end subroutine assign_projections
 
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! subroutine sort_eigenvectors(eigenH)
-  !   !! Sort the eigenvectors and energies so that the energies are in increasing order
-  !   use rotex__arrays, only: sort_index
-  !   implicit none
-  !   type(eigenH_type), intent(inout) :: eigenH
-  !   integer :: n
-  !   integer, allocatable :: indices(:)
-  !   n = size(eigenH % eigvals, 1)
-  !   allocate(indices(n))
-  !   ! -- sort energies, lowest first
-  !   call sort_index(eigenH % eigvals, indices)
-  !   ! -- swap columns based on sorted energies
-  !   eigenH % eigvals = eigenH % eigvals(indices)
-  !   eigenH % eigvecs(:,:) = eigenH % eigvecs(:, indices)
-  ! end subroutine sort_eigenvectors
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  module subroutine rotate_eigvecs(N, from_axis, to_axis, eigvecs)
+    !! Rotate the rigid rotor eigenvectors from one of the principal axes A,B,C to another
+    !! principal axis A,B,C using the Wigner D-matrix
+    use rotex__arrays,     only: is_unitary, unitary_defect
+    use rotex__kinds,      only: dp
+    use rotex__arrays,     only: adjoint
+    use rotex__characters, only: lower
+    use rotex__system,     only: stderr, die
+    use wignerd,           only: wigner_big_D
+    implicit none
+    integer,      intent(in)    :: N
+      !! The rotational angular moment quantum number
+    character(1), intent(inout) :: from_axis
+      !! On input, the starting z-axis. On output, the new z-axis
+    character(1), intent(in)    :: to_axis
+      !! The target z-axis to which we rotate
+    complex(dp),  intent(inout) :: eigvecs(:,:)
+      !! The eigenvectors
+
+    real(dp) :: a, b, g
+      !! Euler angles α β γ
+    real(dp) :: R(3,3)
+    complex(dp), allocatable :: D(:,:)
+
+    if(lower(from_axis) .eq. lower(to_axis)) return ! no rotation needed
+
+    R = frame2frame(from_axis, to_axis)
+    call rotmat2zyz(R, a, b, g)
+
+    D = wigner_big_D(N, a, b, g, use_analytic = .true.)
+
+    ! -- unitarity check on D
+    if(is_unitary(D) .eqv. .false.) then
+      write(stderr, '("Unitary defect in D: ", F7.5)') unitary_defect(D)
+      call die("Wigner D-matrix is not unitary !")
+    endif
+
+    eigvecs = matmul(adjoint(D), eigvecs)
+
+    if(is_unitary(eigvecs)) then
+      from_axis = to_axis
+      return
+    endif
+
+    write(stderr, '("From axis: ", A)') from_axis
+    write(stderr, '("To axis: ", A)') to_axis
+    write(stderr, '("Unitary defect in rotated eigenvectors: ", F7.5)') unitary_defect(eigvecs)
+    call die("Rotated eigenvectors are not unitary !")
+
+  end subroutine rotate_eigvecs
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function axes_abc(zaxis) result(frame)
+    !! Define the right-handed frame given the quantization axis axis
+    use rotex__kinds,  only: dp
+    use rotex__system, only: die
+    character(1), intent(in) :: zaxis
+    real(dp) :: frame(3,3)
+    frame = 0
+    select case(zaxis)
+    case("a","A")
+      frame(:, 1) = [0, 1, 0] ! x=b
+      frame(:, 2) = [0, 0, 1] ! y=c
+      frame(:, 3) = [1, 0, 0] ! z=a
+    case("b","B")
+      frame(:, 1) = [0, 0, 1] ! x=c
+      frame(:, 2) = [1, 0, 0] ! y=a
+      frame(:, 3) = [0, 1, 0] ! z=b
+    case("c","C")
+      frame(:, 1) = [1, 0, 0] ! x=a
+      frame(:, 2) = [0, 1, 0] ! y=b
+      frame(:, 3) = [0, 0, 1] ! z=c
+    case default
+      call die("Untolerated axis "//zaxis//". Must be one of 'A' 'B' 'C'")
+    end select
+  end function axes_abc
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function frame2frame(from_axis, to_axis) result(R)
+    !! Return the rotation matrix R that maps coordinates between frames
+    use rotex__kinds, only: dp
+    implicit none
+    character(*), intent(in) :: from_axis, to_axis
+    real(dp) :: R(3,3)
+    real(dp) :: from_frame(3,3), to_frame(3,3)
+    from_frame = axes_abc(from_axis)
+    to_frame   = axes_abc(to_axis)
+    R = matmul(to_frame, transpose(from_frame))
+  end function frame2frame
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure subroutine rotmat2zyz(R, a, b, g)
+    !! Convert a rotation matrix to the zyz Euler angles α(a) β(b) γ(g)
+    !! R = Rz(α)*Ry(β)*Rz(γ)
+    use rotex__kinds, only: dp
+    implicit none
+    real(dp), intent(in) :: R(3,3)
+    real(dp), intent(out) :: a, b, g
+    real(dp), parameter :: EPS = 1000*epsilon(1._dp)
+    real(dp) :: sb
+    b = acos(max(-1._dp, min(1._dp, real(R(3,3), kind=dp))))
+    sb = sin(b)
+    if(abs(sb) .gt. EPS) then
+      a = atan2(R(2,3),  R(1,3))
+      g = atan2(R(3,2), -R(3,1))
+      return
+    endif
+    g = 0._dp
+    a = atan2(R(2,1), R(1,1))
+  end subroutine rotmat2zyz
 
 ! ================================================================================================================================ !
 end module rotex__hamilton
