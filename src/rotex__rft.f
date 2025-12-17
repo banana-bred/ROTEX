@@ -249,7 +249,7 @@ contains
     integer :: nchans_J
     integer, allocatable :: idx(:), uniq_syms(:)
     complex(dp), allocatable :: Smat_rot(:,:)
-    real(dp), allocatable :: U(:,:)
+    complex(dp), allocatable :: U(:,:)
 
     flag = .false.
     nchans_elec = size(smat_elec, 1)
@@ -551,7 +551,7 @@ contains
       !! Electronic S-matrix
     complex(dp),                      intent(out) :: smat_rot(:,:)
       !! Rotatinal S-matrix
-    real(dp),                         intent(out) :: U(:,:)
+    complex(dp),                         intent(out) :: U(:,:)
       !! Unitary transformation matrix
     character(1),                     intent(in) :: point_group
       !! The point group of the scattering calculations
@@ -562,7 +562,7 @@ contains
     integer :: in, itau, iK, jelec
     integer :: Omega
     logical, allocatable :: mask(:)
-    real(dp), allocatable :: C(:, :)
+    complex(dp), allocatable :: C(:, :)
     nchans_rot  = size(rot_channels, 1)
     nchans_elec = size(elec_channels, 1)
     Smat_rot = 0

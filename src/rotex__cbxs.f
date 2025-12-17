@@ -35,10 +35,10 @@ contains
       !! The energy (hartrees) of the initial state
     real(dp), intent(in) :: eup
       !! The energy (hartrees) of the final state
-    real(dp), intent(in) :: eigveclo(:)
+    complex(dp), intent(in) :: eigveclo(:)
       !! Eigenvector of the initial state in the basis of symmetric top wavefunctions; the coefficients
       !! \(c^{N,\tau}_K)
-    real(dp), intent(in) :: eigvecup(:)
+    complex(dp), intent(in) :: eigvecup(:)
       !! Eigenvector of the final state in the basis of symmetric top wavefunctions; the coefficients
       !! \(c^{N',\tau'}_{K})
     real(dp), intent(inout) :: einsta
@@ -140,10 +140,10 @@ contains
       !! The energy (hartrees) of the initial state
     real(dp), intent(in) :: Ep
       !! The energy (hartrees) of the final state
-    real(dp), intent(in) :: eigvec(:)
+    complex(dp), intent(in) :: eigvec(:)
       !! Eigenvector of the initial state in the basis of symmetric top wavefunctions; the coefficients
       !! \(c^{N,\tau}_K)
-    real(dp), intent(in) :: eigvecp(:)
+    complex(dp), intent(in) :: eigvecp(:)
       !! Eigenvector of the final state in the basis of symmetric top wavefunctions; the coefficients
       !! \(c^{N',\tau'}_{K})
     real(dp), intent(inout) :: einsta
@@ -302,9 +302,9 @@ contains
       !! the quantum number N'
     complex(dp), intent(in)  :: multipole_moments(:)
       !! array of spherical multipole moments
-    real(dp),    intent(in)  :: eigvec(:)
+    complex(dp),    intent(in)  :: eigvec(:)
       !! The eigenvector for the initial state Nτ
-    real(dp),    intent(in)  :: eigvecp(:)
+    complex(dp),    intent(in)  :: eigvecp(:)
       !! The eigenvector for the final state N'τ'
 
     integer :: ilambda1, ilambda2
@@ -346,8 +346,8 @@ contains
 
             tmpz =       multipole_moments(ilambda1)  &
                  * conjg(multipole_moments(ilambda2)) &
-                 * eigvecp(i_K1p) * eigvec(i_K1)                          &
-                 * eigvec(i_K2)   * eigvecp(i_K2p)                        &
+                 * eigvecp(i_K1p)      * conjg(eigvec(i_K1))  &
+                 * conjg(eigvec(i_K2)) * eigvecp(i_K2p)       &
                  * wigner3j(2*N, 2*Np, 2*lambda, -2*K1,  2*K1p, -2*mu1)   &
                  * wigner3j(2*N, 2*Np, 2*lambda, -2*K2,  2*K2p, -2*mu2)
                  ! * wigner3j(2*N, 2*Np, 2*lambda,  2*K1, -2*K1p,  2*mu1)   &
