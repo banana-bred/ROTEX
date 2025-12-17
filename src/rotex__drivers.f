@@ -1310,11 +1310,12 @@ contains
       deallocate(xs_dxcite_smat(itrans_smat)%vec)
 
       ! -- Write excitation to disk
-      call write_total_xs_to_file(                  &
+      call write_total_xs_to_file(            &
           "Total"                             &
         , total_xs_output_dir                 &
         , cfg%zaxis                           &
-        , egrid_tot_smat(idx_smat) - Elo      &
+        , Egrid_xcite                         &
+        , Egrid_dxcite                        &
         , transitions_all(itrans_all)         &
         , xs_xcite_combined                   &
         , xs_dxcite_combined                  &
