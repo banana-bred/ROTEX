@@ -19,7 +19,7 @@ Github markdown may have trouble rendering some things.
 Calculates electron-impact rotational (de-)excitation cross sections for asymmetric top molecules, using
 + the _Coulomb-Born (CB) approximation_ and
 + _Multichannel Quantum Defect Theory (MQDT)_.
-One or both can be used to determine electron-impact rotational excitation cross sections
+One or both can be used to determine electron-impact rotational excitation cross sections.
 If both are used, then the so-called Born closure will be used for electron-impact transitions that appear in the MQDT and CB cross sections to account for partial waves that are not included in the MQDT treatment:
 #align(center)[
   $σ("total") = σ("MQDT") + σ("TCB") - σ("PCB")$
@@ -41,7 +41,7 @@ Currently, `make` gives more flexibility, as the user can choose which optional 
 - A LAPACK implementation
 - #link2("Bspline-fortran","https://github.com/jacobwilliams/bspline-fortran") for combining cross sections on the same energy grid
 - #link2("WignerD","https://github.com/banana-bred/WignerD") for rotating rigid rotor eigenvectors
-- (_optional_) #link2("CDMSreader", "https://github.com/banana-bred/CDMSreader") for optionally reading in #link2("CDMS", "https://cdms.astro.uni-koeln.de/") data to use in the Coulomb-Born approximation
+- (_optional_) #link2("CDMSreader", "https://github.com/banana-bred/CDMSreader") for reading in #link2("CDMS", "https://cdms.astro.uni-koeln.de/") data to use in the Coulomb-Born approximation
 - (_optional_) #link2("Forbear", "https://github.com/szaghi/forbear") for progress bars
 - (_optional_) #link2("OpenMP", "https://www.openmp.org/") for easy thread parallelization
 
@@ -59,7 +59,7 @@ In the package directory, just run
 `make`
 
 to install the executable to `bin/rotex`.
-The dependency repositories are automatically assumed to be included in build/dependencies (see the Makefile for more details).
+The dependency repositories are automatically assumed to be included in `external/` (see the Makefile for more details).
 To omit the use of `CDMSreader`, `Forbear`, or `OpenMP`, just set the corresponding environmental variable to 0.
 For example,
 

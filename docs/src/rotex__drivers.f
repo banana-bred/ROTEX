@@ -868,7 +868,6 @@ contains
     call size_check(n_values, num_n, "N_VALUES")
     call size_check(n_states, num_n, "N_STATES")
     do i_n = 1, num_n
-      ! if (i_n .eq. 3) stop "test"
       n = n_values(i_n)
       allocate(n_states(i_n) % einsta(2*n+1))
       n_states(i_n) % n = n
@@ -884,9 +883,6 @@ contains
           eigvecs = HKa % eigvecs
           call assign_projections(N, eigvecs, N_states(i_N) % Ka) ! Ka labels
 
-          ! -- rotate basis to z=C frame so that we can get Kc
-          ! call rotate_eigvecs(N, current_axis, "c", eigvecs)
-          ! call assign_projections(N, eigvecs, N_states(i_N) % Kc) ! Kc labels
           ! -- diagonalize (without CD) in C=z basis to get Kc labels
           call rigid_rotor(n, hkc, a, b, c) ! <-- C basis, Kc = Kz
           call assign_projections(N, hkc%eigvecs, N_states(i_N) % Kc) ! Kc labels
@@ -894,7 +890,6 @@ contains
           ! -- rotate to the desired z=A,B,C frame so that our eigenvectors agree with
           !    the scattering calculations if needed
           call rotate_eigvecs(N, current_axis, cfg%zaxis, eigvecs)
-          ! call rotate_eigvecs(N, "a", cfg%zaxis, eigvecs)
           N_states(i_N) % eigenH % eigvecs = eigvecs
 
         end associate
