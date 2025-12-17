@@ -283,14 +283,21 @@ contains
   module subroutine rotate_eigvecs(N, from_axis, to_axis, eigvecs)
     !! Rotate the rigid rotor eigenvectors from one of the principal axes A,B,C to another
     !! principal axis A,B,C using the Wigner D-matrix
+    use rotex__arrays,     only: is_unitary, unitary_defect
     use rotex__kinds,      only: dp
     use rotex__arrays,     only: adjoint
     use rotex__characters, only: lower
+    use rotex__system,     only: stderr, die
     use wignerd,           only: wigner_big_D
     implicit none
     integer,      intent(in)    :: N
-    character(1), intent(in)    :: from_axis, to_axis
+      !! The rotational angular moment quantum number
+    character(1), intent(inout) :: from_axis
+      !! On input, the starting z-axis. On output, the new z-axis
+    character(1), intent(in)    :: to_axis
+      !! The target z-axis to which we rotate
     complex(dp),  intent(inout) :: eigvecs(:,:)
+      !! The eigenvectors
 
     real(dp) :: a, b, g
       !! Euler angles α β γ
@@ -304,7 +311,23 @@ contains
 
     D = wigner_big_D(N, a, b, g, use_analytic = .true.)
 
+    ! -- unitarity check on D
+    if(is_unitary(D) .eqv. .false.) then
+      write(stderr, '("Unitary defect in D: ", F7.5)') unitary_defect(D)
+      call die("Wigner D-matrix is not unitary !")
+    endif
+
     eigvecs = matmul(adjoint(D), eigvecs)
+
+    if(is_unitary(eigvecs)) then
+      from_axis = to_axis
+      return
+    endif
+
+    write(stderr, '("From axis: ", A)') from_axis
+    write(stderr, '("To axis: ", A)') to_axis
+    write(stderr, '("Unitary defect in rotated eigenvectors: ", F7.5)') unitary_defect(eigvecs)
+    call die("Rotated eigenvectors are not unitary !")
 
   end subroutine rotate_eigvecs
 

@@ -288,7 +288,8 @@ contains
       prefix                                &
     , output_directory                      &
     , zaxis                                 &
-    , egrid_total                           &
+    , Eel_ex                                &
+    , Eel_dex                               &
     , transition                            &
     , xs_xcite                              &
     , xs_dxcite                             &
@@ -311,8 +312,10 @@ contains
       !! The directory in which output files are placed
     character(1), intent(in) :: zaxis
       !! The A, B, or C axis that lies along z
-    real(dp), intent(in) :: egrid_total(:)
-      !! The grid of total energies in au
+    real(dp), intent(in) :: Eel_ex(:)
+      !! The excitation electron energy grid in au
+    real(dp), intent(in) :: Eel_dex(:)
+      !! The de-excitation electron energy grid in au
     type(asymtop_rot_transition_type), intent(in) :: transition
       !! The transition to write to file
     real(dp),  intent(in) :: xs_xcite(:)
@@ -326,7 +329,6 @@ contains
     integer :: nlo, nup, kalo, kaup, kclo, kcup
     integer :: funit_ex, funit_dex
     real(dp) :: Elo,  Eup
-    real(dp) :: Eel_dex, Eel_ex
     character(:), allocatable :: prefix_local, state_name1, state_name2,  filename_ex, filename_dex
     character(*), parameter :: XS_TYPE = "S-matrix + Coulomb-Born correction"
     type(asymtop_rot_channel_type) :: lo, up
@@ -334,7 +336,8 @@ contains
     prefix_local = trim(prefix)
     call add_trailing(prefix_local, ".")
 
-    ne = size(egrid_total, 1)
+    ne = size(Eel_ex, 1)
+    call size_check(Eel_dex,   ne, "EEL_DEX")
     call size_check(xs_xcite,  ne, "XS_XCITE")
     call size_check(xs_dxcite, ne, "XS_DXCITE")
 
@@ -375,10 +378,8 @@ contains
     call write_xs_header(funit_ex,  zaxis, Nlo, Kalo, Kclo, Nup, Kaup, Kcup, XS_TYPE, i2c(lmax), "∞")
     call write_xs_header(funit_dex, zaxis, Nup, Kaup, Kcup, Nlo, Kalo, Kclo, XS_TYPE, i2c(lmax), "∞")
     do ie = iemin, ne
-      Eel_ex  = egrid_total(ie) - Elo
-      Eel_dex = egrid_total(ie) - Eup
-      write(funit_ex,  ENERGY_XS_WRITE_FMT) Eel_ex  * au2ev, xs_xcite(ie)  * au2cm*au2cm
-      write(funit_dex, ENERGY_XS_WRITE_FMT) Eel_dex * au2ev, xs_dxcite(ie) * au2cm*au2cm
+      write(funit_ex,  ENERGY_XS_WRITE_FMT) Eel_ex(ie)  * au2ev, xs_xcite(ie)  * au2cm*au2cm
+      write(funit_dex, ENERGY_XS_WRITE_FMT) Eel_dex(ie) * au2ev, xs_dxcite(ie) * au2cm*au2cm
     enddo
     close(funit_ex)
     close(funit_dex)

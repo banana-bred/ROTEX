@@ -864,10 +864,11 @@ contains
     integer :: i_n, n
     type(eigenh_type) :: hka, hkb, hkc
     complex(dp), allocatable :: eigvecs(:,:)
+    character(1) :: current_axis
     call size_check(n_values, num_n, "N_VALUES")
     call size_check(n_states, num_n, "N_STATES")
     do i_n = 1, num_n
-      if (i_n .eq. 3) stop "test"
+      ! if (i_n .eq. 3) stop "test"
       n = n_values(i_n)
       allocate(n_states(i_n) % einsta(2*n+1))
       n_states(i_n) % n = n
@@ -877,40 +878,24 @@ contains
         associate(a => cfg%abc(1), b => cfg%abc(2), c => cfg%abc(3))
 
           ! -- diagonalize in z=A frame so that we can use the CD coefficients and get Ka
+          current_axis = "a"
           call rigid_rotor(n, hka, b, c, a, cfg%cd4, cfg%cd6) ! <-- A basis, Ka = Kz
           N_states(i_N) % eigenH = HKa
           eigvecs = HKa % eigvecs
           call assign_projections(N, eigvecs, N_states(i_N) % Ka) ! Ka labels
 
-          print*, N
-          print*
-          block
-            integer :: i
-            print*, "A"
-            do i=1, 2*n+1 ; print*, eigvecs(i,:) ; enddo
-            print*, "Ka: ", N_states(i_n)%Ka
-          end block
           ! -- rotate basis to z=C frame so that we can get Kc
-          call rotate_eigvecs(N, "a", "c", eigvecs)
-          call assign_projections(N, eigvecs, N_states(i_N) % Kc) ! Kc labels
-          block
-            integer :: i
-            print*, "C"
-            do i=1, 2*n+1 ; print*, eigvecs(i,:) ; enddo
-            print*, "Kc: ", N_states(i_n)%Kc
-          end block
+          ! call rotate_eigvecs(N, current_axis, "c", eigvecs)
+          ! call assign_projections(N, eigvecs, N_states(i_N) % Kc) ! Kc labels
+          ! -- diagonalize (without CD) in C=z basis to get Kc labels
+          call rigid_rotor(n, hkc, a, b, c) ! <-- C basis, Kc = Kz
+          call assign_projections(N, hkc%eigvecs, N_states(i_N) % Kc) ! Kc labels
 
           ! -- rotate to the desired z=A,B,C frame so that our eigenvectors agree with
           !    the scattering calculations if needed
-          call rotate_eigvecs(N, "c", cfg%zaxis, eigvecs)
+          call rotate_eigvecs(N, current_axis, cfg%zaxis, eigvecs)
+          ! call rotate_eigvecs(N, "a", cfg%zaxis, eigvecs)
           N_states(i_N) % eigenH % eigvecs = eigvecs
-          block
-            integer :: i
-            print*, cfg%zaxis
-            do i=1, 2*n+1 ; print*, eigvecs(i,:) ; enddo
-            print*, "Ka: ", N_states(i_n)%Ka
-            print*, "Kc: ", N_states(i_n)%Kc
-          end block
 
         end associate
       case default
