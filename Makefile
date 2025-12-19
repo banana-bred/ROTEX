@@ -106,6 +106,7 @@ ifeq ($(USE_CDMSREADER),1)
 	$(OBJDIR)/CDMSreader__readwrite.o: $(OBJDIR)/CDMSreader__constants.o $(OBJDIR)/CDMSreader__types.o $(OBJDIR)/CDMSreader__system.o
 endif
 # -- bspline deps
+$(OBJDIR)/bspline_blas_module.o: $(OBJDIR)/bspline_kinds_module.o
 $(OBJDIR)/bspline_defc_module.o: $(OBJDIR)/bspline_kinds_module.o $(OBJDIR)/bspline_blas_module.o
 $(OBJDIR)/bspline_sub_module.o: $(OBJDIR)/bspline_kinds_module.o
 $(OBJDIR)/bspline_oo_module.o: $(OBJDIR)/bspline_kinds_module.o $(OBJDIR)/bspline_sub_module.o
@@ -132,7 +133,7 @@ $(OBJDIR)/rotex__polygamma.o: $(OBJDIR)/rotex__kinds.o $(OBJDIR)/rotex__utils.o
 $(OBJDIR)/rotex__progress.o: $(OBJ_FORBEAR)
 $(OBJDIR)/rotex__reading.o: $(OBJDIR)/rotex__characters.o $(OBJDIR)/rotex__constants.o $(OBJDIR)/rotex__kinds.o $(OBJDIR)/rotex__symmetry.o $(OBJDIR)/rotex__system.o $(OBJDIR)/rotex__types.o $(OBJDIR)/rotex__utils.o
 $(OBJDIR)/rotex__rft.o: $(OBJDIR)/rotex__arrays.o $(OBJDIR)/rotex__characters.o $(OBJDIR)/rotex__constants.o $(OBJDIR)/rotex__functions.o $(OBJDIR)/rotex__kinds.o $(OBJDIR)/rotex__linalg.o $(OBJDIR)/rotex__symmetry.o $(OBJDIR)/rotex__system.o $(OBJDIR)/rotex__types.o $(OBJDIR)/rotex__wigner.o
-$(OBJDIR)/rotex__splines.o: $(OBJDIR)/bspline_module.o $(OBJDIR)/rotex__arrays.o $(OBJDIR)/rotex__kinds.o
+$(OBJDIR)/rotex__splines.o: $(OBJ_BSPLINE_FORTRAN) $(OBJDIR)/rotex__arrays.o $(OBJDIR)/rotex__kinds.o
 $(OBJDIR)/rotex__symmetry.o: $(OBJDIR)/rotex__characters.o $(OBJDIR)/rotex__system.o $(OBJDIR)/rotex__types.o
 $(OBJDIR)/rotex__types.o: $(OBJDIR)/rotex__constants.o $(OBJDIR)/rotex__kinds.o $(OBJDIR)/rotex__system.o
 $(OBJDIR)/rotex__utils.o: $(OBJDIR)/rotex__kinds.o $(OBJDIR)/rotex__system.o $(OBJDIR)/rotex__types.o
