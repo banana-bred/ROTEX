@@ -112,7 +112,7 @@ $(OBJDIR)/bspline_sub_module.o: $(OBJDIR)/bspline_kinds_module.o
 $(OBJDIR)/bspline_oo_module.o: $(OBJDIR)/bspline_kinds_module.o $(OBJDIR)/bspline_sub_module.o
 $(OBJDIR)/bspline_module.o: $(OBJDIR)/bspline_oo_module.o $(OBJDIR)/bspline_sub_module.o $(OBJDIR)/bspline_kinds_module.o $(OBJDIR)/bspline_defc_module.o $(OBJDIR)/bspline_blas_module.o
 # -- WignerD deps
-$(OBJDIR)/wignerd.o: $(OBJDIR)/wignerd__types.o $(OBJDIR)/wignerd__constants.o $(OBJDIR)/wignerd__characters.o $(OBJDIR)/wignerd__system.o $(OBJDIR)/wignerd__functions.o
+$(OBJDIR)/wignerd.o: $(OBJDIR)/wignerd__types.o $(OBJDIR)/wignerd__constants.o $(OBJDIR)/wignerd__characters.o $(OBJDIR)/wignerd__system.o $(OBJDIR)/wignerd__functions.o $(OBJDIR)/wignerd__lapack_interface.o
 $(OBJDIR)/wignerd__characters.o: $(OBJDIR)/wignerd__types.o $(OBJDIR)/wignerd__constants.o
 $(OBJDIR)/wignerd__functions.o: $(OBJDIR)/wignerd__types.o $(OBJDIR)/wignerd__constants.o
 $(OBJDIR)/wignerd__system.o: $(OBJDIR)/wignerd__types.o
