@@ -1121,7 +1121,7 @@ contains
       !! Indices for the S-matrix energy grid after interpolation (some energies might have been removed)
 
     logical :: warned_smat
-    real(dp) :: Eground, Elo, Eup, dE
+    real(dp) :: Elo, Eup, dE
     real(dp), allocatable :: xs_pcb(:), xs_tcb(:), Egrid_xcite(:), Egrid_dxcite(:)
     real(dp), allocatable :: egrid_tot_cb(:)
     real(dp), allocatable :: xs_xcite_combined(:)
@@ -1155,10 +1155,6 @@ contains
     ! -- mapping from total transitions to CB and S-matrix transitions
     idx_all2cb   = findloc_transitions(transitions_all, transitions_cb)
     idx_all2smat = findloc_transitions(transitions_all, transitions_smat)
-
-    ! -- the rotational ground state (may not be 0, like when using CDMS averaging)
-    Eground = minval(transitions_smat(:) % lo % E)
-    Eground = minval([Eground, transitions_cb(:) % lo % E])
 
     warned_smat = .false.
 
@@ -1256,8 +1252,10 @@ contains
       !    need to be combined. Interpolate the CB cross sections (they have no resonances)
       !    to match the S-matrix energy grid
 
-      ! -- CB grid is electron energy, convert to total energy
-      egrid_tot_cb = egrid_cb(itrans_cb) % vec + Eup - Eground
+      ! -- CB grid is electron energy, convert to total energy and ensure they start at the same energy
+      !    given that egrid_tot_smat(1) may be positive if using averaged CDMS data
+      egrid_tot_cb = egrid_cb(itrans_cb) % vec + Eup + egrid_tot_smat(1)
+      ! egrid_tot_cb = egrid_cb(itrans_cb) % vec + Eup - Eground
 
       ! -- PCB
       call interpolate_replace(       &
@@ -1274,9 +1272,10 @@ contains
       )
 
       ! -- σTot = σSmat + σTCB - σPCB (excitation)
-      xs_xcite_combined = xs_xcite_smat(itrans_smat)%vec(idx_smat) &
-                        + xs_xcite_tcb(itrans_cb)%vec(:)           &
+      xs_xcite_combined = xs_xcite_smat(itrans_smat)%vec(idx_smat(:)) &
+                        + xs_xcite_tcb(itrans_cb)%vec(:)              &
                         - xs_xcite_pcb(itrans_cb)%vec(:)
+
 
       ! -- detailed balance, get de-excitation CB cross sections because we haven't stored
       !    those explicitly
@@ -1287,31 +1286,30 @@ contains
       dE = Eup - Elo
 
       ! -- electron energy grid for de-excitation
-      Egrid_xcite  = egrid_tot_smat(idx_smat) - Elo
-      Egrid_dxcite = egrid_tot_smat(idx_smat) - Eup
-      ! Egrid_dxcite = Egrid_xcite - dE
-      if(any(Egrid_xcite .le. 0.0_dp)) call die("Excitation electron energy grid has negative&
+      Egrid_xcite  = egrid_tot_smat(idx_smat(:)) - Elo
+      Egrid_dxcite = egrid_tot_smat(idx_smat(:)) - Eup
+      if(any(Egrid_xcite .le. 0.0_dp)) call die("Excitation electron energy grid has nonpositive&
         & energies, which means there was an issue converting the CB electron-energy grid to&
         & a total-energy grid")
-      if(any(Egrid_dxcite .le. 0.0_dp)) call die("De-excitation electron energy grid has negative&
+      if(any(Egrid_dxcite .le. 0.0_dp)) call die("De-excitation electron energy grid has nonpositive&
         & energies, which means there was an issue converting the CB electron-energy grid to&
         & a total-energy grid")
 
       ! -- σ(E1) * E1 = σ(E2) * E2
-      xs_pcb = xs_xcite_pcb(itrans_cb)%vec &
-             * Egrid_xcite                 &
-             / Egrid_dxcite                &
-             * real(2*nlo+1, kind=dp)      &
+      xs_pcb = xs_xcite_pcb(itrans_cb)%vec(:) &
+             * Egrid_xcite(:)                 &
+             / Egrid_dxcite(:)                &
+             * real(2*nlo+1, kind=dp)         &
              / real(2*nup+1, kind=dp)
-      xs_tcb = xs_xcite_tcb(itrans_cb)%vec &
-             * Egrid_xcite                 &
-             / Egrid_dxcite                &
-             * real(2*nlo+1, kind=dp)      &
+      xs_tcb = xs_xcite_tcb(itrans_cb)%vec(:) &
+             * Egrid_xcite(:)                 &
+             / Egrid_dxcite(:)                &
+             * real(2*nlo+1, kind=dp)         &
              / real(2*nup+1, kind=dp)
 
       ! -- σTot = σSmat + σTCB - σPCB (de-excitation)
-      xs_dxcite_combined = xs_dxcite_smat(itrans_smat)%vec(idx_smat) &
-                         + xs_tcb(:)                                 &
+      xs_dxcite_combined = xs_dxcite_smat(itrans_smat)%vec(idx_smat(:)) &
+                         + xs_tcb(:)                                    &
                          - xs_pcb(:)
 
       ! -- no longer needed, deallocate
