@@ -649,28 +649,28 @@ contains
       dz = cartesian_moments_array(3)
 
       spherical_moments_array = [                            & !  μ
-                                  (dx - im*dy)/sqrt(2.0_dp)  & ! -1
+                                  (dx + im*dy)/sqrt(2.0_dp)  & ! -1
                                 , cmplx(dz, kind = dp)       & !  0
-                                , -(dx + im*dy)/sqrt(2.0_dp) & !  1
+                                , -(dx - im*dy)/sqrt(2.0_dp) & !  1
                                 ]
 
     ! -- quadrupole
     case(6)
 
-      Qxx = cartesian_moments_array(ilambda_start)
-      Qxy = cartesian_moments_array(ilambda_start+1)
-      Qxz = cartesian_moments_array(ilambda_start+2)
-      Qyy = cartesian_moments_array(ilambda_start+3)
-      Qyz = cartesian_moments_array(ilambda_start+4)
-      Qzz = cartesian_moments_array(ilambda_start+5)
+      ! Qxx = cartesian_moments_array(ilambda_start)
+      ! Qxy = cartesian_moments_array(ilambda_start+1)
+      ! Qxz = cartesian_moments_array(ilambda_start+2)
+      ! Qyy = cartesian_moments_array(ilambda_start+3)
+      ! Qyz = cartesian_moments_array(ilambda_start+4)
+      ! Qzz = cartesian_moments_array(ilambda_start+5)
 
-      spherical_moments_array = [                      & !  μ
-               (Qxx - Qyy - 2*im*Qxy)/2                & ! -2
-             , (Qxz - im*Qyz)/sqrt(2.0_dp)             & ! -1
-             , (2*Qzz - Qxy - Qyy)/sqrt(6.0_dp) + 0*im & !  0
-             ,-(Qxz + im*Qyz)/sqrt(2.0_dp)             & !  1
-             , (Qxx - Qyy + 2*im*Qxy)/2                & !  2
-             ]
+      ! spherical_moments_array = [                      & !  μ
+      !          (Qxx - Qyy - 2*im*Qxy)/2                & ! -2
+      !        , (Qxz - im*Qyz)/sqrt(2.0_dp)             & ! -1
+      !        , (2*Qzz - Qxy - Qyy)/sqrt(6.0_dp) + 0*im & !  0
+      !        ,-(Qxz + im*Qyz)/sqrt(2.0_dp)             & !  1
+      !        , (Qxx - Qyy + 2*im*Qxy)/2                & !  2
+      !        ]
 
     case default
       call die("Passed a cartesian multipole moment array of unacceptable size !")

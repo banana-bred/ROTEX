@@ -150,6 +150,7 @@ contains
 
     if(n < 1) return
 
+    if(allocated(chr) .eqv. .false.) return
     if(chr(n:m) .eq. trail) return
 
     chr = chr // trail

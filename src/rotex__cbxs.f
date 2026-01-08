@@ -346,8 +346,8 @@ contains
 
             tmpz =       multipole_moments(ilambda1)  &
                  * conjg(multipole_moments(ilambda2)) &
-                 * eigvecp(i_K1p)      * conjg(eigvec(i_K1))  &
-                 * conjg(eigvec(i_K2)) * eigvecp(i_K2p)       &
+                 * eigvecp(i_K1p)        * conjg(eigvec(i_K1))  &
+                 * conjg(eigvecp(i_K2p)) * eigvec(i_K2)       &
                  * wigner3j(2*N, 2*Np, 2*lambda, -2*K1,  2*K1p, -2*mu1)   &
                  * wigner3j(2*N, 2*Np, 2*lambda, -2*K2,  2*K2p, -2*mu2)
                  ! * wigner3j(2*N, 2*Np, 2*lambda,  2*K1, -2*K1p,  2*mu1)   &
@@ -458,7 +458,7 @@ contains
     !!   "Electromagnetic Excitation: Theory of Coulomb Excitation with Heavy Ions " by Kurt Alder and Aage Winther, Chapter IX,
     !!    section 2, page 244, equation 14.
     !! The integral given in that text is \(I^\lambda_{ll'}=-4M^\lambda_{ll'}\) in atomic units, based on equations 7 and 11 of the
-    !! same section. For values of l larger than 1, a recursion formula is used for the integral \(M^\lambda_{ll'}\), given in
+    !! same section. For values of λ larger than 1, a recursion formula is used for the integral \(M^\lambda_{ll'}\), given in
     !!   "Study of Nuclear Structure by Electromagnetic Excitation with Accelerated Ions" by K. Alder, A. Bohr, T. Huus,
     !!    B. Mottelson, and A. Winther, equation II B.70–71 on page 453 for the λ=1 case.
     use rotex__types,     only: dp

@@ -803,10 +803,10 @@ contains
     call to_lower(channel_energy_units_override)
 
     ! -- remove spaces
-    point_group      = trim(point_group)
-    kmat_dir         = trim(kmat_dir)
-    channels_dir     = trim(channels_dir)
-    output_directory = trim(output_directory)
+    if(allocated(point_group))      point_group      = trim(point_group)
+    if(allocated(kmat_dir))         kmat_dir         = trim(kmat_dir)
+    if(allocated(channels_dir))     channels_dir     = trim(channels_dir)
+    if(allocated(output_directory)) output_directory = trim(output_directory)
 
     ! -- add trailing directory separator to directories if needed, make directories as needed
     call add_trailing(output_directory, ds)
@@ -848,8 +848,6 @@ contains
     cfg%add_cd6                  = add_cd6
     cfg%xs_zero_threshold        = xs_zero_threshold
     if(add_cd4 .eqv. .true.) then
-      if(any([dn,dnk,dk,deltan,deltak] .eq. 0.0_dp)) &
-        call die("Please specify all 4th-order centrifugal distortion parameters !")
       dn      = dn     / au2invcm
       dnk     = dnk    / au2invcm
       dk      = dk     / au2invcm
@@ -859,8 +857,6 @@ contains
     endif
     if(add_cd6 .eqv. .true.) then
       if(add_cd4 .eqv. .false.) call die("Don't add the sextic correction while omitting the quartic correction !")
-      if(any([hn,hnk,hkn,hk,etan,etank,etak] .eq. 0.0_dp)) &
-        call die("Please specify all 6th-order centrifugal distortion parameters !")
       hn    = hn    / au2invcm
       hnk   = hnk   / au2invcm
       hkn   = hkn   / au2invcm
