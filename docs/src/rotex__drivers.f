@@ -77,7 +77,7 @@ contains
     integer :: sym
     integer, allocatable :: lambdas(:)
 
-    real(dp) :: elo, eup, de, estart, eend
+    real(dp) :: elo, eup, de, estart, eend, ei
     real(dp) :: einsta
     real(dp), allocatable :: Eel(:)
     real(dp), allocatable :: sigma_pcb(:), sigma_tcb(:)
@@ -196,7 +196,10 @@ contains
             ! -- coulomb-born energy grid starts at the excitation threshold + Ei, and goes to
             !    some absolute electron energy ef that does not depend on the threshold
             de = eup - elo
-            estart = de + cfg%ei
+            ! -- the starting value of the calculation grid based on the maximum allowed value of
+            !    η' for an excitation.
+            ei = 1.0_dp / (2.0_dp*cfg%eta_thresh**2)
+            estart = de + ei
             eend = cfg%ef
             if(eend .le. estart) call die("The starting energy of this coulomb-born energy grid is higher than the ending energy")
             Eel = logrange(estart, eend, cfg%ne)
@@ -298,6 +301,7 @@ contains
             )
 
             ! -- extrapolate excitation CB cross sections as 1/E to threshold ?
+            ! if(cfg%do_xtrap) call xtrapolate_cb_xs(cfg%Ei_xtrap, dE, cfg%nE_xtrap, Eel, sigma_pcb, sigma_tcb)
             if(cfg%do_xtrap) call xtrapolate_cb_xs(cfg%Ei_xtrap, dE, cfg%nE_xtrap, Eel, sigma_pcb, sigma_tcb)
 
             ! -- append energy grid, including extrapolated energies if that happened
@@ -1085,12 +1089,13 @@ contains
     !! together:
     !!   σ(tot) = σ(S-mat) + σ(TCB) - σ(PCB)
 
-    use rotex__types,   only: rvector_type, art_type => asymtop_rot_transition_type, findloc_transitions&
-                            , config_type, n_states_type
-    use rotex__system,  only: stdout, stderr, die, DS => DIRECTORY_SEPARATOR
-    use rotex__arrays,  only: append_uniq, size_check
-    use rotex__splines, only: interpolate_replace
-    use rotex__writing, only: write_cb_xs_to_file, write_smat_xs_to_file, write_total_xs_to_file
+    use rotex__types,     only: rvector_type, art_type => asymtop_rot_transition_type, findloc_transitions&
+                              , config_type, n_states_type
+    use rotex__system,    only: stdout, stderr, die, DS => DIRECTORY_SEPARATOR
+    use rotex__arrays,    only: append_uniq, size_check
+    use rotex__splines,   only: interpolate_replace
+    use rotex__constants, only: au2ev
+    use rotex__writing,   only: write_cb_xs_to_file, write_smat_xs_to_file, write_total_xs_to_file
 
     implicit none
 
@@ -1113,6 +1118,7 @@ contains
     type(rvector_type), intent(inout) :: xs_dxcite_smat(:)
       !! Array of arrays of S-matrix cross sections for each transition; de-excitation
 
+    integer :: kalo, kclo, kaup, kcup
     integer :: itrans_cb, itrans_smat, itrans_all
     integer :: ntrans_cb, ntrans_smat, ntrans_all, nlo, nup
     integer, allocatable :: idx_all2smat(:), idx_all2cb(:)
@@ -1121,7 +1127,7 @@ contains
       !! Indices for the S-matrix energy grid after interpolation (some energies might have been removed)
 
     logical :: warned_smat
-    real(dp) :: Elo, Eup, dE
+    real(dp) :: Elo, Eup, dE, Eground
     real(dp), allocatable :: xs_pcb(:), xs_tcb(:), Egrid_xcite(:), Egrid_dxcite(:)
     real(dp), allocatable :: egrid_tot_cb(:)
     real(dp), allocatable :: xs_xcite_combined(:)
@@ -1157,6 +1163,16 @@ contains
     idx_all2smat = findloc_transitions(transitions_all, transitions_smat)
 
     warned_smat = .false.
+
+    Eground = egrid_tot_smat(1)
+
+    ! -- make sure energies line up
+    if( Eground .ne. minval(transitions_all(:)%lo%E) ) then
+      write(stderr, '("EGROUND: ", E30.20)') Eground
+      write(stderr, '("MINVAL(TRANSITIONS_ALL(:)%LO%E): ", E30.20)') minval(transitions_all(:)%lo%E)
+      call die("Ground state energy mismatch ! Cannot align collision energy grids.")
+    endif
+
 
     ! -- loop over all transitions
     transloop: do itrans_all = 1, ntrans_all
@@ -1252,10 +1268,16 @@ contains
       !    need to be combined. Interpolate the CB cross sections (they have no resonances)
       !    to match the S-matrix energy grid
 
-      ! -- CB grid is electron energy, convert to total energy and ensure they start at the same energy
-      !    given that egrid_tot_smat(1) may be positive if using averaged CDMS data
-      egrid_tot_cb = egrid_cb(itrans_cb) % vec + Eup + egrid_tot_smat(1)
-      ! egrid_tot_cb = egrid_cb(itrans_cb) % vec + Eup - Eground
+      nlo = transitions_all(itrans_all)%lo%n
+      nup = transitions_all(itrans_all)%up%n
+      Elo = transitions_all(itrans_all)%lo%E
+      Eup = transitions_all(itrans_all)%up%E
+      dE  = Eup - Elo
+
+      ! -- CB grid is electron energy, convert to total energy and ensure
+      !    that they start at the same energy relative to 0 (which may or may
+      !    not be the ground state energy because of CDMS averaging)
+      egrid_tot_cb = egrid_cb(itrans_cb) % vec + Elo
 
       ! -- PCB
       call interpolate_replace(       &
@@ -1279,33 +1301,44 @@ contains
 
       ! -- detailed balance, get de-excitation CB cross sections because we haven't stored
       !    those explicitly
-      nlo = transitions_all(itrans_all)%lo%n
-      nup = transitions_all(itrans_all)%up%n
-      Elo = transitions_all(itrans_all)%lo%E
-      Eup = transitions_all(itrans_all)%up%E
-      dE = Eup - Elo
 
       ! -- electron energy grid for de-excitation
       Egrid_xcite  = egrid_tot_smat(idx_smat(:)) - Elo
       Egrid_dxcite = egrid_tot_smat(idx_smat(:)) - Eup
-      if(any(Egrid_xcite .le. 0.0_dp)) call die("Excitation electron energy grid has nonpositive&
+
+      ! -- check for negative (de-)excitation energies
+      if(any(Egrid_xcite .le. 0.0_dp)) then
+        kaup = transitions_all(itrans_all)%up%Ka
+        kcup = transitions_all(itrans_all)%up%Kc
+        kalo = transitions_all(itrans_all)%lo%Ka
+        kclo = transitions_all(itrans_all)%lo%Kc
+        write(stderr, '("(N,Ka,Kc) -> (N,Ka,Kc): ", "(",2(I0,","),I0,")", " -> ", "(",2(I0,","),I0,")")') &
+          nlo, kalo, kclo, nup, kaup, kcup
+        write(stderr, '("Egrid_xcite(1) (eV): ", E30.20)') Egrid_xcite(1)*au2ev
+        call die("Excitation electron energy grid has nonpositive&
         & energies, which means there was an issue converting the CB electron-energy grid to&
         & a total-energy grid")
-      if(any(Egrid_dxcite .le. 0.0_dp)) call die("De-excitation electron energy grid has nonpositive&
+      endif
+      if(any(Egrid_dxcite .le. 0.0_dp)) then
+        kaup = transitions_all(itrans_all)%up%Ka
+        kcup = transitions_all(itrans_all)%up%Kc
+        kalo = transitions_all(itrans_all)%lo%Ka
+        kclo = transitions_all(itrans_all)%lo%Kc
+        write(stderr, '("(N,Ka,Kc) -> (N,Ka,Kc): ", "(",2(I0,","),I0,")", " -> ", "(",2(I0,","),I0,")")') &
+          nlo, kalo, kclo, nup, kaup, kcup
+        write(stderr, '("Egrid_dxcite(1) (eV): ", E30.20)') Egrid_dxcite(1)*au2ev
+        call die("De-excitation electron energy grid has nonpositive&
         & energies, which means there was an issue converting the CB electron-energy grid to&
         & a total-energy grid")
+      endif
 
       ! -- σ(E1) * E1 = σ(E2) * E2
-      xs_pcb = xs_xcite_pcb(itrans_cb)%vec(:) &
-             * Egrid_xcite(:)                 &
-             / Egrid_dxcite(:)                &
-             * real(2*nlo+1, kind=dp)         &
-             / real(2*nup+1, kind=dp)
-      xs_tcb = xs_xcite_tcb(itrans_cb)%vec(:) &
-             * Egrid_xcite(:)                 &
-             / Egrid_dxcite(:)                &
-             * real(2*nlo+1, kind=dp)         &
-             / real(2*nup+1, kind=dp)
+      xs_pcb = xs_xcite_pcb(itrans_cb)%vec(:)           &
+             * Egrid_xcite(:)         / Egrid_dxcite(:) &
+             * real(2*nlo+1, kind=dp) / real(2*nup+1, kind=dp)
+      xs_tcb = xs_xcite_tcb(itrans_cb)%vec(:)           &
+             * Egrid_xcite(:)         / Egrid_dxcite(:) &
+             * real(2*nlo+1, kind=dp) / real(2*nup+1, kind=dp)
 
       ! -- σTot = σSmat + σTCB - σPCB (de-excitation)
       xs_dxcite_combined = xs_dxcite_smat(itrans_smat)%vec(idx_smat(:)) &

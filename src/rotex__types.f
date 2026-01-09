@@ -252,8 +252,8 @@ module rotex__types
     real(dp) :: xs_zero_threshold
       !! Any cross section with value only smaller than this (cm²) will
       !! be ignore and will not be printed
-    real(dp) :: Ei
-      !! The first electron energy for excitation to consider relative to the initial state's energy
+    real(dp) :: eta_thresh
+      !! The largest value of η' allowed for evaluating the hypergeometric functions ₂F₁(a,b;c;z)
     real(dp) :: Ef
       !! The last  electron energy for excitation to consider relative to the initial state's energy
     real(dp) :: Ei_xtrap

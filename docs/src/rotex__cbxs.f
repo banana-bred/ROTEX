@@ -700,8 +700,9 @@ contains
   end function Mrecur
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine xtrapolate_cb_xs(Ei_xtrap, Ethresh, nE_xtrap, Eel, xs_pcb, xs_tcb)
+  module subroutine xtrapolate_cb_xs(Ei_xtrap, Ethresh, nE_xtrap, Eel, xs_pcb, xs_tcb)
     !! Extrapolate an excitation/de-excitation cross section to its excitation threshold.
+    !! Use a power law scaling by fitting the first 2 points.
     !! Re-allocates Eel and xs to contain the extrapolated values
 
     use rotex__kinds,     only: dp
@@ -726,6 +727,7 @@ contains
       !! On input, the total Coulomb-Born cross sections.
       !! On output, the total Coulomb-Born cross sections with extrapolated cross sections prepended
 
+    real(dp) :: Apcb, Atcb, ppcb, ptcb
     real(dp), allocatable :: Eel_pre(:), xs_pre_pcb(:), xs_pre_tcb(:)
 
     if(nE_xtrap .le. 1) call die("NE_XTRAP must be > 1")
@@ -733,9 +735,13 @@ contains
     ! -- extrapolated energies
     Eel_pre = logrange(Ethresh + Ei_xtrap, Eel(1), nE_xtrap, inclast = .false.)
 
-    ! -- extrapolated cross sections σ1*E1 = σ2*E2
-    xs_pre_pcb  = xs_pcb(1) * Eel(1) / Eel_pre
-    xs_pre_tcb  = xs_tcb(1) * Eel(1) / Eel_pre
+    ! -- get power law fit parmeters for σPCB and σTCB
+    call simple_powerlaw_fit(Apcb, ppcb, Eel(1:2), xs_pcb(1:2))
+    call simple_powerlaw_fit(Atcb, ptcb, Eel(1:2), xs_tcb(1:2))
+
+    ! -- extrapolate cross sections
+    xs_pre_pcb = Apcb*Eel_pre**(-ppcb)
+    xs_pre_tcb = Atcb*Eel_pre**(-ptcb)
 
     ! -- new energy grid
     Eel     = [Eel_pre, Eel]
@@ -745,6 +751,81 @@ contains
     xs_tcb  = [xs_pre_tcb, xs_tcb]
 
   end subroutine xtrapolate_cb_xs
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure subroutine simple_powerlaw_fit(A, p, E, xs)
+    !! Just fit the first two points cross sections to a power law.
+    !! Preserves continuity in the derivative. Also make sure the
+    !! cross section does not diverge faster than 1/E as E->0⁺
+    use rotex__kinds, only: dp
+    implicit none
+    real(dp), intent(out) :: A, p
+    real(dp), intent(in) :: E(2), xs(2)
+    p = -log(xs(2)/xs(1)) / log(E(2)/E(1))
+    p = min(p, 1.0_dp)
+    A = xs(1) * E(1)**p
+  end subroutine simple_powerlaw_fit
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine powerlaw_fit(A, p, Eel, xs, nfit)
+    !! Power-law extrapolatioln to threshold for σCB using
+    !! the first nfit available points, assuming:
+    !!   σ(E) = A * (E-Ethresh)^(-p)
+    !! Returns A and p
+
+    use rotex__kinds,  only: dp
+    use rotex__system, only: stderr, die
+    use rotex__arrays, only: size_check
+
+    implicit none
+
+    real(dp), intent(out) :: A, p
+      !! Power law fit parameters
+      ! real(dp), intent(in) :: Ethresh
+    real(dp), intent(in)  :: Eel(:)
+      !! Electron energy
+    real(dp), intent(in)  :: xs(:)
+      !! Cross sections
+    integer,  intent(in)  :: nfit
+      !! Number of points to sample/fit
+
+    integer :: i, n
+    real(dp) :: sx, sy, sxx, sxy, denom, slope, intercept, logx, logy
+    n = size(Eel, 1)
+    call size_check(xs, n, "XS")
+
+    if(n .lt. nfit) then
+      write(stderr, '("N: ", I0)') n
+      write(stderr, '("NFIT: ", I0)') nfit
+      call die("Number of fit points is larger than the number of available points !")
+    endif
+
+    ! -- least squares minimization of the linearized equation
+    sx = 0  ! Σ xi
+    sy = 0  ! Σ yi
+    sxx = 0 ! Σ xi²
+    sxy = 0 ! Σ xi*yi
+    do i=1, n
+      ! logx = log(Eel(i)-Ethresh)
+      logx = log(Eel(i))
+      logy = log(xs(i))
+      sx = sx + logx
+      sy = sy + logy
+      sxx = sxx + logx*logx
+      sxy = sxy + logx*logy
+    enddo
+
+    !                           y = b     +   m  x
+    ! -- σ = A (ΔE)*(-p) => ln(σ) = ln(A) + (-p) ln(ΔE)
+    !    intercept -------------------^     ^
+    !    slope -----------------------------^
+    denom     = n*sxx - sx*sx
+    slope     = (n*sxy - sx*sy) / denom
+    intercept = (sy - slope*sx) / real(n, kind=dp)
+    p = -slope
+    A = exp(intercept)
+
+  end subroutine powerlaw_fit
 
 ! ================================================================================================================================ !
 end module rotex__CBXS

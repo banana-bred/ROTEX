@@ -191,11 +191,9 @@ This can be run with only the data that is included in the namelist group, but c
     !!   μx = cartesian_dipole_moments(1)
     !!   μy = cartesian_dipole_moments(2)
     !!   μz = cartesian_dipole_moments(3)
-  Ei =
-    !! The smallest energy (eV) above the upper state threshold
-    !! at which to start performing scattering calculations. This should not be 0
-    !! and should not be too close to 0 because the hypergeometric functions are not
-    !! well-behaved there.
+  eta_thresh = 50 ! au
+    !! The largest value of η' allowed for evaluating
+    !! the hypergeometric functions ₂F₁(a,b;c;z)
   Ef =
     !! The largest energy (eV) above the lower state threshold t oconsider for performing
     !! cross section calculations. This is the endpoint of the electron energy grid for CB calculations

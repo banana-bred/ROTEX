@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 0.7% of total for procedures.">20 statements</a>
+                 title=" 0.8% of total for procedures.">23 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -153,7 +153,7 @@
     </div>
     
     <div class="col-md-9" id='text'>
-    <h2>public pure module subroutine xtrapolate_cb_xs(Ei_xtrap, Ethresh, nE_xtrap, Eel, xs_pcb, xs_tcb)  
+    <h2>public module subroutine xtrapolate_cb_xs(Ei_xtrap, Ethresh, nE_xtrap, Eel, xs_pcb, xs_tcb)  
 </h2>
         <div class="card mb-4">
       <h3 class="card-header card-title bg-light">Uses</h3>
@@ -161,9 +161,9 @@
         <ul class="list-group list-group-flush">
             <li class="list-group-item">
               <ul class="list-inline">
-                  <li class="list-inline-item"><a href='../module/rotex__functions.html'>rotex__functions</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__kinds.html'>rotex__kinds</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__functions.html'>rotex__functions</a></li>
               </ul>
             </li>
         </ul>
@@ -172,6 +172,7 @@
 
 
     <p>Extrapolate an excitation/de-excitation cross section to its excitation threshold.
+Use a power law scaling by fitting the first 2 points.
 Re-allocates Eel and xs to contain the extrapolated values</p>
 
 
@@ -188,7 +189,7 @@ Re-allocates Eel and xs to contain the extrapolated values</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-ei_xtrap~2"></span>
+              <span class="anchor" id="variable-ei_xtrap"></span>
               real(kind=dp),
             </td>
 <td>intent(in)</td>
@@ -218,7 +219,7 @@ Re-allocates Eel and xs to contain the extrapolated values</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-ne_xtrap~2"></span>
+              <span class="anchor" id="variable-ne_xtrap"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -233,7 +234,7 @@ Re-allocates Eel and xs to contain the extrapolated values</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-eel~2"></span>
+              <span class="anchor" id="variable-eel"></span>
               real(kind=dp),
             </td>
 <td>intent(inout),</td>
@@ -249,7 +250,7 @@ On output, the electron energy grid with extrapolated energies prepended</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-xs_pcb~2"></span>
+              <span class="anchor" id="variable-xs_pcb"></span>
               real(kind=dp),
             </td>
 <td>intent(inout),</td>
@@ -265,7 +266,7 @@ On output, the partial Coulomb-Born cross sections with extrapolated cross secti
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-xs_tcb~2"></span>
+              <span class="anchor" id="variable-xs_tcb"></span>
               real(kind=dp),
             </td>
 <td>intent(inout),</td>

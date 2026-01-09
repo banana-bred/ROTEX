@@ -33,7 +33,7 @@ $control_namelist
     !!   "A"   | B   C   A
     !!   "B"   | C   A   B
     !!   "C"   | A   B   C
-  ABC = 29.039328888249521, 12.420704910253077, 8.4684880765245136 ! cm⁻¹
+  ABC = 29.0, 12.4, 8.47 ! cm⁻¹
     !! The A, B, and C rotationa constants (cm⁻¹) of the target molecule, such that
     !! A = ABC(1)
     !! B = ABC(2)
@@ -142,11 +142,9 @@ $coulomb_namelist
     !!   μx = cartesian_dipole_moments(1)
     !!   μy = cartesian_dipole_moments(2)
     !!   μz = cartesian_dipole_moments(3)
-  Ei = 1.2e-3 ! eV
-    !! The smallest energy (eV) above the upper state threshold
-    !! at which to start performing scattering calculations. This should not be 0
-    !! and should not be too close to 0 because the hypergeometric functions are not
-    !! well-behaved there.
+  eta_thresh = 50 ! au
+    !! The largest value of η' allowed for evaluating
+    !! the hypergeometric functions ₂F₁(a,b;c;z)
   Ef = 2 ! eV
     !! The largest energy (eV) above the lower state threshold t oconsider for performing
     !! cross section calculations. This is the endpoint of the electron energy grid for CB calculations

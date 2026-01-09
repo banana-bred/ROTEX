@@ -633,7 +633,7 @@ contains
     integer :: nE_xtrap = DEFAULT_INT
     integer :: lmax_partial = DEFAULT_INT
     integer :: lmax_total = DEFAULT_INT
-    real(dp) :: Ei = 0.0_dp
+    real(dp) :: eta_thresh = 0.0_dp
     real(dp) :: Ef = 0.0_dp
     real(dp) :: Ei_xtrap = 0.0_dp
     real(dp) :: cartesian_dipole_moments(3)
@@ -683,7 +683,7 @@ contains
                          use_CDMS_einstA              &
                        , only_einsta                  &
                        , cdms_file                    &
-                       , ei                           &
+                       , eta_thresh                   &
                        , ef                           &
                        , ne                           &
                        , ne_xtrap                     &
@@ -769,9 +769,8 @@ contains
       endif
       if(do_dipole .eqv. .false.) call die("DO_DIPOLE in COULOMB_NAMELIST should not be set to .FALSE.; nothing would be done")
       if(do_quadrupole) call die("DO_QUADRUPOLE in COULOMB_NAMELIST should not be set to true; it is not implemented")
-      if(Ei .eq. 0.0_dp) call die("EI in COULOMB_NAMELIST must be defined and be positive")
+      if(eta_thresh .eq. 0.0_dp) call die("eta_thresh in COULOMB_NAMELIST must be defined and be positive")
       if(Ef .eq. 0.0_dp) call die("EF in COULOMB_NAMELIST must be defined and be positive")
-      if(Ef .le. Ei) call die("EF ≤ EI in COULOMB_NAMELIST is not allowed")
       if(nE .eq. DEFAULT_INT .OR. ne .le. 0) call die("NE in COULOMB_NAMELIST must be defined and positive")
       if(lmax_partial .eq. DEFAULT_INT) call die("LMAX_PARTIAL in COULOMB_NAMELIST must be defined and nonnegative")
       if(lmax_total .eq. DEFAULT_INT .AND. (analytic_total_cb(1) .eqv. .false.)) &
@@ -780,8 +779,8 @@ contains
         if(ne_xtrap .eq. DEFAULT_INT .OR. ne_xtrap .le. 0) then
           call die("NE_XTRAP in COULOMB_NAMELIST must be defined and positive if DO_XTRAP is .TRUE.")
         endif
-        if(Ei_xtrap .eq. 0.0_dp .OR. Ei_xtrap .gt. Ei) then
-          call die("EI_XTRAP in COULOMB_NAMELIST must be defined, nonzero, and less than EI if DO_XTRAP is .TRUE.")
+        if(Ei_xtrap .eq. 0.0_dp) then
+          call die("EI_XTRAP in COULOMB_NAMELIST must be defined, and nonzero if DO_XTRAP is .TRUE.")
         endif
       endif
     endif
@@ -790,7 +789,6 @@ contains
     call to_lower(zaxis)
 
     ! -- convert to atomic units
-    Ei                = Ei                / au2ev
     Ef                = Ef                / au2ev
     Ei_xtrap          = Ei_xtrap          / au2ev
     ABC(:)            = ABC(:)            / au2invcm
@@ -900,7 +898,7 @@ contains
 #endif
       cfg%use_cdms_einsta              = use_cdms_einsta
       cfg%analytic_total_cb            = analytic_total_cb(:)
-      cfg%ei                           = ei
+      cfg%eta_thresh                   = eta_thresh
       cfg%ef                           = ef
       cfg%ne                           = ne
       cfg%ne_xtrap                     = ne_xtrap

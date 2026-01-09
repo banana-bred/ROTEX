@@ -533,7 +533,7 @@ contains
     !! Do the rotational frame transformation for a specific symmetry
     use rotex__kinds,      only: dp
     use rotex__types,      only: elec_channel_type, asymtop_rot_channel_l_type, n_states_type
-    use rotex__arrays,     only: size_check, is_unitary, is_symmetric, adjoint
+    use rotex__arrays,     only: size_check, is_unitary, is_symmetric
     use rotex__wigner,     only: clebsch
     use rotex__system,     only: die, stderr, stdout
     use rotex__functions,  only: neg
@@ -591,14 +591,17 @@ contains
               * clebsch(lj, -lambdaj, J, Omega, Ni, Ki)
         enddo
       enddo
-      ! -- S^J = Σ_Ω USU⁺ (for each Ω)
-      Smat_rot = Smat_rot + matmul( U, matmul(Smat_elec, adjoint(U)) )
+      ! -- S^J = Σ_Ω USUT (for each Ω)
+      !    NOTE the lack of conjugation on UT
+      Smat_rot = Smat_rot + matmul( U, matmul(Smat_elec, transpose(U)) )
       ! -- diagnostics if we fail to produce a unitary S
-      C = C + matmul(U, adjoint(U))
+      C = C + matmul(U, transpose(U))
     enddo
 
-    if(is_symmetric(Smat_rot) .eqv. .false.) &
+    if(is_symmetric(Smat_rot) .eqv. .false.) then
+      write(stderr, '("Maxval S-ST: ", E30.20)') maxval(abs(Smat_rot-transpose(Smat_rot)))
       call die("The S-matrix is not symmetric for J = " // i2c(j) // " ❌")
+    endif
 
     if(is_unitary(Smat_rot)   .eqv. .true.) then
       write(stdout, '("S-matrix is unitary for J = ", I0, " ✔️")') J
@@ -617,10 +620,10 @@ contains
       enddo
       write(stderr, *)
       write(stderr, '("Rank of UU+: ", I0)') rank(C)
-      write(stderr, '("Unitary defect in UU+:  ", F15.9)') unitary_defect(C)
+      write(stderr, '("Unitary defect in UUT:  ", F15.9)') unitary_defect(C)
       ! call printmat(Smat_elec, stderr, "The electronic S-matrix")
       ! call printmat(Smat_rot,  stderr, "The post-RFT S-matrix")
-      write(stderr, '("Unitary defect in USU+: ", F15.9)') unitary_defect(Smat_rot)
+      write(stderr, '("Unitary defect in USUT: ", F15.9)') unitary_defect(Smat_rot)
       call die("The S-matrix is not unitary for J = " // i2c(J) // " ❌")
     end block err
 
