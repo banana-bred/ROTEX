@@ -1,0 +1,7 @@
+{
+  "excl_paths": [
+    "docs",
+    "build",
+    ".git"
+  ]
+}
