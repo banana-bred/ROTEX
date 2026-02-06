@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title="<p> 6.2% of total for derived types.</p>Including implementation: 7 statements,  6.2% of total for derived types.">7 statements</a>
+                 title="<p> 6.1% of total for derived types.</p>Including implementation: 7 statements,  6.1% of total for derived types.">7 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -134,11 +134,11 @@
       </a>
       <div id="vars-0" class="collapse">
         <div class="list-group list-group-flush">
-            <a class="list-group-item" href="../type/n_states_type.html#variable-n~5">N</a>
-            <a class="list-group-item" href="../type/n_states_type.html#variable-eigenh">eigenH</a>
-            <a class="list-group-item" href="../type/n_states_type.html#variable-ka~3">Ka</a>
-            <a class="list-group-item" href="../type/n_states_type.html#variable-kc~3">Kc</a>
+            <a class="list-group-item" href="../type/n_states_type.html#variable-eigenh~2">eigenH</a>
             <a class="list-group-item" href="../type/n_states_type.html#variable-einsta~3">EinstA</a>
+            <a class="list-group-item" href="../type/n_states_type.html#variable-ka~4">Ka</a>
+            <a class="list-group-item" href="../type/n_states_type.html#variable-kc~4">Kc</a>
+            <a class="list-group-item" href="../type/n_states_type.html#variable-n~9">N</a>
         </div>
       </div>
     </div>
@@ -188,24 +188,7 @@ and state labels</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-n~5"></span>
-              integer,
-            </td>
-              <td>public</td>
-            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>N</strong></td>
-                <td></td>
-                <td></td>
-            <td>
-                
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-eigenh"></span>
+              <span class="anchor" id="variable-eigenh~2"></span>
               type(<a href='eigenh_type.html'>eigenH_type</a>),
             </td>
               <td>public</td>
@@ -218,40 +201,6 @@ and state labels</p>
                 <td></td>
             <td>
                 <p>The decomposed Hamiltonian for this rotational level</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-ka~3"></span>
-              integer,
-            </td>
-              <td>public,</td>
-            <td>
-              allocatable
-            </td>
-            <td>::</td>
-            <td><strong>Ka</strong>(:)</td>
-                <td></td>
-                <td></td>
-            <td>
-                <p>The projections Ka</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-kc~3"></span>
-              integer,
-            </td>
-              <td>public,</td>
-            <td>
-              allocatable
-            </td>
-            <td>::</td>
-            <td><strong>Kc</strong>(:)</td>
-                <td></td>
-                <td></td>
-            <td>
-                <p>The projections Kc</p>
             </td>
         </tr>
         <tr>
@@ -269,6 +218,57 @@ and state labels</p>
                 <td></td>
             <td>
                 <p>The Einstein coefficients for transitions to all lower states (0 if none)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ka~4"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+              allocatable
+            </td>
+            <td>::</td>
+            <td><strong>Ka</strong>(:)</td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>The projections Ka</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kc~4"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+              allocatable
+            </td>
+            <td>::</td>
+            <td><strong>Kc</strong>(:)</td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>The projections Kc</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~9"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>N</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>Rotational quantum number</p>
             </td>
         </tr>
     </tbody>

@@ -1,0 +1,13 @@
+&xsecin                   ! used by I_XSECS (see docs/ixsecs)
+  name = 'e + HCOX - doublet A1',
+  ieunit = 2,             ! energy unit - 1 = Ryd, 2 = eV
+  ixsn = 1,               ! cross-section unit - 1 = bohr**2, 2 = angstrom**2, 3 = pi*bohr**2
+  maxi = 1,               ! the highest initial state for which cross sections are required
+  maxf = 0,               ! the highest final state for which cross sections are required
+  luchan = 10,            ! channel information unit number
+  nchset = 1,  ! index of the dataset in channel information file
+  icform = 'F',           ! format of the channel information file
+  lutmt = 1120,     ! file with T-matrices
+  itform = 'U',  ! formatted/unformatted switch for unit LUTMT = 12 (T-matrix)
+  luxsn = 1220,            ! formatted cross sections
+/

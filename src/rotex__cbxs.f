@@ -8,7 +8,6 @@ module rotex__CBXS
 
   public :: get_einsta_only
   public :: get_CB_xs_asym
-  public :: M
   public :: xtrapolate_cb_xs
 
 ! ================================================================================================================================ !
@@ -35,10 +34,10 @@ contains
       !! The energy (hartrees) of the initial state
     real(dp), intent(in) :: eup
       !! The energy (hartrees) of the final state
-    complex(dp), intent(in) :: eigveclo(:)
+    complex(dp), intent(in), allocatable :: eigveclo(:)
       !! Eigenvector of the initial state in the basis of symmetric top wavefunctions; the coefficients
       !! \(c^{N,\tau}_K)
-    complex(dp), intent(in) :: eigvecup(:)
+    complex(dp), intent(in), allocatable :: eigvecup(:)
       !! Eigenvector of the final state in the basis of symmetric top wavefunctions; the coefficients
       !! \(c^{N',\tau'}_{K})
     real(dp), intent(inout) :: einsta
@@ -97,8 +96,9 @@ contains
       case(1)
         einsta = einsta &
                + am_summation * 4._dp/3._dp * (omega * invc)**3 * (2*nlo+1)
+               ! + am_summation * 4._dp * (omega * invc)**3 * (2*nlo+1)
       case(2)
-        einsta = einsta + am_summation * 2._dp/15._dp * (omega * invc)**5 * (2*nlo+1)
+        ! einsta = einsta + am_summation * 2._dp/15._dp * (omega * invc)**5 * (2*nlo+1)
       end select
 
     enddo multipoles
@@ -106,22 +106,39 @@ contains
   end subroutine get_einsta_only
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine get_CB_xs_asym( energies, sigma, Z &
-                               , N, Np, E, Ep, eigvec, eigvecp &
-                               , einsta, use_CDMS &
-                               , do_dipole, do_quadrupole &
-                               , dipole_moments, quadrupole_moments &
-                               , analytic_total_cb, lmax)
+  module subroutine get_CB_xs_asym( energies           &
+                                  , sigma              &
+                                  , Z                  &
+                                  , rotor_kind         &
+                                  , N                  &
+                                  , Np                 &
+                                  , E                  &
+                                  , Ep                 &
+                                  , eigvec             &
+                                  , eigvecp            &
+                                  , einsta             &
+                                  , use_CDMS           &
+                                  , do_dipole          &
+                                  , do_quadrupole      &
+                                  , dipole_moments     &
+                                  , quadrupole_moments &
+                                  , analytic_total_cb  &
+                                  , lmax               &
+                                  )
                                ! , analytic_total_cb, lmax, atol, rtol)
     !! Calculate the excitation and de-excitation cross sections (xs) for an asymmetric top up.
     !! The sum over partial waves is either truncated to \(l_\text{max}\) or determined analytically.
     !! The summation over the angular momentum components, multipole terms, and partial waves are separable
-    !! for each value of λ as summation = (sum over angular momentum and multipole moments) \(\times\) (sum overpartial waves).
+    !! for each value of λ as summation = (sum over angular momentum and multipole moments) \(\times\) (sum over partial waves).
+    !! The first sum does not involve the scattering electron, which means that it is independent
+    !! of the target's charge. The second sum is the only one that changes whether the target
+    !! is neutral.
 
     use rotex__types,      only: dp
     use rotex__system,     only: die
-    use rotex__constants,  only: invc
+    use rotex__constants,  only: invc, pi
     use rotex__functions,  only: istriangle
+    use rotex__wigner,     only: wigner3j
 
     implicit none
 
@@ -132,6 +149,8 @@ contains
       !! Returned with the same size as `energies`
     integer, intent(in) :: Z
       !! Target charge
+    character(1), intent(in) :: rotor_kind
+      !! The kind of rotor we're dealing with: a(symmetric top), s(ymmetric top), l(inear rotor)
     integer, intent(in) :: N
       !! the angular momentum quantum number \(N\)
     integer, intent(in) :: Np
@@ -171,8 +190,6 @@ contains
 
     nE    = size(energies, 1)
     omega = Ep - E
-
-    if(Z .eq. 0) call die("Coulomb-Born method should not be called on neutral targets !")
 
     ! -- (re)allocate sigma arrays if necessary
     if(allocated(sigma)) then
@@ -215,13 +232,26 @@ contains
       case(1)
         if((use_CDMS .eqv. .false.) .OR. einsta .eq. 0) then
           ! -- calculate the am_summation ourselves
-          call multipole_am_summation_asym(am_summation, lambda, N, Np, multipole_moments, eigvec, eigvecp)
+          select case(rotor_kind)
+          case("l")
+            ! -- |μz|² * (N,N,λ;0,0,0)²
+            am_summation = abs(multipole_moments(2))**2 * wigner3j(N,Np,lambda,0,0,0)**2
+          case("s")
+            ! -- the reduced angular momentum and multipole moment summation
+            !    for symmetric tops
+            call die("multipole am summation not defined yet for symmetric tops")
+          case("a")
+            ! -- the full angular momentum and multipole moment summation
+            !    for asymmetric tops
+            call multipole_am_summation_asym(am_summation, lambda, N, Np, multipole_moments, eigvec, eigvecp)
+          end select
         else
           ! -- use pre-existing Einstein A coeff from the CDMS read
           am_summation = einsta * 3._dp/4._dp * (omega * invc)**(-3) / (2*N+1)
         endif
       case(2)
-        call multipole_am_summation_asym(am_summation, lambda, N, Np, multipole_moments, eigvec, eigvecp)
+        call die("quadrupoles not implemented yet")
+        ! call multipole_am_summation_asym(am_summation, lambda, N, Np, multipole_moments, eigvec, eigvecp)
       end select
 
       nullify(multipole_moments)
@@ -233,7 +263,7 @@ contains
       ! -- if the summation is basically 0 for this multipole term, check the next one
       ! if(am_summation .lt. 1e-16_dp) cycle multipoles
 
-      ! -- do the summation over partial waves
+      ! -- do the summation over partial waves; independent of rotor kind
       if(analytic_total_cb(lambda) .eqv. .true.) then
         call get_infinite_pwsum(pw_summation, energies, E, Ep, lambda, Z)
       else
@@ -243,7 +273,8 @@ contains
       if(any(pw_summation .lt. 0)) &
         call die("The partial wave summation is negative for at least one energy, which is not physical !")
 
-      sigma  = sigma + pw_summation * am_summation / (2*lambda+1)
+      !   σ =         4π/(2λ+1)              * (target)     * (electron)
+      sigma = sigma + 4.0_dp*pi/(2*lambda+1) * am_summation * pw_summation
 
       select case(lambda)
       case(1)
@@ -252,7 +283,7 @@ contains
                  + am_summation * 4._dp/3._dp * (omega * invc)**3 * (2*N+1)
         endif
       case(2)
-        einsta = einsta + am_summation * 2._dp/15._dp * (omega * invc)**5 * (2*N+1)
+        ! einsta = einsta + am_summation * 2._dp/15._dp * (omega * invc)**5 * (2*N+1)
       end select
 
     enddo multipoles
@@ -371,10 +402,11 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine get_infinite_pwsum(summation, energies, E, Ep, lambda, Z)
     !! Return the analytic expression for the partial wave sum in the limit \(l\to\infty\)
+    !! for the Coulomb or neutral case
     use rotex__types,          only: dp
     use rotex__system,         only: die, stderr
     use ieee_arithmetic,       only: ieee_is_nan
-    use rotex__constants,      only: pi, im
+    use rotex__constants,      only: im
     use rotex__functions,      only: expm1
     use rotex__hypergeometric, only: f21
 
@@ -399,12 +431,26 @@ contains
     integer :: ie, nE
     integer :: iemin
     real(dp) :: k, kp
-    real(dp) :: eta, etap
     real(dp) :: dE
-    real(dp) :: x
-    complex(dp), parameter :: onez = (1, 0)
+
+    interface
+      function func(k, kp, Z) result(res)
+        import dp
+        real(dp), intent(in) :: k, kp
+        integer,  intent(in) :: Z
+        real(dp) :: res
+      end function func
+    end interface
+
+    procedure(func), pointer :: pw_limit => null()
 
     if(lambda .ne. 1) call die("analytic partial wave sum not available for lambda =/= 1")
+
+    if(Z .eq. 0) then
+      pw_limit => born_inf_dipole
+    else
+      pw_limit => coul_inf_dipole
+    endif
 
     nE = size(energies, 1)
     dE = Ep - E
@@ -414,24 +460,15 @@ contains
     iemin = findloc(energies .gt. dE, .true., 1)
 
     !$omp parallel do default(none) &
-    !$omp& shared(energies, summation, E, Ep, dE, lambda, Z, iemin, nE, flag) &
-    !$omp& private(ie, k, kp, eta, etap, x)
+    !$omp& shared(energies, summation, E, Ep, dE, lambda, Z, iemin, nE, flag, pw_limit) &
+    !$omp& private(ie, k, kp)
     do ie = iemin, nE
     ! do concurrent(ie = 1 : nE)
 
       k    = sqrt(2*energies(ie))
       kp   = sqrt(2*(energies(ie) - dE))
-      eta  = -Z/k
-      etap = -Z/kp
-      x = -4*eta*etap/((etap-eta)**2)
 
-      summation(ie) = -16*pi*pi*pi/(k*k*k*kp) * x &
-                    * exp(2*pi*eta) / ( expm1(2*pi*eta) * expm1(2*pi*etap) ) &
-                    * real( &
-                        f21(im*eta, im*etap, onez, x) &
-                      * f21(-im*eta + 1, -im*etap + 1, 2*onez, x), kind = dp &
-                    )
-                    ! * real(F21(im*eta, im*etap, onez, zx) * F21(-im*eta + 1, -im*etap + 1, 2*onez, zx), kind = dp)
+      summation(ie) = pw_limit(k, kp, Z)
 
       if(summation(ie) .ge. 0) cycle
       if(flag .eqv. .true.) cycle
@@ -442,12 +479,65 @@ contains
         write(stderr, *)
         write(stderr, *) E*au2ev, Ep*au2ev
         write(stderr, *) energies(ie)*au2ev, (energies(ie) - dE)*au2ev
-        write(stderr, *) ie, energies(ie), eta, etap, x, 1/(1-x)
+        write(stderr, *) ie, energies(ie), -Z/k, -Z/kp
         write(stderr, '(A)') "WARN: negative cross sections when evaluating the infinite partial wave sum."
       end block
 
     enddo
     !$omp end parallel do
+
+    nullify(pw_limit)
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  contains
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+
+    ! ---------------------------------------------------------------------------------------------------------------------------- !
+    function coul_inf_dipole(k, kp, Z) result(res)
+      use rotex__functions,      only: expm1
+      use rotex__constants,      only: pi
+      use rotex__hypergeometric, only: f21
+      implicit none
+      real(dp), intent(in) :: k, kp
+      integer,  intent(in) :: Z
+      real(dp) :: res
+      real(dp), parameter :: logpi = log(pi)
+      complex(dp), parameter :: onez = cmplx(1, kind=dp)
+      real(dp) :: x, eta, etap, twopi_eta, twopi_etap, ea, eap, sgn
+      real(dp) :: log_prefactor
+      eta  = real(-Z, kind=dp)/k
+      etap = real(-Z, kind=dp)/kp
+      ! -- seems more stable than with η,η'
+      x = -4._dp * k*kp / ( (k-kp)*(k-kp) )
+      ! -- for the exponential terms
+      twopi_eta  = 2*pi*eta
+      twopi_etap = 2*pi*etap
+      ea = expm1(twopi_eta)
+      eap = expm1(twopi_etap)
+      ! -- keep track of this sign because we do log(abs(ea))
+      sgn = sign(1._dp, ea)*sign(1._dp, eap)
+      ! -- prefactor in log space (combine negatives, take log of |x|)
+      log_prefactor = log(4._dp) + 2*logpi - 3*log(k) - log(kp) + log(abs(x)) &
+                    + twopi_eta - log(abs(ea)) - log(abs(eap))
+      res = sgn * exp(log_prefactor) * real(                             &
+              f21(im*eta, im*etap, onez, x)                        &
+            * f21(-im*eta + 1, -im*etap + 1, 2*onez, x), kind = dp &
+            )
+    end function coul_inf_dipole
+
+    ! ---------------------------------------------------------------------------------------------------------------------------- !
+    pure function born_inf_dipole(k, kp, Z) result(res)
+      !! The analytic integrated born cross section for the dipole term
+      !! \(\frac{2\pi}{kk'} \log\Big(\frac{k+k'}{\big|k-k'\big|}\Big)\)
+      use rotex__constants, only: pi
+      implicit none
+      real(dp), intent(in) :: k, kp
+      integer,  intent(in) :: Z
+      real(dp) :: res
+      real(dp), parameter :: twopi = 2._dp * pi
+      if(Z .ne. 0) call die("Z≠0 detected in born_inf_dipole")
+      res = twopi / (k*kp) * (log(k+kp) - log(abs(k-kp)))
+    end function born_inf_dipole
 
   end subroutine get_infinite_pwsum
 
@@ -465,7 +555,7 @@ contains
     use rotex__system,    only: stderr
     ! use WignerSymbol, only: wigner3j
     use rotex__wigner,    only: wigner3j
-    use rotex__constants, only: pi, CB_MINT_IMAG_THRESH
+    use rotex__constants, only: CB_MINT_IMAG_THRESH
     use rotex__functions, only: istriangle
     ! use rotex__wigner, only: wigner3j => threej
 
@@ -502,6 +592,25 @@ contains
     complex(dp) :: M1(0:lmax-lambda)
     complex(dp) :: M2(0:lmax-lambda)
 
+    abstract interface
+      function Mint(lambda, ltarg, ki, kf, Z) result(res)
+        import dp
+        implicit none
+        integer,  intent(in) :: lambda, ltarg, Z
+        real(dp), intent(in) :: ki, kf
+        complex(dp) :: res(0:ltarg)
+      end function Mint
+    end interface
+
+    procedure(Mint), pointer :: Mints => null()
+
+    ! -- point to the respective integral to calculate
+    if(Z .eq. 0) then
+      Mints => Mborn_array
+    else
+      Mints => Mcoul_array
+    endif
+
     nE = size(energies, 1)
 
     dE = Ep - E
@@ -513,7 +622,7 @@ contains
 
     ! -- the sum over ll'
     !$omp parallel do default(none) &
-    !$omp& shared(energies, summation, E, Ep, dE, lambda, Z, iemin, nE, flag, lmax) &
+    !$omp& shared(energies, summation, E, Ep, dE, lambda, Z, iemin, nE, flag, lmax, Mints) &
     !$omp& private(ie, k, kp, weights, l, M1, M2)
     nrg: do ie = iemin, nE
 
@@ -528,8 +637,8 @@ contains
       !      - M_{l+λ,l}(k',k)
       !    and then just take the sum over these arrays with their 3j weights
       weights = [( (2*l+1) * (2*(l+lambda)+1) * wigner3j(2*l, 2*(lambda+l), 2*lambda, 0, 0, 0)**2, l=0, lmax-lambda )]
-      M1      = Mrecur(lambda, lmax-lambda, kp, k , Z)
-      M2      = Mrecur(lambda, lmax-lambda, k , kp, Z)
+      M1      = Mints(lambda, lmax-lambda, kp, k , Z) ! l'=l-λ
+      M2      = Mints(lambda, lmax-lambda, k , kp, Z) ! l'=l+λ
 
       if(any(abs(M1%im) .gt. CB_MINT_IMAG_THRESH) .OR. any(abs(M2%im) .gt. CB_MINT_IMAG_THRESH)) then
         write(stderr, *)
@@ -538,7 +647,8 @@ contains
         cycle nrg
       endif
 
-      summation(ie) = 16*pi*kp/k * sum( weights * (abs(M1)**2 + abs(M2)**2) )
+      summation(ie) = 4.0_dp*kp/k * sum( weights * (abs(M1)**2 + abs(M2)**2) )
+      ! summation(ie) = 16.0_dp*pi*kp/k * sum( weights * (abs(M1)**2 + abs(M2)**2) )
 
       if(summation(ie) .ge. 0)  cycle
       if(flag .eqv. .true.) cycle
@@ -550,16 +660,20 @@ contains
     enddo nrg
    !$omp end parallel do
 
+   nullify(Mints)
+
   end subroutine get_truncated_pwsum
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  impure elemental function M(l, ki, kf, Z) result(res)
+  impure elemental function Mcoul(l, ki, kf, Z) result(res)
     !! Calculates the integral \(M^\lambda_{l+λ,l}\) via the expression given in
     !!   "Electromagnetic Excitation: Theory of Coulomb Excitation with Heavy Ions " by Kurt Alder and Aage Winther, Chapter IX,
     !!    section 2, page 244, equation 14.
     !! for λ = 1, where \(-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}\). There is an expression for λ = 2 in
     !!   "Study of Nuclear Structure by Electromagnetic Excitation with Accelerated Ions" by K. Alder, A. Bohr, T. Huus,
     !!   B. Mottelson, and A. Winther, but only the dipole is used (at least for now).
+    !! This is the integral of Colomb wavefunctions that arises in Coulomb-scattering off of
+    !! a target whose long-rage potential is expended into multipoles (although this is only the λ=1 case for now)
 
     use rotex__types,          only: dp
     use rotex__constants,      only: im, pi
@@ -599,10 +713,61 @@ contains
     ! -- get the integral M, not I
     res = res/(-4.0_dp)
 
-  end function M
+  end function Mcoul
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  function Mrecur(lambda, ltarg, ki, kf, Z) result(res)
+  function Mborn_array(lambda, ltarg, ki, kf, Z) result(res)
+    !! Calculate the integral \(M^\eta_{ll_0}(k_vk_0)\) (13c) in Feldt+Morrison2008
+    !!   doi: 10.1103/PhysRevA.77.012726
+    !! in the first Born approximation for scattering of a target that whose potential is
+    !! expanded into multipoles. This is the integral of spherical Bessel functions resulting
+    !! from the asymptotic wavefunctions in the case of a sub-Coulomb interaction potential at
+    !! large distances.
+
+    use rotex__kinds,     only: dp
+    use rotex__system,    only: die
+    use rotex__constants, only: pi
+    use rotex__polygamma, only: lgamma => log_gamma
+    use rotex__hypergeometric, only: f21
+
+    implicit none
+
+    integer, intent(in) :: lambda
+      !! The dipole (1), quadrupole (2), ..
+    integer, intent(in) :: ltarg
+      !! The largest value lmax of ((l+λ,l), l=0, lmax)
+    real(dp), intent(in) :: ki, kf
+    integer, intent(in) :: Z
+      !! Target charge (should be 0)
+    complex(dp) :: res(0:ltarg)
+
+    integer :: eta
+      !! η = λ+1 means something very different here than in the Coulomb case
+    integer :: li, lf
+    real(dp) :: a, b, c, x
+
+    if(Z .ne. 0) call die("Called Mborn with a nonzero target charge")
+
+    res = (0.0_dp, 0.0_dp)
+
+    eta = lambda + 1
+
+    ! -- For the dipole case, we only want li = lf ± λ
+    do li=0,ltarg
+      lf = li + lambda
+      a = real(li+lf-eta+3, kind=dp)/2.0_dp
+      b = real(li-lf+eta,   kind=dp)/2.0_dp
+      c = real(lf,          kind=dp) + 3.0_dp/2.0_dp
+      x = (kf/ki)**2
+      res(li)%re = pi/real(2**eta, kind=dp) * kf**lf / ki**(lf-eta+3) &
+                 * exp( lgamma(a) - lgamma(1-b) - lgamma(c))          &
+                 * f21(a, b, c, x)
+    enddo
+
+  end function Mborn_array
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  function Mcoul_array(lambda, ltarg, ki, kf, Z) result(res)
     !! Calculate all integrals \(M^\lambda_{λ,0}\) to (M^\lambda_{l_text[targ]+λ,l_\text{targ}}) via recursion formula
     !!   "Study of Nuclear Structure by Electromagnetic Excitation with Accelerated Ions" by K. Alder, A. Bohr, T. Huus,
     !!   B. Mottelson, and A. Winther, equation II B.70–71 on page 453 for the λ=1 case.
@@ -614,7 +779,7 @@ contains
 
     integer, intent(in) :: lambda
     integer, intent(in) :: ltarg
-      !! The truncating value of l+λ, l for the recursion.
+      !! The truncating value l of (l+λ,l) for the recursion.
     real(dp), intent(in) :: ki, kf
     integer, intent(in) :: Z
       !! Target charge
@@ -629,7 +794,7 @@ contains
     etaf = real(-Z/kf, kind = qp)
 
     if(ltarg .lt. 2) then
-      res = [( M(l, kf, ki, Z), l=0, ltarg )]
+      res = [( Mcoul(l, kf, ki, Z), l=0, ltarg )]
       block
         use ieee_arithmetic, only: isnan => ieee_is_nan
         if(any(isnan(abs(res)))) then
@@ -644,8 +809,8 @@ contains
     endif
 
     ! -- starting values
-    M0 = M(0, kf, ki, Z)
-    M1 = M(1, kf, ki, Z)
+    M0 = Mcoul(0, kf, ki, Z)
+    M1 = Mcoul(1, kf, ki, Z)
     resqp(0) = cmplx(M0%re, M0%im, kind = qp)
     resqp(1) = cmplx(M1%re, M1%im, kind = qp)
 
@@ -670,17 +835,14 @@ contains
 
     ! -- The recursion terms
     impure elemental function y1(l, etai, etaf) result (res)
-      use rotex__types,     only: dp
-      use rotex__constants, only: im
       implicit none
       integer, intent(in)  :: l
       real(qp), intent(in) :: etai, etaf
       real(qp) :: res
+      complex(qp), parameter :: im = cmplx(0,1,kind=qp)
       res = 2*etai*etaf * abs(l-1+im*etaf)*abs(l+im*etai)
     end function y1
     impure elemental function y2(l, etai, etaf) result (res)
-      use rotex__types,     only: dp
-      use rotex__constants, only: im
       implicit none
       integer, intent(in)  :: l
       real(qp), intent(in) :: etai, etaf
@@ -688,16 +850,15 @@ contains
       res = -4*etai**2*etaf**2 - l*(2*l+1)*etai**2 - l*(2*l-1)*etaf**2
     end function y2
     impure elemental function y3(l, etai, etaf) result (res)
-      use rotex__types,     only: dp
-      use rotex__constants, only: im
       implicit none
       integer, intent(in)  :: l
       real(qp), intent(in) :: etai, etaf
       real(qp) :: res
+      complex(qp), parameter :: im = cmplx(0,1,kind=qp)
       res = 2*etai*etaf * abs(l+im*etaf) * abs(l+1+im*etai)
     end function y3
 
-  end function Mrecur
+  end function Mcoul_array
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine xtrapolate_cb_xs(Ei_xtrap, Ethresh, nE_xtrap, Eel, xs_pcb, xs_tcb)

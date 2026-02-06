@@ -10,6 +10,7 @@ program rotex
   use rotex__rft,        only: rft_nonlinear
   use rotex__system,     only: mkdir, die, stdout
   use rotex__hamilton,   only: h_asym, assign_projections
+  use rotex__characters, only: lower
 
   implicit none
 
@@ -80,14 +81,22 @@ program rotex
   ! -- this array holds the information on the rotational states of the target
   allocate(N_states(num_N))
 
+  if(lower(cfg%rotor_kind) .eq. "l") then
+
+    call print_dipole(cfg%cartesian_dipole_moments(3))
+
+  else
+
+    select case(cfg%zaxis)
+    case("a") ; call print_dipoles(cfg%cartesian_dipole_moments, x = "B", y = "C", z = "A")
+    case("b") ; call print_dipoles(cfg%cartesian_dipole_moments, x = "C", y = "A", z = "B")
+    case("c") ; call print_dipoles(cfg%cartesian_dipole_moments, x = "A", y = "B", z = "C")
+    end select
+
+  endif
+
   ! -- diagonalize the hamiltonian and assign state labels for the rotational states that
   !    will be involved in the transitions/collisions
-  select case(cfg%zaxis)
-  case("a") ; call print_dipoles(cfg%cartesian_dipole_moments, x = "B", y = "C", z = "A")
-  case("b") ; call print_dipoles(cfg%cartesian_dipole_moments, x = "C", y = "A", z = "B")
-  case("c") ; call print_dipoles(cfg%cartesian_dipole_moments, x = "A", y = "B", z = "C")
-  end select
-
   call diagonalize_rotational_hamiltonian(cfg, num_N, N_values, N_states)
 
   if(cfg%use_CB .eqv. .true.) then
@@ -104,7 +113,7 @@ program rotex
 
   ! -- do this only AFTER we have called DO_COULOMB_BORN_APPROX because it may use
   !    CDMS energies which will change the energies of our rotational levels (but not the eigenvectors)
-  call print_rot_targ_states(n_states)
+  call print_rot_targ_states(cfg%rotor_kind, n_states)
 
   usingkmat: if(cfg%use_kmat) then
 
@@ -139,7 +148,7 @@ program rotex
     write(stdout, '("⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻")')
 
     call combine_cb_smat_xs( &
-        cfg &
+        cfg                  &
       , Eel_grid_cb          &
       , egrid_tot_smat       &
       , transitions_cb       &
@@ -207,11 +216,13 @@ contains
   end subroutine print_footer
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine print_rot_targ_states(n_states)
-    use rotex__types,     only: N_states_type
-    use rotex__system,    only: stdout
-    use rotex__constants, only: au2ev
+  subroutine print_rot_targ_states(rotor_kind, n_states)
+    use rotex__types,      only: N_states_type
+    use rotex__system,     only: stdout
+    use rotex__characters, only: lower
+    use rotex__constants,  only: au2ev
     implicit none
+    character(1), intent(in) :: rotor_kind
     type(N_states_type), intent(in) :: n_states(:)
     integer  :: i,j,n,ka,kc
     real(dp) :: e
@@ -219,25 +230,52 @@ contains
     write(stdout,*)
     write(stdout, '(A)') "Rotational target states"
     write(stdout, '(A)') "⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻"
-    write(stdout, '(4X, 3A5, A14)') "N", "Ka", "Kc", "E (meV)"
-    do i=1, size(N_states, 1)
-      n = n_states(i)%n
-      do j=1,2*n+1
-        ka = n_states(i)%ka(j)
-        kc = n_states(i)%kc(j)
-        e  = n_states(i)%eigenh%eigvals(j)*au2ev*1000
-        ! sym = n_states(i)%eigenh%sym(j)
-        if(abs(e) .lt. 0.001_dp) then
-          fmt =  '(4X, 3I5, E14.5)'
-        else
-          fmt =  '(4X, 3I5, F14.5)'
-        endif
-        write(stdout, fmt) n, ka, kc, e
+    select case(lower(rotor_kind))
+    case("a")
+      write(stdout, '(4X, 3A5, A14)') "N", "Ka", "Kc", "E (meV)"
+      do i=1, size(N_states, 1)
+        n = n_states(i)%n
+        do j=1,2*n+1
+          ka = n_states(i)%ka(j)
+          kc = n_states(i)%kc(j)
+          e  = n_states(i)%eigenh%eigvals(j)*au2ev*1000
+          ! sym = n_states(i)%eigenh%sym(j)
+          if(abs(e) .lt. 0.001_dp) then
+            fmt =  '(4X, 3I5, E14.5)'
+          else
+            fmt =  '(4X, 3I5, F14.5)'
+          endif
+          write(stdout, fmt) n, ka, kc, e
+        enddo
       enddo
-    enddo
+    case("l")
+      write(stdout, '(4X, A5, A14)') "N", "E (meV)"
+      do i=1, size(N_states, 1)
+        n = n_states(i)%n
+        e = n_states(i)%eigenh%eigvals(1)*au2ev*1000
+        if(abs(e) .lt. 0.001_dp) then
+          fmt = '(4X, I5, E14.5)'
+        else
+          fmt = '(4X, I5, F14.5)'
+        endif
+        write(stdout, fmt) n, e
+      enddo
+    case default
+      call die("Unacceptable ROTOR_KIND "// rotor_kind // " in print_rot_targ_states")
+    end select
     write(stdout, *)
   end subroutine print_rot_targ_states
 
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine print_dipole(dipole)
+    !! Print the dipole components in the determined ABC frame
+    use rotex__system,    only: stdout
+    use rotex__constants, only: au2deb
+    implicit none
+    real(dp),     intent(in) :: dipole
+    write(stdout, '("Permanent dipole moment: ")')
+    write(stdout, '("μ(z): ", F7.4, " Debye")') dipole*au2deb
+  end subroutine print_dipole
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine print_dipoles(dipole_xyz, x, y, z)
     !! Print the dipole components in the determined ABC frame

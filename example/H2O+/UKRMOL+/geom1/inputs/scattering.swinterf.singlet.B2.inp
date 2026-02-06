@@ -1,0 +1,19 @@
+&swintfin                 ! used by SW_INTERF (see docs/swinterf)
+  name = 'e + H2OX - singlet B2',
+  mgvn = 2,               ! symmetry, 0 = A1, as in CONGEN
+  stot = 1,               ! spin multiplicity 2*S+1
+  ntarg = 1,              ! number of target states
+  idtarg = 1,              ! mapping of target states from order by target congen inputs to energy order as in unit LUTARG = 24 (output of denprop)
+  nvo = 0,     !  number of virtual orbitals contracted with the continuum per target state in energy order.
+  rmatr = 13,           ! R-matrix radius
+  ismax = 2,              ! maximum multipole to be retained in expansion of long range potentials
+  iposit = 0,            ! positron flag - 0 for electron, -1 for positron
+!  last_coeff_saved = 0,      ! subset of coefficients stored in fort.25 (often restricted to continuum ones)
+  !ecutoff = -1,             ! energy (Hartree) cut-off to drop target states in the outer region
+  luamp = 16,
+  luci = 25,
+  luchan = 10,
+  lurmt = 21,
+  icform = 'F',
+  irform = 'F',
+/

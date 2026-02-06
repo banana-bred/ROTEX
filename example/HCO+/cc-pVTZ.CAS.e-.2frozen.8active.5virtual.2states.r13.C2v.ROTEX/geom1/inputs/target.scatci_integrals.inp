@@ -1,0 +1,34 @@
+&target_data
+  a = 13, !radius of R-matrix sphere
+  no_sym_op = 2,
+  sym_op = 'X', 'Y',
+  molden_file = './hcox.molden'
+  nob = 9,3,3,0,
+  select_orbitals_by = 2,
+/
+
+&continuum_data
+  run_free_scattering = .true., max_energy = 3.0, nE = 300,
+
+  del_thrs = 1.0D-07,1.0D-07,1.0D-07,1.0D-07, ! deletion threshold
+
+  min_l = 0, max_l = 5,
+  exponents(:,0) = 29.877842, 2.301497, 0.220697, 0.158520, 0.116205, 0.085839, 0.063471, 0.046765, 0.034212, 0.024775, 0.017701, 0.012422, 0.008482, 
+  exponents(:,1) = 1.582168, 0.267813, 0.199215, 0.151936, 0.117286, 0.091027, 0.070705, 0.054771, 0.042182, 0.032205, 0.024296, 0.018026, 0.013026, 
+  exponents(:,2) = 0.219465, 0.163153, 0.125857, 0.098543, 0.077619, 0.061176, 0.048055, 0.037490, 0.028943, 0.022001, 0.016302, 
+  exponents(:,3) = 0.205795, 0.158580, 0.125255, 0.100025, 0.080219, 0.064327, 0.051396, 0.040784, 0.032031, 0.024776, 0.018684, 
+  exponents(:,4) = 0.088736, 0.070145, 0.056155, 0.045006, 0.035871, 0.028246, 0.021731, 
+  exponents(:,5) = 0.074618, 0.059205, 0.047452, 0.037957, 0.030050, 0.023267, 
+  exponents(:,6) = 0.076341, 0.061225, 0.049579, 0.040061, 0.032037, 0.025056, 
+
+  
+/
+&process_control
+  max_ijrs_size = 5000
+  mixed_ints_method = 1      ! Applicable only when using B-spline continuum. Always use mixed_ints_method = 1
+  max_l_legendre_1el = 70   !Applicable only when using B-spline continuum. Maximum L to use in Legendre expansion for Nuclear attraction integrals.
+  max_l_legendre_2el = 55   !Applicable only when using B-spline continuum. Maximum L to use in Legendre expansion for 2-electron integrals.
+  calc_radial_densities = .false.
+  delta_r1 = 0.25
+  molecular_2el_algorithm = 0
+/

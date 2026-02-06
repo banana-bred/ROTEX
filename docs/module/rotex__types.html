@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 7.7% of total for modules and submodules.">442 statements</a>
+                 title=" 7.7% of total for modules and submodules.">445 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -267,7 +267,7 @@
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-elec_channels~5"></span>
+              <span class="anchor" id="variable-elec_channels~10"></span>
               type(<a href='../type/elec_channel_type.html'>elec_channel_type</a>),
             </td>
 <td>intent(inout)</td>
@@ -316,7 +316,7 @@ the permutation array that would produce the same output</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-elec_channels~4"></span>
+              <span class="anchor" id="variable-elec_channels~9"></span>
               type(<a href='../type/elec_channel_type.html'>elec_channel_type</a>),
             </td>
 <td>intent(inout)</td>
@@ -331,7 +331,7 @@ the permutation array that would produce the same output</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-idx~2"></span>
+              <span class="anchor" id="variable-idx~5"></span>
               integer,
             </td>
 <td></td>
@@ -379,7 +379,7 @@ the permutation array that would produce the same output</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-channel1~3"></span>
+              <span class="anchor" id="variable-channel1"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -394,7 +394,7 @@ the permutation array that would produce the same output</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-channel2~3"></span>
+              <span class="anchor" id="variable-channel2"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -505,7 +505,7 @@ the permutation array that would produce the same output</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-channel1~4"></span>
+              <span class="anchor" id="variable-channel1~2"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -520,7 +520,7 @@ the permutation array that would produce the same output</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-channel2~4"></span>
+              <span class="anchor" id="variable-channel2~2"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -573,7 +573,7 @@ the permutation array that would produce the same output</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-channel~3"></span>
+              <span class="anchor" id="variable-channel~7"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -588,7 +588,7 @@ the permutation array that would produce the same output</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-channels~7"></span>
+              <span class="anchor" id="variable-channels~12"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -783,7 +783,7 @@ the permutation array that would produce the same output</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-eigvecs~2"></span>
+              <span class="anchor" id="variable-eigvecs~4"></span>
               complex(kind=dp),
             </td>
               <td>public,</td>
@@ -833,24 +833,7 @@ and state labels</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-n~5"></span>
-              integer,
-            </td>
-              <td>public</td>
-            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>N</strong></td>
-                <td></td>
-                <td></td>
-            <td>
-
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-eigenh"></span>
+              <span class="anchor" id="variable-eigenh~2"></span>
               type(<a href='../type/eigenh_type.html'>eigenH_type</a>),
             </td>
               <td>public</td>
@@ -863,40 +846,6 @@ and state labels</p>
                 <td></td>
             <td>
 <p>The decomposed Hamiltonian for this rotational level</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-ka~3"></span>
-              integer,
-            </td>
-              <td>public,</td>
-            <td>
-              allocatable
-            </td>
-            <td>::</td>
-            <td><strong>Ka</strong>(:)</td>
-                <td></td>
-                <td></td>
-            <td>
-<p>The projections Ka</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-kc~3"></span>
-              integer,
-            </td>
-              <td>public,</td>
-            <td>
-              allocatable
-            </td>
-            <td>::</td>
-            <td><strong>Kc</strong>(:)</td>
-                <td></td>
-                <td></td>
-            <td>
-<p>The projections Kc</p>
             </td>
         </tr>
         <tr>
@@ -914,6 +863,57 @@ and state labels</p>
                 <td></td>
             <td>
 <p>The Einstein coefficients for transitions to all lower states (0 if none)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ka~4"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+              allocatable
+            </td>
+            <td>::</td>
+            <td><strong>Ka</strong>(:)</td>
+                <td></td>
+                <td></td>
+            <td>
+<p>The projections Ka</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kc~4"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+              allocatable
+            </td>
+            <td>::</td>
+            <td><strong>Kc</strong>(:)</td>
+                <td></td>
+                <td></td>
+            <td>
+<p>The projections Kc</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~9"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>N</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>Rotational quantum number</p>
             </td>
         </tr>
     </tbody>
@@ -950,23 +950,6 @@ and state labels</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-nelec~4"></span>
-              integer,
-            </td>
-              <td>public</td>
-            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>nelec</strong></td>
-                <td></td>
-                <td></td>
-            <td>
-<p>Electronic state</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
               <span class="anchor" id="variable-e~9"></span>
               real(kind=dp),
             </td>
@@ -980,6 +963,23 @@ and state labels</p>
                 <td></td>
             <td>
 <p>The channel energy</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-nelec~7"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>nelec</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>Electronic state</p>
             </td>
         </tr>
     </tbody>
@@ -1017,23 +1017,6 @@ and state labels</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-nelec~4"></span>
-              integer,
-            </td>
-              <td>public</td>
-            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>nelec</strong></td>
-                <td></td>
-                <td></td>
-            <td>
-<p>Electronic state</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
               <span class="anchor" id="variable-e~9"></span>
               real(kind=dp),
             </td>
@@ -1051,7 +1034,24 @@ and state labels</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-l~12"></span>
+              <span class="anchor" id="variable-nelec~7"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>nelec</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>Electronic state</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-l~16"></span>
               integer,
             </td>
               <td>public</td>
@@ -1068,7 +1068,7 @@ and state labels</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-ml~4"></span>
+              <span class="anchor" id="variable-ml~5"></span>
               integer,
             </td>
               <td>public</td>
@@ -1085,7 +1085,7 @@ and state labels</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-iq~4"></span>
+              <span class="anchor" id="variable-iq~5"></span>
               integer,
             </td>
               <td>public</td>
@@ -1138,23 +1138,6 @@ after the rotational frame transformation by adding the and rotational quantum n
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-nelec~4"></span>
-              integer,
-            </td>
-              <td>public</td>
-            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>nelec</strong></td>
-                <td></td>
-                <td></td>
-            <td>
-<p>Electronic state</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
               <span class="anchor" id="variable-e~9"></span>
               real(kind=dp),
             </td>
@@ -1172,7 +1155,24 @@ after the rotational frame transformation by adding the and rotational quantum n
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-n~6"></span>
+              <span class="anchor" id="variable-nelec~7"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>nelec</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>Electronic state</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~10"></span>
               integer,
             </td>
               <td>public</td>
@@ -1189,7 +1189,7 @@ after the rotational frame transformation by adding the and rotational quantum n
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-ka~4"></span>
+              <span class="anchor" id="variable-ka~5"></span>
               integer,
             </td>
               <td>public</td>
@@ -1206,7 +1206,7 @@ after the rotational frame transformation by adding the and rotational quantum n
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-kc~4"></span>
+              <span class="anchor" id="variable-kc~5"></span>
               integer,
             </td>
               <td>public</td>
@@ -1223,7 +1223,7 @@ after the rotational frame transformation by adding the and rotational quantum n
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-sym~3"></span>
+              <span class="anchor" id="variable-sym~5"></span>
               integer,
             </td>
               <td>public</td>
@@ -1275,23 +1275,6 @@ to the rotational quantum numbers
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-nelec~4"></span>
-              integer,
-            </td>
-              <td>public</td>
-            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>nelec</strong></td>
-                <td></td>
-                <td></td>
-            <td>
-<p>Electronic state</p>
-            </td>
-        </tr>
-        <tr>
-            <td>
               <span class="anchor" id="variable-e~9"></span>
               real(kind=dp),
             </td>
@@ -1309,7 +1292,24 @@ to the rotational quantum numbers
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-n~6"></span>
+              <span class="anchor" id="variable-nelec~7"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>nelec</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>Electronic state</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~10"></span>
               integer,
             </td>
               <td>public</td>
@@ -1326,7 +1326,7 @@ to the rotational quantum numbers
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-ka~4"></span>
+              <span class="anchor" id="variable-ka~5"></span>
               integer,
             </td>
               <td>public</td>
@@ -1343,7 +1343,7 @@ to the rotational quantum numbers
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-kc~4"></span>
+              <span class="anchor" id="variable-kc~5"></span>
               integer,
             </td>
               <td>public</td>
@@ -1360,7 +1360,7 @@ to the rotational quantum numbers
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-sym~3"></span>
+              <span class="anchor" id="variable-sym~5"></span>
               integer,
             </td>
               <td>public</td>
@@ -1377,7 +1377,7 @@ to the rotational quantum numbers
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-l~13"></span>
+              <span class="anchor" id="variable-l~17"></span>
               integer,
             </td>
               <td>public</td>
@@ -1394,7 +1394,7 @@ to the rotational quantum numbers
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-iq~5"></span>
+              <span class="anchor" id="variable-iq~6"></span>
               integer,
             </td>
               <td>public</td>
@@ -1447,7 +1447,7 @@ combination of channels exists than for other Js</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-channels~5"></span>
+              <span class="anchor" id="variable-channels~10"></span>
               type(<a href='../type/asymtop_rot_channel_l_type.html'>asymtop_rot_channel_l_type</a>),
             </td>
               <td>public,</td>
@@ -1496,7 +1496,7 @@ combination of channels exists than for other Js</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-lo~6"></span>
+              <span class="anchor" id="variable-lo~10"></span>
               type(<a href='../type/asymtop_rot_channel_type.html'>asymtop_rot_channel_type</a>),
             </td>
               <td>public</td>
@@ -1758,7 +1758,7 @@ combination of channels exists than for other Js</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-dn~2"></span>
+              <span class="anchor" id="variable-dn~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1775,7 +1775,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-dnk~2"></span>
+              <span class="anchor" id="variable-dnk~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1792,7 +1792,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-dk~2"></span>
+              <span class="anchor" id="variable-dk~4"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1809,7 +1809,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-deltan~2"></span>
+              <span class="anchor" id="variable-deltan~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1826,7 +1826,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-deltak~2"></span>
+              <span class="anchor" id="variable-deltak~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1875,7 +1875,7 @@ combination of channels exists than for other Js</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-hn~2"></span>
+              <span class="anchor" id="variable-hn~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1892,7 +1892,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-hnk~2"></span>
+              <span class="anchor" id="variable-hnk~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1909,7 +1909,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-hkn~2"></span>
+              <span class="anchor" id="variable-hkn~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1926,7 +1926,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-hk~2"></span>
+              <span class="anchor" id="variable-hk~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1943,7 +1943,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-etan~2"></span>
+              <span class="anchor" id="variable-etan~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1960,7 +1960,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-etank~2"></span>
+              <span class="anchor" id="variable-etank~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -1977,7 +1977,7 @@ combination of channels exists than for other Js</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-etak~2"></span>
+              <span class="anchor" id="variable-etak~3"></span>
               real(kind=dp),
             </td>
               <td>public</td>
@@ -2199,7 +2199,7 @@ describing the multipole expansions for the dipole (element 1) and the quadrupol
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-real_spherical_harmonics~2"></span>
+              <span class="anchor" id="variable-real_spherical_harmonics~4"></span>
               logical,
             </td>
               <td>public</td>
@@ -2232,6 +2232,7 @@ complex-valued spherical harmonics</p>
             <td>
 <p>Whether and how to enforce ortho/para symmetry for molecules with identical nuclei.
   0: don't
+  1: Dsh linear rotor; basically, homonuclear diatomics
   2: C2v rotor (H₂X-like): preserve Ka+Kc parity
 Note that this just disables certain transitions from bein calculated
 in the CB approx as well as from the S-matrix. This does not affect
@@ -2545,6 +2546,66 @@ The rotational constants A, B, and C of the target molecule (cm⁻¹).</p>
         </tr>
         <tr>
             <td>
+              <span class="anchor" id="variable-b_rot~2"></span>
+              real(kind=dp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>B_rot</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>Only for linear rotors; the rotational constant B in the expansion
+of the rotational energy :
+  E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+Cannot be 0 for a linear molecule</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-d_rot~2"></span>
+              real(kind=dp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>D_rot</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>Only for linear rotors; the centrifugal distortion coefficient D
+in the expansion of the rotational energy :
+  E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+0 by default</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-h_rot~2"></span>
+              real(kind=dp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>H_rot</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>Only for linear rotors; the centrifugal distortion coefficient D
+in the expansion of the rotational energy :
+  E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+0 by default</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
               <span class="anchor" id="variable-cartesian_dipole_moments~2"></span>
               real(kind=dp),
             </td>
@@ -2598,7 +2659,7 @@ in the order Qxx, Qxy, Qxz, Qyy, Qyz, Qzz</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-rotor_kind~2"></span>
+              <span class="anchor" id="variable-rotor_kind~4"></span>
               character(len=1),
             </td>
               <td>public</td>
@@ -2619,7 +2680,7 @@ Choice of :
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-zaxis~6"></span>
+              <span class="anchor" id="variable-zaxis~7"></span>
               character(len=1),
             </td>
               <td>public</td>
@@ -2696,7 +2757,7 @@ be forcibly overridden with this</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-point_group~7"></span>
+              <span class="anchor" id="variable-point_group~9"></span>
               character(len=:),
             </td>
               <td>public,</td>
@@ -2804,7 +2865,7 @@ This directory must already exist</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-cd4~2"></span>
+              <span class="anchor" id="variable-cd4~4"></span>
               type(<a href='../type/cd4_type.html'>cd4_type</a>),
             </td>
               <td>public</td>
@@ -2821,7 +2882,7 @@ This directory must already exist</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-cd6~2"></span>
+              <span class="anchor" id="variable-cd6~4"></span>
               type(<a href='../type/cd6_type.html'>cd6_type</a>),
             </td>
               <td>public</td>
@@ -2871,7 +2932,7 @@ the last index is reverse is .true.</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-channels~6"></span>
+              <span class="anchor" id="variable-channels~11"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -2886,7 +2947,7 @@ the last index is reverse is .true.</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-channel~2"></span>
+              <span class="anchor" id="variable-channel~6"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(in)</td>
@@ -3057,7 +3118,7 @@ Return 0 if there is no such mapping.</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-channels~8"></span>
+              <span class="anchor" id="variable-channels~13"></span>
               class(<a href='../type/channel_type.html'>channel_type</a>),
             </td>
 <td>intent(inout)</td>

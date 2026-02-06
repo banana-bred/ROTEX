@@ -11,7 +11,7 @@ module rotex__functions
   public :: log_factorial
   public :: are_approx_eq
   public :: expm1
-  public :: logp1
+  ! public :: logp1
   public :: isnatural
   public :: isinteger
   public :: arg
@@ -47,10 +47,10 @@ module rotex__functions
     module procedure :: expm1z
   end interface expm1
 
-  interface logp1
-    module procedure :: logp1r
-    module procedure :: logp1z
-  end interface logp1
+  ! interface logp1
+  !   module procedure :: logp1r
+  !   module procedure :: logp1z
+  ! end interface logp1
 
   interface logb
     module procedure :: logb_ii
@@ -324,7 +324,7 @@ contains
     implicit none
     integer, intent(in) :: i
     real(dp) :: res
-    res = 1/real(i, kind = dp)
+    res = 1.0_dp/real(i, kind = dp)
   end function invi
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module function invr(x) result(res)
@@ -333,7 +333,7 @@ contains
     implicit none
     real(dp), intent(in) :: x
     real(dp) :: res
-    res = 1/x
+    res = 1.0_dp/x
   end function invr
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module function invz(z) result(res)
@@ -342,7 +342,7 @@ contains
     implicit none
     complex(dp), intent(in) :: z
     complex(dp) :: res
-    res = 1/z
+    res = 1.0_dp/z
     if(z%im .ne. 0) return
     if(ieee_is_negative(z%im) .eqv. .true.) return
     res%im = -res%im

@@ -22,6 +22,7 @@ module rotex__polygamma
   end interface gamma
 
   interface log_gamma
+    module procedure :: l_gamma_rdp
     module procedure :: l_gamma_cdp
   end interface log_gamma
 
@@ -135,6 +136,16 @@ contains
     call downcast(y, res)
 
   end function gamma_cdp
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental function l_gamma_rdp(x) result(res)
+    !! Computes ln(Γ(x)) for real x
+    implicit none
+    real(dp), intent(in) :: x
+    real(dp) :: res
+    intrinsic :: log_gamma
+    res = log_gamma(x)
+  end function l_gamma_rdp
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   impure elemental function l_gamma_cdp(z) result (res)

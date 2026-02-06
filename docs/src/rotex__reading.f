@@ -571,7 +571,7 @@ contains
     use rotex__system,     only: stdin, stdout, ds => directory_separator, die
     use rotex__constants,  only: au2invcm, au2ev, macheps => macheps_dp, au2cm, au2deb, DEFAULT_CHAR1&
                                , UKRMOLX, MQDTR2K
-    use rotex__characters, only: add_trailing, to_lower
+    use rotex__characters, only: add_trailing, to_lower, lower
 
     implicit none
 
@@ -589,6 +589,7 @@ contains
     character(1) :: rotor_kind = DEFAULT_CHAR1
     character(1) :: zaxis
     real(dp) :: abc(3) = 0.0_dp
+    real(dp) :: B_rot = 0.0_dp, H_rot = 0.0_dp, D_rot = 0.0_dp
     integer :: target_charge = DEFAULT_INT
     logical :: add_cd4 = .false.
     logical :: add_cd6 = .false.
@@ -654,6 +655,9 @@ contains
                        , rotor_kind               &
                        , target_charge            &
                        , abc                      &
+                       , B_rot                    &
+                       , D_rot                    &
+                       , H_rot                    &
                        , add_cd4                  &
                        , add_cd6                  &
                        , dn, dnk, dk, deltan, deltak &
@@ -707,7 +711,11 @@ contains
     if(rotor_kind    .eq. DEFAULT_CHAR1) call die("Must specify ROTOR_KIND in CONTROL_NAMELIST")
     if(target_charge .eq. DEFAULT_INT)   call die("Must specify TARGET_CHARGE in CONTROL_NAMELIST")
     if(ZAXIS         .eq. DEFAULT_CHAR1) call die("Must specify ZAXIS in CONTROL_NAMELIST")
-    if(any(ABC       .eq. 0.0_dp))       call die("Must specify nonzero rotational constants ABC in CONTROL_NAMELIST")
+    if(lower(rotor_kind) .eq. "l") then
+      if(B_rot .le. 0.0_dp) call die("Must have a positive rotational constant B_rot for a linear molecule")
+    else
+      if(any(ABC .eq. 0.0_dp)) call die("Must specify nonzero rotational constants ABC in CONTROL_NAMELIST")
+    endif
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! KMAT_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -792,11 +800,14 @@ contains
     Ef                = Ef                / au2ev
     Ei_xtrap          = Ei_xtrap          / au2ev
     ABC(:)            = ABC(:)            / au2invcm
+    B_rot             = B_rot             / au2invcm
+    D_rot             = D_rot             / au2invcm
+    H_rot             = H_rot             / au2invcm
     xs_zero_threshold = xs_zero_threshold / (au2cm*au2cm)
 
     ! -- convert to lower case
     call to_lower(rotor_kind)
-    call to_lower(point_group)
+    if(use_kmat .eqv. .true.) call to_lower(point_group)
     call to_lower(kmat_energy_units_override)
     call to_lower(channel_energy_units_override)
 
@@ -832,19 +843,22 @@ contains
     if(target_charge .eq. 0) call die("Neutral targets not programmed yet !")
 
     ! -- namelist: control
-    cfg%nmin                     = nmin
-    cfg%nmax                     = nmax
-    cfg%use_kmat                 = use_kmat
-    cfg%use_cb                   = use_cb
-    cfg%spin_isomer_kind         = spin_isomer_kind
-    cfg%output_directory         = output_directory
-    cfg%rotor_kind               = rotor_kind
-    cfg%zaxis                    = zaxis
-    cfg%abc                      = abc(:)
-    cfg%target_charge            = target_charge
-    cfg%add_cd4                  = add_cd4
-    cfg%add_cd6                  = add_cd6
-    cfg%xs_zero_threshold        = xs_zero_threshold
+    cfg%nmin              = nmin
+    cfg%nmax              = nmax
+    cfg%use_kmat          = use_kmat
+    cfg%use_cb            = use_cb
+    cfg%spin_isomer_kind  = spin_isomer_kind
+    cfg%output_directory  = output_directory
+    cfg%rotor_kind        = rotor_kind
+    cfg%zaxis             = zaxis
+    cfg%abc               = abc(:)
+    cfg%b_rot             = b_rot
+    cfg%d_rot             = d_rot
+    cfg%h_rot             = h_rot
+    cfg%target_charge     = target_charge
+    cfg%add_cd4           = add_cd4
+    cfg%add_cd6           = add_cd6
+    cfg%xs_zero_threshold = xs_zero_threshold
     if(add_cd4 .eqv. .true.) then
       dn      = dn     / au2invcm
       dnk     = dnk    / au2invcm

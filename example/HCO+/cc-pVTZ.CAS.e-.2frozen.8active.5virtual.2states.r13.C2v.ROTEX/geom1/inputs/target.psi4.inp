@@ -1,0 +1,39 @@
+# Enforce the use of spherical GTO basis:
+# the molden file generated in the cartesian (default) GTO basis
+# cannot be used in GBTOlib due to a yet unknown normalization
+# convention for the cartesian GTOs in PSI4.
+set puream true
+set print_MOs true
+
+molecule {
+    1  1
+    symmetry C2v
+    units ang
+
+    no_com        # do not adjust centre of mass
+    no_reorient   # do not adjust orientation of the molecule
+
+    H   0.000000000   0.000000000   1.644546973
+    C   0.000000000   0.000000000   0.559546973
+    O   0.000000000   0.000000000  -0.523653027
+
+}
+
+# HF
+set basis cc-pVTZ
+set reference rhf
+set maxiter 100
+
+# CASSCF
+set restricted_docc [ 2,0,0,0 ]
+set active [ 4,0,2,2 ]
+set mcscf_maxiter 1000
+
+# state-averaging
+set num_roots 1
+set avg_states [ 0 ]
+set avg_weights [ 1 ]
+
+[E, wfn] = energy('scf', return_wfn=True)
+
+molden(wfn, 'hcox.molden')

@@ -25,9 +25,12 @@ module rotex__symmetry
   end interface is_spin_forbidden
 
   integer, allocatable, public, save :: m_parity(:)
-    !! Array containing the parity (1/even or -1/odd) of an electronic channel
+    !! Array containing the parity (even or /odd) of an electronic channel
     !! based on its label m. This array is indexed by m directly. This is only
     !! for calculation in the Cs point group
+  integer, public, save :: elecstate_parity
+    !! The parity of the electronic state. May become an array if we ever move to multiple electronic states
+  logical, public, save :: elecstate_parity_set = .false.
 
   character(33), parameter :: abelian_point_groups = "C1, Cs, C2, Ci, C2v, C2h, D2, D2h"
 
@@ -202,13 +205,13 @@ contains
     integer, intent(in) :: kind
     integer, allocatable :: res(:)
     select case(kind)
-    case(0)   ; res = [0]
-    ! case(1,2) ; res = [0,1]
+    case(0) ; res = [0]
+    case(1) ; res = [0,1]
     case(2) ; res = [0,1]
     ! case(3)   ; res = [0,1]
     case default
       ! call die("Symmetry kind not supported. Must be one of 0,1,2,3")
-      call die("Symmetry kind not supported. Must be one of 0,2")
+      call die("Symmetry kind not supported. Must be one of 0,1,2")
     end select
   end function possible_spin_symmetries
 
@@ -266,19 +269,15 @@ contains
     res = spin_symmetry(nlo, kalo, kclo, kind, symaxis) .eq. spin_symmetry(nup, kaup, kcup, kind, symaxis)
   end function is_spin_allowed_qnums
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure elemental module function is_spin_allowed_chan(channel1, channel2, spin_isomer_kind, symaxis) result(res)
+  pure elemental module function is_spin_allowed_chan(channel1, channel2) result(res)
     !! Test if two rotational channels respect ortho/para symmetry
     use rotex__types, only: asymtop_rot_channel_type
     implicit none
     type(asymtop_rot_channel_type), intent(in) :: channel1, channel2
-    integer, intent(in) :: spin_isomer_kind
-    character(1), intent(in) :: symaxis
     logical :: res
-    integer :: n1, ka1, kc1
-    integer :: n2, ka2, kc2
-    n1  = channel1%n ; ka1 = channel1%ka ; kc1 = channel1%kc
-    n2  = channel2%n ; ka2 = channel2%ka ; kc2 = channel2%kc
-    res = is_spin_allowed_qnums(n1, ka1, kc1, n2, ka2, kc2, spin_isomer_kind, symaxis)
+    res = .false.
+    if(channel1 % sym .ne. channel2 % sym) return
+    res = .true.
   end function is_spin_allowed_chan
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
@@ -292,19 +291,15 @@ contains
     res = .not. is_spin_allowed_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis)
   end function is_spin_forbidden_qnums
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure elemental module function is_spin_forbidden_chan(channel1, channel2, spin_isomer_kind, symaxis) result(res)
+  pure elemental module function is_spin_forbidden_chan(channel1, channel2) result(res)
     !! Test if two rotational channels respect ortho/para symmetry
     use rotex__types, only: asymtop_rot_channel_type
     implicit none
     type(asymtop_rot_channel_type), intent(in) :: channel1, channel2
-    integer, intent(in) :: spin_isomer_kind
-    character(1), intent(in) :: symaxis
     logical :: res
-    integer :: n1, ka1, kc1
-    integer :: n2, ka2, kc2
-    n1  = channel1%n ; ka1 = channel1%ka ; kc1 = channel1%kc
-    n2  = channel2%n ; ka2 = channel2%ka ; kc2 = channel2%kc
-    res = .not. is_spin_allowed_qnums(n1, ka1, kc1, n2, ka2, kc2, spin_isomer_kind, symaxis)
+    res = .true.
+    if(channel1 % sym .ne. channel2 % sym) return
+    res = .false.
   end function is_spin_forbidden_chan
 
 ! ================================================================================================================================ !

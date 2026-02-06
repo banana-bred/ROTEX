@@ -145,7 +145,7 @@ $(OBJ): $(OBJ_FACE) $(OBJ_FORBEAR) $(OBJ_CDMSREADER) $(OBJ_BSPLINE_FORTRAN) $(OB
 
 # -- link
 $(BINDIR)/$(PROGRAM): $(OBJ_ALL) $(PRGDIR)/rotex.f | dirs
-> $(FC) $(FFLAGS) $(FLFLAGS) -o $@ $(OBJ_ALL) $(PRGDIR)/rotex.f
+> $(FC) $(FFLAGS) -o $@ $(OBJ_ALL) $(PRGDIR)/rotex.f $(FLFLAGS)
 
 # -- general build command for .f90, .F90, and .f files
 $(OBJDIR)/%.o: %.f90 | dirs

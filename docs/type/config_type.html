@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title="<p>42.0% of total for derived types.</p>Including implementation: 47 statements, 42.0% of total for derived types.">47 statements</a>
+                 title="<p>43.5% of total for derived types.</p>Including implementation: 50 statements, 43.5% of total for derived types.">50 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -144,7 +144,7 @@
             <a class="list-group-item" href="../type/config_type.html#variable-do_quadrupole~4">do_quadrupole</a>
             <a class="list-group-item" href="../type/config_type.html#variable-use_kmat~3">use_kmat</a>
             <a class="list-group-item" href="../type/config_type.html#variable-use_cb~2">use_cb</a>
-            <a class="list-group-item" href="../type/config_type.html#variable-real_spherical_harmonics~2">real_spherical_harmonics</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-real_spherical_harmonics~4">real_spherical_harmonics</a>
             <a class="list-group-item" href="../type/config_type.html#variable-spin_isomer_kind~6">spin_isomer_kind</a>
             <a class="list-group-item" href="../type/config_type.html#variable-ne~5">nE</a>
             <a class="list-group-item" href="../type/config_type.html#variable-ne_xtrap~3">nE_xtrap</a>
@@ -163,22 +163,25 @@
             <a class="list-group-item" href="../type/config_type.html#variable-ei_xtrap~3">Ei_xtrap</a>
             <a class="list-group-item" href="../type/config_type.html#variable-kmat_energy_closest~2">kmat_energy_closest</a>
             <a class="list-group-item" href="../type/config_type.html#variable-abc~2">abc</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-b_rot~2">B_rot</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-d_rot~2">D_rot</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-h_rot~2">H_rot</a>
             <a class="list-group-item" href="../type/config_type.html#variable-cartesian_dipole_moments~2">cartesian_dipole_moments</a>
             <a class="list-group-item" href="../type/config_type.html#variable-cartesian_quadrupole_moments">cartesian_quadrupole_moments</a>
             <a class="list-group-item" href="../type/config_type.html#variable-egrid_segs~2">egrid_segs</a>
-            <a class="list-group-item" href="../type/config_type.html#variable-rotor_kind~2">rotor_kind</a>
-            <a class="list-group-item" href="../type/config_type.html#variable-zaxis~6">zaxis</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-rotor_kind~4">rotor_kind</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-zaxis~7">zaxis</a>
             <a class="list-group-item" href="../type/config_type.html#variable-channel_energy_units_override~2">channel_energy_units_override</a>
             <a class="list-group-item" href="../type/config_type.html#variable-kmat_energy_units_override~2">kmat_energy_units_override</a>
             <a class="list-group-item" href="../type/config_type.html#variable-egrid_spacing~2">egrid_spacing</a>
-            <a class="list-group-item" href="../type/config_type.html#variable-point_group~7">point_group</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-point_group~9">point_group</a>
             <a class="list-group-item" href="../type/config_type.html#variable-kmat_dir~3">kmat_dir</a>
             <a class="list-group-item" href="../type/config_type.html#variable-channels_dir~3">channels_dir</a>
             <a class="list-group-item" href="../type/config_type.html#variable-output_directory~8">output_directory</a>
             <a class="list-group-item" href="../type/config_type.html#variable-cdms_file~2">CDMS_file</a>
             <a class="list-group-item" href="../type/config_type.html#variable-kmat_output_type~3">kmat_output_type</a>
-            <a class="list-group-item" href="../type/config_type.html#variable-cd4~2">cd4</a>
-            <a class="list-group-item" href="../type/config_type.html#variable-cd6~2">cd6</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-cd4~4">cd4</a>
+            <a class="list-group-item" href="../type/config_type.html#variable-cd6~4">cd6</a>
         </div>
       </div>
     </div>
@@ -400,7 +403,7 @@ describing the multipole expansions for the dipole (element 1) and the quadrupol
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-real_spherical_harmonics~2"></span>
+              <span class="anchor" id="variable-real_spherical_harmonics~4"></span>
               logical,
             </td>
               <td>public</td>
@@ -433,6 +436,7 @@ complex-valued spherical harmonics</p>
             <td>
                 <p>Whether and how to enforce ortho/para symmetry for molecules with identical nuclei.
   0: don't
+  1: Dsh linear rotor; basically, homonuclear diatomics
   2: C2v rotor (H₂X-like): preserve Ka+Kc parity
 Note that this just disables certain transitions from bein calculated
 in the CB approx as well as from the S-matrix. This does not affect
@@ -746,6 +750,66 @@ The rotational constants A, B, and C of the target molecule (cm⁻¹).</p>
         </tr>
         <tr>
             <td>
+              <span class="anchor" id="variable-b_rot~2"></span>
+              real(kind=dp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>B_rot</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>Only for linear rotors; the rotational constant B in the expansion
+of the rotational energy :
+  E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+Cannot be 0 for a linear molecule</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-d_rot~2"></span>
+              real(kind=dp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>D_rot</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>Only for linear rotors; the centrifugal distortion coefficient D
+in the expansion of the rotational energy :
+  E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+0 by default</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-h_rot~2"></span>
+              real(kind=dp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>H_rot</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>Only for linear rotors; the centrifugal distortion coefficient D
+in the expansion of the rotational energy :
+  E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+0 by default</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
               <span class="anchor" id="variable-cartesian_dipole_moments~2"></span>
               real(kind=dp),
             </td>
@@ -799,7 +863,7 @@ in the order Qxx, Qxy, Qxz, Qyy, Qyz, Qzz</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-rotor_kind~2"></span>
+              <span class="anchor" id="variable-rotor_kind~4"></span>
               character(len=1),
             </td>
               <td>public</td>
@@ -820,7 +884,7 @@ Choice of :
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-zaxis~6"></span>
+              <span class="anchor" id="variable-zaxis~7"></span>
               character(len=1),
             </td>
               <td>public</td>
@@ -897,7 +961,7 @@ be forcibly overridden with this</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-point_group~7"></span>
+              <span class="anchor" id="variable-point_group~9"></span>
               character(len=:),
             </td>
               <td>public,</td>
@@ -1005,7 +1069,7 @@ This directory must already exist</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-cd4~2"></span>
+              <span class="anchor" id="variable-cd4~4"></span>
               type(<a href='cd4_type.html'>cd4_type</a>),
             </td>
               <td>public</td>
@@ -1022,7 +1086,7 @@ This directory must already exist</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-cd6~2"></span>
+              <span class="anchor" id="variable-cd6~4"></span>
               type(<a href='cd6_type.html'>cd6_type</a>),
             </td>
               <td>public</td>

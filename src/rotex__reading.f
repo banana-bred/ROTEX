@@ -155,7 +155,7 @@ contains
       end select
 
       ! -- if we need to focus on channel parity
-      if(point_group .eq. "cs") call fill_parity_array_this_irrep(kmat_lmax, elec_channels_this_irrep, irrep, point_group)
+      if(point_group .eq. "cs") call fill_parity_array_this_irrep_cs(kmat_lmax, elec_channels_this_irrep, irrep, point_group)
 
       call append(elec_channels, elec_channels_this_irrep)
 
@@ -208,13 +208,15 @@ contains
   end subroutine read_kmats
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine fill_parity_array_this_irrep(lmax_kmat, elec_channels, irrep, point_group)
+  subroutine fill_parity_array_this_irrep_cs(lmax_kmat, elec_channels, irrep, point_group)
     !! Fill the array M_PARITY, stored in the module ROTEX__SYMMETRY, that will later be accessed
     !! by the rotational frame transformation to determine which values of m from -lmax_kmat to lmax_kmat
-    !! correspond to even and odd combinations of partial waves
+    !! correspond to even and odd combinations of partial waves. The irrep corresponds to total irrep,
+    !! so we need to factor out the irrep of the electronic state. This routine
+    !! is only expected to be called for Cs symmetry
     use rotex__types,      only: elec_channel_type
     use rotex__system,     only: die
-    use rotex__symmetry,   only: Ap, App, m_parity, even, odd
+    use rotex__symmetry,   only: Ap, App, m_parity, even, odd, elecstate_parity_set, elecstate_parity
     use rotex__characters, only: i2c => int2char
     implicit none
     integer, intent(in) :: lmax_kmat
@@ -226,9 +228,28 @@ contains
     character(*), intent(in) :: point_group
       !! The point group for the scattering calculations
     integer :: ichan, m
+    integer :: gs_parity
+      !! Parity of the ground state
     if(point_group .ne. "cs") call die("Attempting to fill m_parity array for a point group&
       & other than Cs: " // point_group)
     if(allocated(m_parity) .eqv. .false.) allocate(m_parity(-lmax_kmat:lmax_kmat), source = 0)
+    ! -- determine the parity of the electronic state
+    if(elecstate_parity_set .eqv. .false.) then
+      if(any(elec_channels%ml .eq. 0) .eqv. .true.) then
+        ! -- m=0 behaves as A' (even) and therefore the parity of the electronic state
+        !    will be the parity of the total channel if m=0 is included:
+        !    Γtot = Γelec × Γm = Γelec × A' = Γelec
+        elecstate_parity = merge(even, odd, irrep .eq. Ap)
+        elecstate_parity_set = .true.
+      else
+        ! -- having no m=0 (A') channels means that this electronic state has
+        !    the opposite parity of total channel:
+        !      Γtot = Γelec × Γm = Γelec × A''
+        !    If Γtot is A' (even), Γelec is A'' (odd) and vice versa
+        elecstate_parity = merge(odd, even, irrep .eq. Ap)
+        elecstate_parity_set = .true.
+      endif
+    endif
     do ichan=1, size(elec_channels, 1)
       m = elec_channels(ichan) % ml
       if(m_parity(m) .ne. 0) cycle ! skip if set, but this probably should not happen
@@ -241,7 +262,7 @@ contains
         call die("Somehow, irrep ("//i2c(irrep)//") is not one of the valid values for the point group " // point_group)
       end select
     enddo
-  end subroutine fill_parity_array_this_irrep
+  end subroutine fill_parity_array_this_irrep_cs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine get_flat_kmat_and_channels_ukrmolx( &
@@ -571,7 +592,7 @@ contains
     use rotex__system,     only: stdin, stdout, ds => directory_separator, die
     use rotex__constants,  only: au2invcm, au2ev, macheps => macheps_dp, au2cm, au2deb, DEFAULT_CHAR1&
                                , UKRMOLX, MQDTR2K
-    use rotex__characters, only: add_trailing, to_lower
+    use rotex__characters, only: add_trailing, to_lower, lower
 
     implicit none
 
@@ -589,6 +610,7 @@ contains
     character(1) :: rotor_kind = DEFAULT_CHAR1
     character(1) :: zaxis
     real(dp) :: abc(3) = 0.0_dp
+    real(dp) :: B_rot = 0.0_dp, H_rot = 0.0_dp, D_rot = 0.0_dp
     integer :: target_charge = DEFAULT_INT
     logical :: add_cd4 = .false.
     logical :: add_cd6 = .false.
@@ -654,6 +676,9 @@ contains
                        , rotor_kind               &
                        , target_charge            &
                        , abc                      &
+                       , B_rot                    &
+                       , D_rot                    &
+                       , H_rot                    &
                        , add_cd4                  &
                        , add_cd6                  &
                        , dn, dnk, dk, deltan, deltak &
@@ -707,7 +732,11 @@ contains
     if(rotor_kind    .eq. DEFAULT_CHAR1) call die("Must specify ROTOR_KIND in CONTROL_NAMELIST")
     if(target_charge .eq. DEFAULT_INT)   call die("Must specify TARGET_CHARGE in CONTROL_NAMELIST")
     if(ZAXIS         .eq. DEFAULT_CHAR1) call die("Must specify ZAXIS in CONTROL_NAMELIST")
-    if(any(ABC       .eq. 0.0_dp))       call die("Must specify nonzero rotational constants ABC in CONTROL_NAMELIST")
+    if(lower(rotor_kind) .eq. "l") then
+      if(B_rot .le. 0.0_dp) call die("Must have a positive rotational constant B_rot for a linear molecule")
+    else
+      if(any(ABC .eq. 0.0_dp)) call die("Must specify nonzero rotational constants ABC in CONTROL_NAMELIST")
+    endif
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! KMAT_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -792,11 +821,14 @@ contains
     Ef                = Ef                / au2ev
     Ei_xtrap          = Ei_xtrap          / au2ev
     ABC(:)            = ABC(:)            / au2invcm
+    B_rot             = B_rot             / au2invcm
+    D_rot             = D_rot             / au2invcm
+    H_rot             = H_rot             / au2invcm
     xs_zero_threshold = xs_zero_threshold / (au2cm*au2cm)
 
     ! -- convert to lower case
     call to_lower(rotor_kind)
-    call to_lower(point_group)
+    if(use_kmat .eqv. .true.) call to_lower(point_group)
     call to_lower(kmat_energy_units_override)
     call to_lower(channel_energy_units_override)
 
@@ -829,22 +861,24 @@ contains
     ! -- checks
     if(Nmin .gt. Nmax) call die("Nmin > Nmax not allowed")
     if(target_charge .eq. DEFAULT_INT) call die("Must set the charge of the target in namelist CONTROL !")
-    if(target_charge .eq. 0) call die("Neutral targets not programmed yet !")
 
     ! -- namelist: control
-    cfg%nmin                     = nmin
-    cfg%nmax                     = nmax
-    cfg%use_kmat                 = use_kmat
-    cfg%use_cb                   = use_cb
-    cfg%spin_isomer_kind         = spin_isomer_kind
-    cfg%output_directory         = output_directory
-    cfg%rotor_kind               = rotor_kind
-    cfg%zaxis                    = zaxis
-    cfg%abc                      = abc(:)
-    cfg%target_charge            = target_charge
-    cfg%add_cd4                  = add_cd4
-    cfg%add_cd6                  = add_cd6
-    cfg%xs_zero_threshold        = xs_zero_threshold
+    cfg%nmin              = nmin
+    cfg%nmax              = nmax
+    cfg%use_kmat          = use_kmat
+    cfg%use_cb            = use_cb
+    cfg%spin_isomer_kind  = spin_isomer_kind
+    cfg%output_directory  = output_directory
+    cfg%rotor_kind        = rotor_kind
+    cfg%zaxis             = zaxis
+    cfg%abc               = abc(:)
+    cfg%b_rot             = b_rot
+    cfg%d_rot             = d_rot
+    cfg%h_rot             = h_rot
+    cfg%target_charge     = target_charge
+    cfg%add_cd4           = add_cd4
+    cfg%add_cd6           = add_cd6
+    cfg%xs_zero_threshold = xs_zero_threshold
     if(add_cd4 .eqv. .true.) then
       dn      = dn     / au2invcm
       dnk     = dnk    / au2invcm

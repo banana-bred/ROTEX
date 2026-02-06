@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 2.2% of total for procedures.">64 statements</a>
+                 title=" 2.3% of total for procedures.">68 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -161,10 +161,10 @@
         <ul class="list-group list-group-flush">
             <li class="list-group-item">
               <ul class="list-inline">
-                  <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__hamilton.html'>rotex__hamilton</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__arrays.html'>rotex__arrays</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__hamilton.html'>rotex__hamilton</a></li>
               </ul>
             </li>
         </ul>
@@ -173,7 +173,11 @@
 
 
     <p>Build the rigid-rotor hamiltonian for each N and diagonalize it. Keep eigenenergies and
-eigenvectors, stored in the eigenH type of n_states</p>
+ eigenvectors, stored in the eigenH type of n_states
+!!!!!!!!!!!!!!!!!!!!!!! nonlinear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!! linear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!</p>
 
 
     <h3>Arguments</h3>
@@ -189,7 +193,7 @@ eigenvectors, stored in the eigenH type of n_states</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-cfg~3"></span>
+              <span class="anchor" id="variable-cfg~5"></span>
               type(<a href='../type/config_type.html'>config_type</a>),
             </td>
 <td>intent(in)</td>
@@ -204,7 +208,7 @@ eigenvectors, stored in the eigenH type of n_states</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-num_n~2"></span>
+              <span class="anchor" id="variable-num_n~3"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -234,7 +238,7 @@ eigenvectors, stored in the eigenH type of n_states</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-n_states~5"></span>
+              <span class="anchor" id="variable-n_states~7"></span>
               type(<a href='../type/n_states_type.html'>N_states_type</a>),
             </td>
 <td>intent(out)</td>

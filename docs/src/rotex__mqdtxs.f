@@ -19,6 +19,7 @@ contains
       , transitions                 &
       , nmin                        &
       , nmax                        &
+      , targcharge                  &
       , smat_j                      &
       , jmin                        &
       , jmax                        &
@@ -56,6 +57,8 @@ contains
       !! Array of transitions that will be considered for (de-)excitation
     integer, intent(in) :: nmin, nmax
       !! Min/max values of N to consider for excitation calculations
+    integer, intent(in) :: targcharge
+      !! Charge of the target molecule
     type(cmatrix_type), intent(in) :: smat_j(jmin:jmax)
       !! Array of S-matrix sub-blocks for each J
     integer, intent(in) :: jmin, jmax
@@ -182,7 +185,7 @@ contains
 
       ! -- loop over the total enrgy grid
       !$omp parallel default(none) &
-      !$omp& shared(ne, channels_this_J, S, prob, transitions, J, nchans_J, total_energy_grid&
+      !$omp& shared(ne, channels_this_J, S, prob, transitions, J, nchans_J, targcharge, total_energy_grid&
 #ifdef USE_FORBEAR
       !$omp&   , progressbar, rprogress, rprogress_inc, iprogress, iprogress_last)&
 #else
@@ -214,7 +217,13 @@ contains
         beta = 0
         Sphys = 0
 
-        call CCEP(S, channels_this_J, q, Etot, Sphys, beta, nopen, nclosed)
+        if(targcharge .eq. 0) then
+          Sphys = S(1:nopen,1:nopen)
+        elseif(targcharge .gt. 0) then
+          call CCEP(S, channels_this_J, q, Etot, Sphys, beta, nopen, nclosed)
+        else
+          call die("CCEP not implemented for negative ions")
+        endif
 
 #ifdef USE_FORBEAR
         !$omp atomic

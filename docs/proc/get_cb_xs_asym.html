@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 3.4% of total for procedures.">99 statements</a>
+                 title=" 3.6% of total for procedures.">108 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -153,7 +153,7 @@
     </div>
     
     <div class="col-md-9" id='text'>
-    <h2>public module subroutine get_CB_xs_asym(energies, sigma, Z, N, Np, E, Ep, eigvec, eigvecp, einsta, use_CDMS, do_dipole, do_quadrupole, dipole_moments, quadrupole_moments, analytic_total_cb, lmax)  
+    <h2>public module subroutine get_CB_xs_asym(energies, sigma, Z, rotor_kind, N, Np, E, Ep, eigvec, eigvecp, einsta, use_CDMS, do_dipole, do_quadrupole, dipole_moments, quadrupole_moments, analytic_total_cb, lmax)  
 </h2>
         <div class="card mb-4">
       <h3 class="card-header card-title bg-light">Uses</h3>
@@ -161,11 +161,12 @@
         <ul class="list-group list-group-flush">
             <li class="list-group-item">
               <ul class="list-inline">
+                  <li class="list-inline-item"><a href='../module/rotex__wigner.html'>rotex__wigner</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__functions.html'>rotex__functions</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__constants.html'>rotex__constants</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
                   <li class="list-inline-item"><a href='http://fortranwiki.org/fortran/show/ieee_arithmetic'>ieee_arithmetic</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__constants.html'>rotex__constants</a></li>
               </ul>
             </li>
         </ul>
@@ -238,7 +239,22 @@ Returned with the same size as <code>energies</code></p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-n~3"></span>
+              <span class="anchor" id="variable-rotor_kind~3"></span>
+              character(len=1),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>rotor_kind</strong></td>
+            <td>
+                <p>The kind of rotor we're dealing with: a(symmetric top), s(ymmetric top), l(inear rotor)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~7"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -270,7 +286,7 @@ Returned with the same size as <code>energies</code></p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-e~2"></span>
+              <span class="anchor" id="variable-e~5"></span>
               real(kind=dp),
             </td>
 <td>intent(in)</td>
@@ -332,7 +348,7 @@ Returned with the same size as <code>energies</code></p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-einsta~2"></span>
+              <span class="anchor" id="variable-einsta~3"></span>
               real(kind=dp),
             </td>
 <td>intent(inout)</td>
@@ -363,7 +379,7 @@ from the CDMS catalogue (.false.)</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-do_dipole~2"></span>
+              <span class="anchor" id="variable-do_dipole~3"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -378,7 +394,7 @@ from the CDMS catalogue (.false.)</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-do_quadrupole~2"></span>
+              <span class="anchor" id="variable-do_quadrupole~3"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -423,7 +439,7 @@ from the CDMS catalogue (.false.)</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-analytic_total_cb"></span>
+              <span class="anchor" id="variable-analytic_total_cb~2"></span>
               logical,
             </td>
 <td>intent(in)</td>

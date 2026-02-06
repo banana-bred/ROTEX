@@ -22,6 +22,7 @@
   spin_isomer_kind =
     !! The spin isomer kind to enforce for the molecule.
     !!   0*: none (spin symmetry may be self-enforced by the underlying calculations and dipole vector)
+    !!   1 : N parity (even or odd), homonuclear diatomics
     !!   2 : Ka+Kc parity (odd or even)
   zaxis = "b"
     !! The inertial axis along which the molecular z-axis is fixed. Values
@@ -69,7 +70,7 @@
 ! =============================================================================================
 &kmat_namelist
 ! =============================================================================================
-  kmat_dir = "example/MQDTR2K"
+  kmat_dir = "example/H2O+/MQDTR2K"
     !! The directory containing the K-matrices that the code will read
   channels_dir =
     !! The directory containing the channel files that the code will read (unused if
@@ -126,7 +127,7 @@
     !! Whether to use CDMS data to get Einstein A coefficients, which will be used
     !! in determining cross sections in the Coulomb-Born approximation (if that transition
     !! is available)
-  CDMS_file = "example/H2OX.CDMS.MHz.log.dat"
+  CDMS_file = "example/H2O+/H2OX.CDMS.MHz.log.dat"
     !! The file to use for reading the CDMS data if USE_CDMS_EINSTA is true.
   only_einsta =
     !! Whether to ONLY calculate Einstein A coefficients and ignore cross section calculations

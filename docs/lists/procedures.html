@@ -192,7 +192,11 @@ this basically resolved to Windows or not Windows.</p></td>
                  <td><a href='../module/rotex__drivers.html'>rotex__drivers</a></td>
                  <td>Subroutine</td>
                  <td><p>Build the rigid-rotor hamiltonian for each N and diagonalize it. Keep eigenenergies and
-eigenvectors, stored in the eigenH type of n_states</p></td>
+ eigenvectors, stored in the eigenH type of n_states
+!!!!!!!!!!!!!!!!!!!!!!! nonlinear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!! linear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!</p></td>
                </tr>
 			   <tr>
                  <td><a href='../interface/die.html'>die</a></td>
@@ -494,12 +498,6 @@ assuming that they're positive quantities</p></td>
                  <td></td>
                </tr>
 			   <tr>
-                 <td><a href='../interface/logp1.html'>logp1</a></td>
-                 <td><a href='../module/rotex__functions.html'>rotex__functions</a></td>
-                 <td>Interface</td>
-                 <td></td>
-               </tr>
-			   <tr>
                  <td><a href='../interface/logrange.html'>logrange</a></td>
                  <td><a href='../module/rotex__functions.html'>rotex__functions</a></td>
                  <td>Interface</td>
@@ -598,6 +596,12 @@ E0+1e-3           E0+1e-2              E0+1e-1           E0+1.0
                  <td><a href='../module/rotex__symmetry.html'>rotex__symmetry</a></td>
                  <td>Function</td>
                  <td><p>Returns an array of possible spin symmetry values</p></td>
+               </tr>
+			   <tr>
+                 <td><a href='../proc/print_dipole.html'>print_dipole</a></td>
+                 <td><a href='../program/rotex.html'>rotex</a></td>
+                 <td>Subroutine</td>
+                 <td><p>Print the dipole components in the determined ABC frame</p></td>
                </tr>
 			   <tr>
                  <td><a href='../proc/print_dipoles.html'>print_dipoles</a></td>

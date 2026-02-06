@@ -22,6 +22,7 @@ module rotex__utils
   end interface isint
 
   interface kbn_sum
+    module procedure :: kbn_sum_rdp
     module procedure :: kbn_sum_rqp
     module procedure :: kbn_sum_cdp
     module procedure :: kbn_sum_cqp
@@ -94,6 +95,21 @@ contains
     res = .true.
   end function isint_c
 
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental subroutine kbn_sum_rdp(summation, c, input)
+    !! Improved Kahan-Babuška algorithm accumulation for summations
+    implicit none
+    real(dp), intent(inout) :: summation, c
+    real(dp), intent(in)    :: input
+    real(dp) :: t
+    t = summation + input
+    if(abs(summation) .ge. abs(input)) then
+      c = c + (summation-t) + input
+    else
+      c = c + (input - t) + summation
+    endif
+    summation = t
+  end subroutine kbn_sum_rdp
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental subroutine kbn_sum_rqp(summation, c, input)
     !! Improved Kahan-Babuška algorithm accumulation for summations
@@ -269,7 +285,7 @@ contains
         endif
         signc = nint(copysign(1._dp, M(i,j)%re))
         write(funit_local, fmtr,  advance = "no") M(i,j)%re
-        write(funit_local, '(A)', advance = "no") " +"
+        write(funit_local, '(A)', advance = "no") merge(" +", " -", M(i,j)%im .ge. 0.0_dp)
         write(funit_local, fmtc,  advance = "no") absmc
         write(funit_local, '(A)', advance = "no") " im,"
       enddo

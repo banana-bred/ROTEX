@@ -11,7 +11,7 @@ module rotex__functions
   public :: log_factorial
   public :: are_approx_eq
   public :: expm1
-  public :: logp1
+  ! public :: logp1
   public :: isnatural
   public :: isinteger
   public :: arg
@@ -47,10 +47,10 @@ module rotex__functions
     module procedure :: expm1z
   end interface expm1
 
-  interface logp1
-    module procedure :: logp1r
-    module procedure :: logp1z
-  end interface logp1
+  ! interface logp1
+  !   module procedure :: logp1r
+  !   module procedure :: logp1z
+  ! end interface logp1
 
   interface logb
     module procedure :: logb_ii

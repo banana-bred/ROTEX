@@ -53,23 +53,24 @@ module rotex__types
   type N_states_type
     !! The rotational state of the system described by its eigenvectors, eigenvalues,
     !! and state labels
-    integer :: N
     type(eigenH_type) :: eigenH
       !! The decomposed Hamiltonian for this rotational level
+    real(dp), allocatable :: EinstA(:)
+      !! The Einstein coefficients for transitions to all lower states (0 if none)
     integer, allocatable :: Ka(:)
       !! The projections Ka
     integer, allocatable :: Kc(:)
       !! The projections Kc
-    real(dp), allocatable :: EinstA(:)
-      !! The Einstein coefficients for transitions to all lower states (0 if none)
+    integer :: N
+      !! Rotational quantum number
   end type N_states_type
 
   type, abstract :: channel_type
     !! |nelec> (E)
-    integer :: nelec
-      !! Electronic state
     real(dp) :: E
       !! The channel energy
+    integer :: nelec
+      !! Electronic state
   end type channel_type
 
   type, extends(channel_type) :: elec_channel_type
@@ -214,6 +215,7 @@ module rotex__types
     integer :: spin_isomer_kind
       !! Whether and how to enforce ortho/para symmetry for molecules with identical nuclei.
       !!   0: don't
+      !!   1: Dsh linear rotor; basically, homonuclear diatomics
       !!   2: C2v rotor (H₂X-like): preserve Ka+Kc parity
       !! Note that this just disables certain transitions from bein calculated
       !! in the CB approx as well as from the S-matrix. This does not affect
@@ -269,6 +271,21 @@ module rotex__types
     real(dp) :: abc(3)
       !! Array of reals of length 3
       !! The rotational constants A, B, and C of the target molecule (cm⁻¹).
+    real(dp) :: B_rot
+      !! Only for linear rotors; the rotational constant B in the expansion
+      !! of the rotational energy :
+      !!   E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+      !! Cannot be 0 for a linear molecule
+    real(dp) :: D_rot
+      !! Only for linear rotors; the centrifugal distortion coefficient D
+      !! in the expansion of the rotational energy :
+      !!   E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+      !! 0 by default
+    real(dp) :: H_rot
+      !! Only for linear rotors; the centrifugal distortion coefficient D
+      !! in the expansion of the rotational energy :
+      !!   E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
+      !! 0 by default
     real(dp) :: cartesian_dipole_moments(3)
       !! Array of cartesian dipole moments (Debye)
       !! in the order dx, dy, dz

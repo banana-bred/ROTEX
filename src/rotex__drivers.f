@@ -73,6 +73,7 @@ contains
 
     integer :: ipair, inlo, inup, itaulo, itauup
     integer :: nlo, nup, kalo, kaup, kclo, kcup, neleclo, nelecup
+    integer :: num_klo, num_kup
     integer :: num_n
     integer :: sym
     integer, allocatable :: lambdas(:)
@@ -131,6 +132,12 @@ contains
       ! -- only consider 1 electronic state for now
       neleclo = 1
 
+      select case(cfg%rotor_kind)
+      case("l")      ; num_klo = 1
+      case("a", "s") ; num_klo = 2*nlo+1
+      case default   ; call die("ROTOR_KIND ( "// cfg%rotor_kind //" )is neither 'l', 'a', or 's'")
+      end select
+
       ! -- only consider excitation pairs; de-excitation is handled symmetrically
       nup_loop: do inup = inlo, num_n
 
@@ -147,19 +154,35 @@ contains
 
         write(stdout, '("N : ", I0, " —> ", I0)') nlo, nup
 
-        taulo_loop: do itaulo=1, 2*nlo+1
+        select case(cfg%rotor_kind)
+        case("l")      ; num_kup = 1
+        case("a", "s") ; num_kup = 2*nup+1
+        end select
 
-          kalo = n_states(inlo) % ka(itaulo)
-          kclo = n_states(inlo) % kc(itaulo)
+        taulo_loop: do itaulo=1, num_klo
+
+          select case(cfg%rotor_kind)
+          case("l")
+            kalo = 0
+            kclo = nlo
+          case("a", "s")
+            kalo = n_states(inlo) % ka(itaulo)
+            kclo = n_states(inlo) % kc(itaulo)
+          end select
           elo  = n_states(inlo) % eigenh % eigvals(itaulo)
           sym  = spin_symmetry(nlo, kalo, kclo, cfg%spin_isomer_kind, cfg%zaxis)
           lo = asymtop_rot_channel_type(nelec= neleclo, n=nlo, ka=kalo, kc=kclo, e=elo, sym=sym)
 
-          tauup_loop: do itauup=1, 2*nup+1
+          tauup_loop: do itauup=1, num_kup
 
-
-            kaup = n_states(inup) % ka(itauup)
-            kcup = n_states(inup) % kc(itauup)
+            select case(cfg%rotor_kind)
+            case("l")
+              kaup = 0
+              kcup = nup
+            case("a", "s")
+              kaup = n_states(inup) % ka(itauup)
+              kcup = n_states(inup) % kc(itauup)
+            end select
             eup  = n_states(inup) % eigenh % eigvals(itauup)
             sym  = spin_symmetry(nup, kaup, kcup, cfg%spin_isomer_kind, cfg%zaxis)
             up = asymtop_rot_channel_type(nelec= nelecup, n=nup, ka=kaup, kc=kcup, e=eup, sym=sym)
@@ -172,19 +195,12 @@ contains
             ipair = ipair + 1
             transition = asymtop_rot_transition_type(lo = lo, up = up)
 
-            write(stdout, '(2X, "(Ka,Kc) : ", I0,",",I0, " --> ", I0,",",I0, " ... ")', advance = "no") &
-              kalo, kclo, kaup, kcup
-
-            eigveclo = n_states(inlo) % eigenh % eigvecs(:, itaulo)
-            eigvecup = n_states(inup) % eigenh % eigvecs(:, itauup)
-
             select case(cfg%rotor_kind)
-            case("l")
-              call die("linear xs not yet programmed; use ABC and set a large A (hundreds+)")
-            case("s", "a")
-              continue
-            case default
-              call die("ROTOR_KIND  must be (l)inear, (s)ymmetric top, or (a)symmetric top")
+            case("a", "s")
+              write(stdout, '(2X, "(Ka,Kc) : ", I0,",",I0, " --> ", I0,",",I0, " ... ")', advance = "no") &
+                kalo, kclo, kaup, kcup
+              eigveclo = n_states(inlo) % eigenh % eigvecs(:, itaulo)
+              eigvecup = n_states(inup) % eigenh % eigvecs(:, itauup)
             end select
 
             ! -- check if we need to respect ortho-para symmetry
@@ -207,7 +223,14 @@ contains
             einsta = 0
 #ifdef USE_CDMSREADER
             ! -- get CDMS Einstein A coefficients
-            if(cfg%use_cdms_einsta .eqv. .true.) call get_cdms_einsta(nlo, kalo, kclo, nup, kaup, kcup, cdms_transitions, einsta)
+            if(cfg%use_cdms_einsta .eqv. .true.) then
+              call get_cdms_einsta(nlo, kalo, kclo, nup, kaup, kcup, cdms_transitions, einsta)
+              select case(cfg%rotor_kind)
+              case("a") ; continue
+              case("s") ; call die("Can't get CDMS for a symmetric top yet")
+              case("l") ; call die("Can't get CDMS for linear rotor yet")
+              end select
+            endif
 #endif
 
             if(cfg%only_einsta .eqv. .false.) then
@@ -217,6 +240,7 @@ contains
                   Eel                          &
                 , sigma_pcb                    &
                 , cfg%target_charge            &
+                , cfg%rotor_kind               &
                 , nlo                          &
                 , nup                          &
                 , elo                          &
@@ -284,6 +308,7 @@ contains
                 Eel                          &
               , sigma_tcb                    &
               , cfg%target_charge            &
+              , cfg%rotor_kind               &
               , nlo                          &
               , nup                          &
               , elo                          &
@@ -516,6 +541,7 @@ contains
         , transitions_this_spin    &
         , cfg%nmin                 &
         , cfg%nmax                 &
+        , cfg%target_charge        &
         , smat_j(jmin:jmax)        &
         , jmin, jmax               &
         , asymtop_rot_channels_l_j &
@@ -623,11 +649,10 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine convert_multipoles(cartesian_moments_array, spherical_moments_array)
     !! Convert the supplied array of multipole moments from cartesian, obtained as typical output from
-    !! quantum chemistry codes, to spherical multipole moments
-    !! \( Q_{\lambda,\mu} = \int d\vec{r} \rho(\vec{r}) Y_lambda^\mu(\hat{r}) \)
+    !! quantum chemistry codes, to spherical multipole tensors
     use rotex__types,     only: dp
     use rotex__system,    only: die
-    use rotex__constants, only: im
+    use rotex__constants, only: im, pi
 
     implicit none
 
@@ -865,42 +890,68 @@ contains
     type(config_type),   intent(in)  :: cfg
     integer,             intent(in)  :: num_n, n_values(:)
     type(n_states_type), intent(out) :: n_states(:)
-    integer :: i_n, n
+    integer  :: i_n, n
+    real(dp) :: E_rot
     type(eigenh_type) :: hka, hkb, hkc
     complex(dp), allocatable :: eigvecs(:,:)
     character(1) :: current_axis
     call size_check(n_values, num_n, "N_VALUES")
     call size_check(n_states, num_n, "N_STATES")
     do i_n = 1, num_n
+
       n = n_values(i_n)
-      allocate(n_states(i_n) % einsta(2*n+1))
       n_states(i_n) % n = n
-      n_states(i_n) % einsta = 0
+
       select case(cfg%rotor_kind)
-      case("l", "a", "s")
+      !!!!!!!!!!!!!!!!!!!!!!!!! nonlinear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      case("a", "s")
+
+        allocate(n_states(i_n) % einsta(2*n+1), source = 0.0_dp)
+
         associate(a => cfg%abc(1), b => cfg%abc(2), c => cfg%abc(3))
 
           ! -- diagonalize in z=A frame so that we can use the CD coefficients and get Ka
           current_axis = "a"
-          call rigid_rotor(n, hka, b, c, a, cfg%cd4, cfg%cd6) ! <-- A basis, Ka = Kz
+          call rigid_rotor(n, hka, b, c, a, cfg%cd4, cfg%cd6) ! <-- A basis, Ka = Kz, energies
           N_states(i_N) % eigenH = HKa
           eigvecs = HKa % eigvecs
           call assign_projections(N, eigvecs, N_states(i_N) % Ka) ! Ka labels
 
-          ! -- diagonalize (without CD) in C=z basis to get Kc labels
+          ! -- diagonalize (without CD) in z=C basis to get Kc labels
           call rigid_rotor(n, hkc, a, b, c) ! <-- C basis, Kc = Kz
           call assign_projections(N, hkc%eigvecs, N_states(i_N) % Kc) ! Kc labels
 
-          ! -- rotate to the desired z=A,B,C frame so that our eigenvectors agree with
-          !    the scattering calculations if needed
-          call rotate_eigvecs(N, current_axis, cfg%zaxis, eigvecs)
-          N_states(i_N) % eigenH % eigvecs = eigvecs
+          ! -- rotate eigenvectors if needed to that xyz align with scattering calculations
+          select case(cfg%zaxis)
+          case("a","A")
+            continue
+          case("b","B","c","C")
+            ! call rigid_rotor(n, hkb, c, a, b) ! <-- C basis, Kc = Kz
+            ! N_states(i_N) % eigenH = hkb
+            call rotate_eigvecs(N, current_axis, cfg%zaxis, eigvecs)
+            N_states(i_N) % eigenH % eigvecs = eigvecs
+          end select
 
         end associate
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!! linear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      case("l")
+
+        E_rot = cfg%B_rot * (N*(N+1)) - cfg%D_rot * (N*(N+1))**2 + cfg%H_rot * (N*(N+1))**3
+        allocate(n_states(i_n) % einsta(1),             source = 0.0_dp)
+        allocate(n_states(i_n) % eigenH % eigvals(1),   source = E_rot )
+        ! allocate(n_states(i_n) % Kc(1),               source = 0.0_dp)
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       case default
+
         call die("Undefined value for namelist variable ROTOR_KIND: " // cfg%rotor_kind)
+
       end select
+
     enddo
+
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
@@ -919,7 +970,7 @@ contains
       add_cd6 = present(cd6)
       ! -- add cd4 ?
       test = merge(1, 0, add_cd4 .eqv. .true.)
-      ! -- add cf4 & cd6 ?
+      ! -- add cd4 & cd6 ?
       test = merge(2, test, (add_cd6 .eqv. .true.) .AND. (add_cd4 .eqv. .true.))
       select case(test)
         case(2) ; call h_asym(nn, ham, bx, by, bz, cd4, cd6)

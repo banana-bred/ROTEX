@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 8.1% of total for modules and submodules.">463 statements</a>
+                 title=" 8.1% of total for modules and submodules.">472 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -214,7 +214,7 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-l~2"></span>
+              <span class="anchor" id="variable-l~11"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -229,7 +229,7 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-ki"></span>
+              <span class="anchor" id="variable-ki~2"></span>
               real(kind=dp),
             </td>
 <td>intent(in)</td>
@@ -309,7 +309,7 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-einsta"></span>
+              <span class="anchor" id="variable-einsta~2"></span>
               real(kind=dp),
             </td>
 <td>intent(inout)</td>
@@ -324,7 +324,7 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-nlo~3"></span>
+              <span class="anchor" id="variable-nlo~7"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -340,7 +340,7 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-nup~3"></span>
+              <span class="anchor" id="variable-nup~7"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -356,7 +356,7 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-elo"></span>
+              <span class="anchor" id="variable-elo~3"></span>
               real(kind=dp),
             </td>
 <td>intent(in)</td>
@@ -371,7 +371,7 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-eup"></span>
+              <span class="anchor" id="variable-eup~3"></span>
               real(kind=dp),
             </td>
 <td>intent(in)</td>
@@ -386,12 +386,12 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-eigveclo"></span>
+              <span class="anchor" id="variable-eigveclo~2"></span>
               complex(kind=dp),
             </td>
-<td>intent(in)</td>
+<td>intent(in),</td>
               <td></td>            <td>
-              
+              allocatable
             </td>
             <td>::</td>
             <td><strong>eigveclo</strong>(:)</td>
@@ -402,12 +402,12 @@ for λ = 1, where <script type="math/tex">-4M^\lambda_{l+λ,l} = I^λ_{l+λ, l}<
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-eigvecup"></span>
+              <span class="anchor" id="variable-eigvecup~2"></span>
               complex(kind=dp),
             </td>
-<td>intent(in)</td>
+<td>intent(in),</td>
               <td></td>            <td>
-              
+              allocatable
             </td>
             <td>::</td>
             <td><strong>eigvecup</strong>(:)</td>
@@ -434,7 +434,7 @@ from the CDMS catalogue (.false.)</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-do_dipole"></span>
+              <span class="anchor" id="variable-do_dipole~2"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -449,7 +449,7 @@ from the CDMS catalogue (.false.)</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-do_quadrupole"></span>
+              <span class="anchor" id="variable-do_quadrupole~2"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -500,7 +500,7 @@ from the CDMS catalogue (.false.)</p>
   </div>
 
               <div class="card">
-    <div class="card-header codesum"><span class="anchor" id="proc-get_cb_xs_asym"></span> <h3>public module subroutine <a href='../proc/get_cb_xs_asym.html'>get_CB_xs_asym</a>(energies, sigma, Z, N, Np, E, Ep, eigvec, eigvecp, einsta, use_CDMS, do_dipole, do_quadrupole, dipole_moments, quadrupole_moments, analytic_total_cb, lmax)  
+    <div class="card-header codesum"><span class="anchor" id="proc-get_cb_xs_asym"></span> <h3>public module subroutine <a href='../proc/get_cb_xs_asym.html'>get_CB_xs_asym</a>(energies, sigma, Z, rotor_kind, N, Np, E, Ep, eigvec, eigvecp, einsta, use_CDMS, do_dipole, do_quadrupole, dipole_moments, quadrupole_moments, analytic_total_cb, lmax)  
 </h3></div>
     <div class="card-body">
           
@@ -568,7 +568,22 @@ Returned with the same size as <code>energies</code></p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-n~3"></span>
+              <span class="anchor" id="variable-rotor_kind~3"></span>
+              character(len=1),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>rotor_kind</strong></td>
+            <td>
+<p>The kind of rotor we're dealing with: a(symmetric top), s(ymmetric top), l(inear rotor)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~7"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -600,7 +615,7 @@ Returned with the same size as <code>energies</code></p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-e~2"></span>
+              <span class="anchor" id="variable-e~5"></span>
               real(kind=dp),
             </td>
 <td>intent(in)</td>
@@ -662,7 +677,7 @@ Returned with the same size as <code>energies</code></p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-einsta~2"></span>
+              <span class="anchor" id="variable-einsta~3"></span>
               real(kind=dp),
             </td>
 <td>intent(inout)</td>
@@ -693,7 +708,7 @@ from the CDMS catalogue (.false.)</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-do_dipole~2"></span>
+              <span class="anchor" id="variable-do_dipole~3"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -708,7 +723,7 @@ from the CDMS catalogue (.false.)</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-do_quadrupole~2"></span>
+              <span class="anchor" id="variable-do_quadrupole~3"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -753,7 +768,7 @@ from the CDMS catalogue (.false.)</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-analytic_total_cb"></span>
+              <span class="anchor" id="variable-analytic_total_cb~2"></span>
               logical,
             </td>
 <td>intent(in)</td>
@@ -810,7 +825,7 @@ Re-allocates Eel and xs to contain the extrapolated values</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-ei_xtrap"></span>
+              <span class="anchor" id="variable-ei_xtrap~2"></span>
               real(kind=dp),
             </td>
 <td>intent(in)</td>
@@ -840,7 +855,7 @@ Re-allocates Eel and xs to contain the extrapolated values</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-ne_xtrap"></span>
+              <span class="anchor" id="variable-ne_xtrap~2"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -855,7 +870,7 @@ Re-allocates Eel and xs to contain the extrapolated values</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-eel"></span>
+              <span class="anchor" id="variable-eel~2"></span>
               real(kind=dp),
             </td>
 <td>intent(inout),</td>
@@ -871,7 +886,7 @@ On output, the electron energy grid with extrapolated energies prepended</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-xs_pcb"></span>
+              <span class="anchor" id="variable-xs_pcb~2"></span>
               real(kind=dp),
             </td>
 <td>intent(inout),</td>
@@ -887,7 +902,7 @@ On output, the partial Coulomb-Born cross sections with extrapolated cross secti
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-xs_tcb"></span>
+              <span class="anchor" id="variable-xs_tcb~2"></span>
               real(kind=dp),
             </td>
 <td>intent(inout),</td>

@@ -202,13 +202,13 @@ contains
     integer, intent(in) :: kind
     integer, allocatable :: res(:)
     select case(kind)
-    case(0)   ; res = [0]
-    ! case(1,2) ; res = [0,1]
+    case(0) ; res = [0]
+    case(1) ; res = [0,1]
     case(2) ; res = [0,1]
     ! case(3)   ; res = [0,1]
     case default
       ! call die("Symmetry kind not supported. Must be one of 0,1,2,3")
-      call die("Symmetry kind not supported. Must be one of 0,2")
+      call die("Symmetry kind not supported. Must be one of 0,1,2")
     end select
   end function possible_spin_symmetries
 

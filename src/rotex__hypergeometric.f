@@ -9,9 +9,13 @@ module rotex__hypergeometric
   private
 
   public :: f21
-  public :: f21_dispatch
-  public :: f21_ts
-  ! public :: f21_ode_eval
+
+  interface f21
+    !! Interface for calculating the Gauss hypergeometric function ₂F₁(a,b;c;z)
+    !! for real and complex parameters
+    module procedure :: f21_r
+    module procedure :: f21_c
+  end interface f21
 
   real(dp), parameter :: TS_DEFAULT_TOLERANCE = macheps_dp
 
@@ -20,7 +24,215 @@ contains
 ! ================================================================================================================================ !
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  impure elemental function f21_dispatch(za, zb, zc, z, ts_tol) result(res)
+  impure elemental module function f21_r(a, b, c, x) result(res)
+    !! Returns one of the following transforms for real a, b, c, x. These transformations are not valid for
+    !! integral b-a or c-a-b
+    !!   1. ₂F₁(a,b;c;x) = (1-x)^{-b} ₂F₁(b,c-a;c;x/(x-1))
+    !!   2. ₂F₁(a,b;c;x) = (1-x)^{-a} ₂F₁(a,c-b;c;x/(x-1))
+    !!   3. ₂F₁(a,b;c;x) = (1-x)^{-a} Γ(c)Γ(b-a)/(Γ(b)Γ(c-a)) ₂F₁(a,c-b;a-b+1;1/(1-x))
+    !!                   + (1-x)^{-b} Γ(c)Γ(a-b)/(Γ(a)Γ(c-b)) ₂F₁(b,c-a;b-a+1;1/(1-x))
+    !!   4. ₂F₁(a,b;c;x) =               Γ(c)Γ(c-a-b)/Γ(c-a)Γ(c-b) ₂F₁(a, b, a+b-c+1, 1-x)
+    !!                   + (1-x)^(c-a-b) Γ(c)Γ(a+b-c)/Γ(a)Γ(b)     ₂F₁(c-a,c-b;c-a-b+1;1-x)
+    !!   5. ₂F₁(a,b;c;x) = (x)^(-a)              Γ(c)Γ(c-a-b)/Γ(c-a)Γ(c-b) ₂F₁(a,a-c+1;a+b-c+1;1-1/x)
+    !!                   + x^(a-c) (1-x)^(c-a-b) Γ(c)Γ(a+b-c)/Γ(a)Γ(b)     ₂F₁(c-a,1-a;c-a-b+1;1-1/x)
+    !!   6. ₂F₁(a,b;c;x) = (-x)^(-a) Γ(c)Γ(b-a)/Γ(b)Γ(c-a) ₂F₁(a,a-c+1;a-b+1;1/x)
+    !!                   + (-x)^(-b) Γ(c)Γ(a-b)/Γ(a)Γ(c-b) ₂F₁(b-c+1,b;b-a+1;1/x)
+    !! Regions of validity:
+    !!   1. |a| < |b|, -1 ≤ x < 0
+    !!   2. |a| > |b|, -1 ≤ x < 0
+    !!   3. -∞ < x < -1
+    !!   4. ½ < x < 1
+    !!   5. 1 < x ≤ 2
+    !!   6. 2 < x < ∞
+
+    use rotex__utils,     only: isint
+    use rotex__system,    only: die
+    use rotex__functions, only: inv
+    use rotex__polygamma, only: lgamma => log_gamma
+
+    implicit none
+    real(dp), intent(in) :: a, b, c, x
+    real(dp) :: res
+    real(dp) :: wx
+
+    if(isint(c) .eqv. .true.) then
+      if(nint(c) .lt. 1) call die("Hypergeometric function not not defined for c = 0, -1, -2, ..")
+    elseif(isint(b-a) .OR. isint(c-a-b)) then
+      ! -- linear transformations are not valid for this
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      res = f21_ts_r(a, b, c, x)
+      return
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      res = f21_dispatch_r(a, b, c, x)
+      return
+    endif
+
+    ! -- transform closer to 0 for better convergence
+    if(x .gt. 2.0_dp) then
+      ! -- 2 < x < ∞
+      wx = 1._dp/x
+      res = (-x)**(-a) * exp(lgamma(c) + lgamma(b-a) - lgamma(b) - lgamma(c-a)) * f21(a,a-c+1,a-b+1,wx) &
+          + (-x)**(-b) * exp(lgamma(c) + lgamma(a-b) - lgamma(a) - lgamma(c-b)) * f21(b-c+1,b,b-a+1,wx)
+      return
+    elseif(x .gt. 1.0_dp) then
+      ! -- 1 < x ≤ 2
+      wx = 1._dp - 1._dp/x
+      res = exp(-a*log(x)+lgamma(c)+lgamma(c-a-b)-lgamma(c-a)-lgamma(c-b))                 * f21_dispatch_r(a,a-c+1,a+b-c+1,wx) &
+          + exp((a-c)*log(x)+(c-a-b)*log(1-x)+lgamma(c)+lgamma(a+b-c)-lgamma(a)-lgamma(b)) * f21_dispatch_r(c-a,1-a,c-a-b+1,wx)
+      return
+    elseif(x .gt. 0.5_dp) then
+      ! -- ½ < x ≤ 1
+      wx = 1._dp - x
+      res = exp(                 lgamma(c)+lgamma(c-a-b)-lgamma(c-a)-lgamma(c-b)) * f21_dispatch_r(a,  b,  a+b-c+1,    wx) &
+          + exp((c-a-b)*log(1-x)+lgamma(c)+lgamma(a+b-c)-lgamma(a)  -lgamma(b))   * f21_dispatch_r(c-a,c-b,c-a-b+1._dp,wx)
+      return
+    elseif(x .gt. 0.0_dp) then
+      ! -- 0 < x ≤ ½
+      res = f21_dispatch_r(a, b, c, x)
+      return
+    endif
+
+    if(x .ge. -1) then
+      ! -- -1 ≤ x < 0
+      wx = x/(x-1)
+      if(abs(a) .lt. abs(b)) then
+        res = (1-x)**(-b) * f21_dispatch_r(b, c-a, c, wx)
+      else
+        res = (1-x)**(-a) * f21_dispatch_r(a, c-b, c, wx)
+      endif
+      return
+    endif
+
+    ! -- -∞ < x < -1
+    wx = inv(1-x)
+    res = exp(-a*log(1-x)+lgamma(c)+lgamma(b-a)-lgamma(b)-lgamma(c-a))*f21_dispatch_r(a,c-b,a-b+1,wx) &
+        + exp(-b*log(1-x)+lgamma(c)+lgamma(a-b)-lgamma(a)-lgamma(c-b))*f21_dispatch_r(b,c-a,b-a+1,wx)
+
+  end function f21_r
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  impure elemental module function f21_c(a, b, c, x) result(res)
+    !! Returns one of the following transforms for complex a, b, c; real x
+    !!   1. ₂F₁(a,b;c;x) = (1-x)^{-b} ₂F₁(b,c-a;c;x/(x-1))
+    !!   2. ₂F₁(a,b;c;x) = (1-x)^{-a} ₂F₁(a,c-b;c;x/(x-1))
+    !!   3. ₂F₁(a,b;c;x) = (1-x)^{-a} Γ(c)Γ(b-a)/(Γ(b)Γ(c-a)) ₂F₁(a,c-b;a-b+1;1/(1-x))
+    !!                   + (1-x)^{-b} Γ(c)Γ(a-b)/(Γ(a)Γ(c-b)) ₂F₁(b,c-a;b-a+1;1/(1-x))
+    !!   4. ₂F₁(a,b;c;x) =               Γ(c)Γ(c-a-b)/Γ(c-a)Γ(c-b) ₂F₁(a, b, a+b-c+1, 1-x)
+    !!                   + (1-x)^(c-a-b) Γ(c)Γ(a+b-c)/Γ(a)Γ(b)     ₂F₁(c-a,c-b;c-a-b+1;1-x)
+    !! Regions of validity:
+    !!   1. |a| < |b|, -1 ≤ x < 0
+    !!   2. |a| > |b|, -1 ≤ x < 0
+    !!   3. -∞ < x < -1
+    !!   4. ½ < x < 1
+
+    use rotex__utils,     only: isint
+    use rotex__system,    only: die
+    use rotex__functions, only: inv
+    use rotex__polygamma, only: lgamma => log_gamma
+
+    implicit none
+    complex(dp), intent(in) :: a, b, c
+    real(dp),    intent(in) :: x
+    complex(dp) :: res
+    complex(dp) :: wx
+    complex(dp) :: zx
+
+    if(isint(c) .eqv. .true.) then
+      if(nint(c%re) .lt. 1) call die("Hypergeometric function not not defined for c = 0, -1, -2, ..")
+    endif
+
+    if(x .ge. 0) call die("Hypergeometric function got x > 0, which shouldn't happen when using complex parameters.&
+      & x>0 should only happen in e-neutral scattering.")
+
+    zx = cmplx(x, kind = dp)
+
+    ! -- transform closer to 0 for better convergence
+    if(x .gt. 0.5_dp) then
+      wx = 1._dp - zx
+      res = exp(lgamma(c) + lgamma(c-a-b) - lgamma(c-a) - lgamma(c-b))           * f21_dispatch_c(a,b,a+b-c+1, wx) &
+          + exp((c-a-b)*log(1-x)+lgamma(c)+lgamma(a+b-c)-lgamma(a)-lgamma(b)) * f21_dispatch_c(c-a,c-b,c-a-b+1._dp,wx)
+      return
+    ! -- 0 < x ≤ ½
+    elseif(x .gt. 0.0_dp) then
+      ! res = michelf21(a, b, c, zx)
+      res = f21_dispatch_c(a, b, c, zx)
+      return
+    endif
+
+    ! -- -1 ≤ x < 0
+    if(x .ge. -1) then
+      wx = cmplx(x/(x-1), 0.0_dp, kind=dp)
+      if(abs(a) .lt. abs(b)) then
+        ! res = (1-zx)**(-b) * michelf21(b, c-a, c, wx)
+        res = (1-zx)**(-b) * f21_dispatch_c(b, c-a, c, wx)
+      else
+        ! res = (1-zx)**(-a) * michelf21(a, c-b, c, wx)
+        res = (1-zx)**(-a) * f21_dispatch_c(a, c-b, c, wx)
+      endif
+      return
+    endif
+
+    ! -- -∞ < x < -1
+    wx = cmplx(inv(1-x), 0.0_dp, kind=dp)
+    res = exp(-a*log(1-x)+lgamma(c)+lgamma(b-a)-lgamma(b)-lgamma(c-a))*f21_dispatch_c(a,c-b,a-b+1,wx) &
+        + exp(-b*log(1-x)+lgamma(c)+lgamma(a-b)-lgamma(a)-lgamma(c-b))*f21_dispatch_c(b,c-a,b-a+1,wx)
+
+  end function f21_c
+
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  impure elemental function f21_dispatch_r(a, b, c, x, ts_tol) result(res)
+    !! Checks if x is indeed in (0,1/2), and then makes a choice of evaluating the ODE (large a,b,c)
+    !! or defaulting to the usual Taylor series
+
+    use rotex__utils,     only: isin
+    use rotex__constants, only: ABC_THRESHOLD => HYPGEO_ABC_THRESHOLD
+    use rotex__system,    only: die, stderr
+
+    implicit none
+
+    real(dp), intent(in) :: a
+    real(dp), intent(in) :: b
+    real(dp), intent(in) :: c
+    real(dp), intent(in) :: x
+    real(dp), intent(in), optional :: ts_tol
+    real(dp) :: res
+
+    logical :: bigabc
+    real(dp) :: ts_tol_
+      !! The tolerance for which \( \frac{ \left\lvert S_{N+1} - S_{N} \right\rvert }{ \left\lvert S_N \right\rvert }\)
+      !! must be met for the series to be considered converged. If this is not supplied, this value will be taken
+      !! to be machine epsilon `macheps_dp` from the `hypergeometric__constants` module.
+
+    ! -- argument in range
+    if(isin(x, 0._dp, 0.5_dp, lclosed=.false., rclosed=.true.) .eqv. .false.) then
+      write(stderr, '("Re(x): ", e20.10)') x
+      call die("Re(x) must be between 0 and 1/2 in F21_DISPATCH")
+    endif
+
+    ! -- size check on a, b, c
+    bigabc = abs(a) .ge. ABC_THRESHOLD .OR. abs(b) .ge. ABC_THRESHOLD .OR. abs(c) .ge. ABC_THRESHOLD
+
+    ! -- ODE if a, b, c too big
+    if(bigabc) then
+      write(stderr, '("WARN: Large value of a parameter detected ! The electron energy&
+      & is probably very close to a threshold, resulting in very large η=-Z/k.")')
+      write(stderr, '("      |A|: ", F7.3)') abs(a)
+      write(stderr, '("      |B|: ", F7.3)') abs(b)
+      write(stderr, '("      |C|: ", F7.3)') abs(c)
+      ts_tol_ = TS_DEFAULT_TOLERANCE ; if(present(ts_tol)) ts_tol_ = ts_tol
+      res = f21_ts_r(a, b, c, x, ts_tol_)
+      return
+    endif
+
+    ! -- Taylor series otherwise
+    ts_tol_ = TS_DEFAULT_TOLERANCE ; if(present(ts_tol)) ts_tol_ = ts_tol
+    res = f21_ts_r(a, b, c, x, ts_tol_)
+
+  end function f21_dispatch_r
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  impure elemental function f21_dispatch_c(za, zb, zc, z, ts_tol) result(res)
     !! Checks if x is indeed in (0,1/2), and then makes a choice of evaluating the ODE (large a,b,c)
     !! or defaulting to the usual Taylor series
 
@@ -67,18 +279,90 @@ contains
       write(stderr, '("      |C|: ", F7.3)') abs(zc)
       ! res = f21_ode_eval(za, zb, zc, x)
       ts_tol_ = TS_DEFAULT_TOLERANCE ; if(present(ts_tol)) ts_tol_ = ts_tol
-      res = f21_ts(za, zb, zc, z, ts_tol_)
+      res = f21_ts_c(za, zb, zc, z, ts_tol_)
       return
     endif
 
     ! -- Taylor series otherwise
     ts_tol_ = TS_DEFAULT_TOLERANCE ; if(present(ts_tol)) ts_tol_ = ts_tol
-    res = f21_ts(za, zb, zc, z, ts_tol_)
+    res = f21_ts_c(za, zb, zc, z, ts_tol_)
 
-  end function f21_dispatch
+  end function f21_dispatch_c
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure elemental function f21_ts(a, b, c, z, tol) result(res)
+  impure elemental function f21_ts_r(a, b, c, x, tol) result(res)
+  ! pure elemental function f21_ts_r(a, b, c, x, tol) result(res)
+    !! Returns the Gauss hypergeometric function ₂F₁(a,b,;c;z\) via a Taylor series method, with quad precision
+    use rotex__utils,     only: downcast, upcast, kbn_sum, isint
+    use rotex__system,    only: die, stderr
+    use rotex__constants, only: macheps => macheps_dp, zero, one
+    implicit none
+    real(dp), intent(in) :: a
+    real(dp), intent(in) :: b
+    real(dp), intent(in) :: c
+    real(dp), intent(in) :: x
+    real(dp), intent(in), optional :: tol
+      !! The tolerance for which \( \frac{ \left\lvert S_{N+1} - S_{N} \right\rvert }{ \left\lvert S_N \right\rvert }\)
+      !! must be met for the series to be considered converged. If this is not supplied, this value will be taken
+      !! to be machine epsilon `macheps_dp` from the `hypergeometric__constants` module.
+    real(dp) :: res
+    integer, parameter :: kmax = 20000
+    real(dp) :: tol_local
+    real(qp) :: tol_local_qp
+    integer :: k
+    real(qp) :: kq
+    real(qp) :: r
+    real(qp) :: aa, bb, cc, xx
+    real(qp) :: numer, denom
+    real(qp) :: sumq, diff, comp
+    tol_local = TS_DEFAULT_TOLERANCE ; if(present(tol)) tol_local = tol
+    call upcast(tol_local, tol_local_qp)
+
+    ! -- terminating seris -> calculate exactly
+    if(isint(a) .AND. nint(a) .lt. 0) then
+      res = f21_finite_r(a, b, c, x)
+      return
+    elseif(isint(b) .AND. nint(b) .lt. 0) then
+      res = f21_finite_r(a, b, c, x)
+      return
+    endif
+
+    ! -- upcast to quad precision
+    call upcast(a, aa)
+    call upcast(b, bb)
+    call upcast(c, cc)
+    call upcast(x, xx)
+
+    sumq = 1
+    comp = 0
+    diff = 1
+    k = 0
+
+    do
+      k = k + 1
+      kq = real(k, kind = qp)
+      numer = (aa  + kq - 1._qp ) * (bb + kq - 1._qp)
+      denom = kq * (cc + kq - 1_qp )
+      r = numer / denom
+      diff = diff * r * xx
+      call kbn_sum(sumq, comp, diff)
+      ! write(6,*) numer, denom
+      ! write(6, *) sumq, comp, diff
+      ! write(6,*) ""
+      if( abs(diff) .le. tol_local_qp * abs(sumq) ) exit
+      if(k .lt. kmax) cycle
+      ! -- non-convergence
+      write(stderr, '("KMAX: ", I0)') kmax
+      call die("k = kmax has been achieved without convergence in f21_ts_r")
+    enddo
+
+    ! -- downcast to double precision for return value
+    call downcast(sumq + comp, res)
+
+  end function f21_ts_r
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental function f21_ts_c(a, b, c, z, tol) result(res)
     !! Returns the Gauss hypergeometric function ₂F₁(a,b,;c;z\) via a Taylor series method, with quad precision
     use rotex__utils,     only: downcast, upcast, kbn_sum, isint
     use rotex__system,    only: die
@@ -107,10 +391,10 @@ contains
 
     ! -- terminating seris -> calculate exactly
     if(isint(a) .AND. nint(a%re) .lt. 0) then
-      res = f21_finite(a, b, c, z)
+      res = f21_finite_c(a, b, c, z)
       return
     elseif(isint(b) .AND. nint(b%re) .lt. 0) then
-      res = f21_finite(a, b, c, z)
+      res = f21_finite_c(a, b, c, z)
       return
     endif
 
@@ -139,80 +423,49 @@ contains
     enddo
     ! -- downcast to double precision for return value
     call downcast(sumq + comp, res)
-  end function f21_ts
+  end function f21_ts_c
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  impure elemental module function f21(a, b, c, x) result(res)
-    !! Returns one of the following transforms
-    !!   1. ₂F₁(a,b;c;x) = (1-x)^{-b} ₂F₁(b,c-a;c;x/(x-1))
-    !!   2. ₂F₁(a,b;c;x) = (1-x)^{-a} ₂F₁(a,c-b;c;x/(x-1))
-    !!   3. ₂F₁(a,b;c;x) = (1-x)^{-a} Γ(c)Γ(b-a)/(Γ(b)Γ(c-a)) ₂F₁(a,c-b;a-b+1;1/(1-x))
-    !!                   + (1-x)^{-b} Γ(c)Γ(a-b)/(Γ(a)Γ(c-b)) ₂F₁(b,c-a;b-a+1;1/(1-x))
-    !!   4. ₂F₁(a,b;c;x) =               Γ(c)Γ(c-a-b)/Γ(c-a)Γ(c-b) ₂F₁(c-a, c-b, c-a-b+1, 1-x)
-    !!                   + (1-x)^(c-a-b) Γ(c)Γ(a+b-c)/Γ(a)Γ(b)     ₂F₁(c-a,c-b;c-a-b+1;1-x)
-    !! Regions of validity:
-    !!   1. |a| < |b|, -1 ≤ x < 0
-    !!   2. |a| > |b|, -1 ≤ x < 0
-    !!   3. -∞ < x < -1
-    !!   4. ½ < x < 1
-    !!
-    !! Assumes that x is on the real axis
-
-    use rotex__utils,     only: isint
-    use rotex__system,    only: die
-    use rotex__functions, only: inv
-    use rotex__polygamma, only: lgamma => log_gamma
-
+  pure elemental function f21_finite_r(a,b,c,x) result(res)
+    !! Calculate the finite sum of ₂F₁(a,b;c;x) when a or b is a negative integer because the
+    !! rising factorial will eventually be 0
+    use rotex__utils,  only: isint, kbn_sum
+    use rotex__system, only: die, stderr
     implicit none
-    complex(dp), intent(in) :: a, b, c
-    real(dp),    intent(in) :: x
-    complex(dp) :: res
-    complex(dp) :: wx
-    complex(dp) :: zx
-
-    if(isint(c) .eqv. .true.) then
-      if(nint(c%re) .lt. 1) call die("Hypergeometric function not not defined for c = 0, -1, -2, ..")
+    real(dp), intent(in) :: a,b,c,x
+    real(dp) :: res, Sk, comp
+    integer :: n, m, nc
+    integer :: k
+    n = 1
+    m = 1
+    if(isint(a)) n = nint(a)
+    if(isint(b)) m = nint(b)
+    if(n .lt. 0 .AND. m .lt. 0) then
+      n = max(n,m)
+    elseif(n.lt.0 .neqv. m.lt.0) then
+      n = min(n,m)
+    else
+      call die("Finite 2F1 will not be finite because n and m are both positive")
     endif
-
-    if(x .ge. 1) call die("Hypergeometric function got x > 1, which shouldn't happen..")
-
-    zx = cmplx(x, kind = dp)
-
-    ! -- transform closer to 0 for better convergence
-    if(x .gt. 0.5_dp) then
-      wx = 1._dp - zx
-      res = exp(lgamma(c) + lgamma(c-a-b) - lgamma(c-a) - lgamma(c-b))           * f21_dispatch(a,b,a+b-c+1, wx) &
-          + exp((c-a-b)*lgamma(1-x)+lgamma(c)+lgamma(a+b-c)-lgamma(a)-lgamma(a)) * f21_dispatch(c-a,c-b,c-a-b+1._dp,wx)
-      return
-    ! -- 0 < x ≤ ½
-    elseif(x .gt. 0.0_dp) then
-      ! res = michelf21(a, b, c, zx)
-      res = f21_dispatch(a, b, c, zx)
-      return
-    endif
-
-    ! -- -1 ≤ x < 0
-    if(x .ge. -1) then
-      wx = cmplx(x/(x-1), 0.0_dp, kind=dp)
-      if(abs(a) .lt. abs(b)) then
-        ! res = (1-zx)**(-b) * michelf21(b, c-a, c, wx)
-        res = (1-zx)**(-b) * f21_dispatch(b, c-a, c, wx)
-      else
-        ! res = (1-zx)**(-a) * michelf21(a, c-b, c, wx)
-        res = (1-zx)**(-a) * f21_dispatch(a, c-b, c, wx)
-      endif
-      return
-    endif
-
-    ! -- -∞ < x < -1
-    wx = cmplx(inv(1-x), 0.0_dp, kind=dp)
-    res = exp(-a*log(1-x)+lgamma(c)+lgamma(b-a)-lgamma(b)-lgamma(c-a))*f21_dispatch(a,c-b,a-b+1,wx) &
-        + exp(-b*log(1-x)+lgamma(c)+lgamma(a-b)-lgamma(a)-lgamma(c-b))*f21_dispatch(b,c-a,b-a+1,wx)
-
-  end function f21
+    ! -- poch(c) might terminate before n terms, so guard against that
+    ccheck: if(isint(c)) then
+      nc = nint(c)
+      if(nc .gt. 0) exit ccheck
+      if(abs(n) .gt. abs(nc)) &
+        call die("Finite ₂F₁ hits a pole of poch(c), because c is a negative integer close to 0 than a or b")
+    endif ccheck
+    Sk = 1
+    res  = Sk
+    comp = 0
+    do k=1,abs(n)
+      Sk = Sk * (a+k-1)*(b+k-1) / ((c+k-1)*real(k, kind=dp)) * x
+      call kbn_sum(res, comp, Sk)
+    end do
+    res = res + comp
+  end function f21_finite_r
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure elemental function f21_finite(a,b,c,z) result(res)
+  pure elemental function f21_finite_c(a,b,c,z) result(res)
     !! Calculate the finite sum of ₂F₁(a,b;c;z) when a or b is a negative integer because the
     !! rising factorial will eventually be 0
     use rotex__utils,  only: isint, kbn_sum
@@ -248,7 +501,7 @@ contains
       call kbn_sum(res, comp, Sk)
     end do
     res = res + comp
-  end function f21_finite
+  end function f21_finite_c
 
   ! ! ------------------------------------------------------------------------------------------------------------------------------ !
   ! pure subroutine f21_ode_rhs(x, y, a, b, c, dydx)

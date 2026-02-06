@@ -1,0 +1,33 @@
+&rslvin                   ! used by R_SOLVE (see docs/rsolve)
+  name = 'e + H2OX - singlet A1 - K-matrices',
+  mgvn = 0,               ! symmetry
+  stot = 1,               ! spin multiplicity 2*S+1
+  newbut = 0,             ! Buttle correction - 0 in polyatomic codes
+
+  nerang = 4,          ! number of energy subranges
+  nescat = 40          , 40          ,  40          , 500,          ! number of input scattering energies in each subrange
+  einc = 1e-4, 2.5e-5, 1e-3, 2.5e-4,  1e-2, 2.5e-3, 0.1, 0.005,     ! scattering energies - initial energy, energy increment, there can be more subranges
+  ieunit = 2,             ! energy unit - 1 = Ryd, 2 = eV
+
+  luchan = 10,            ! channel information unit number
+  icform = 'F',           ! format of the channel information file
+  nchset = 1,  ! index of the dataset in channel information file
+
+  lurmt  = 21,            ! boundary amplitudes unit number
+  irform = 'F',           ! format of the boundary amplitudes file
+  nrmset = 1,  ! index of the dataset in boundary amplitudes file
+
+  lukmt = 910,    ! K-matrix unit number
+  ikform = 'F',           ! formatted/unformatted switch for the K-matrix file
+  iktype = 0,             ! open-open (= 0) of full (= 1) K-matrix files to calculate
+
+  calcdip   = 0,1,0,   ! do calculate dipoles for given range of ionic states
+  form_pw_dipoles = 'FORMATTED',    ! format of the partial wave dipole file
+  lu_pw_dipoles = 410,  ! output partial wave dipoles file unit number
+  lu_inner_dipoles = 610,    ! input inner dipoles file unit
+/
+
+&bprop                    ! read by subroutine ASYM1 called from R_SOLVE (see docs/rprop-cfasym)
+  raf = 70,             ! radius at which continued fraction method can be used
+  igail = 1,            ! propagate (= 1) or just match Coulomb functions (= 2) in outer region
+/

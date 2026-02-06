@@ -10,7 +10,7 @@
     <meta name="author" content="" >
     <link rel="icon" href="../favicon.png">
 
-    <title>logp1 &ndash; ROTEX</title>
+    <title>print_dipole &ndash; ROTEX</title>
 
     <!-- Bootstrap -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
@@ -80,8 +80,8 @@
 
     <div class="container">
   <div class="row">
-    <h1>logp1
-      <small>Interface</small>
+    <h1>print_dipole
+      <small>Subroutine</small>
       
     </h1>
       <div class="container p-2 mb-4 bg-light border rounded-3">
@@ -92,21 +92,21 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title="<p> 0.1% of total for procedures.</p>Including implementation: 19 statements,  0.7% of total for procedures.">4 statements</a>
+                 title=" 0.3% of total for procedures.">8 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
               <i class="fa fa-code"></i>
-              <a href="../src/rotex__functions.f"> Source File</a>
+              <a href="../src/rotex.f"> Source File</a>
             </li>
         </ul>
       </div>
       <div class="col">
         <nav aria-label="breadcrumb">
           <ol class="breadcrumb justify-content-end mb-0">
-                <li class="breadcrumb-item"><a href='../sourcefile/rotex__functions.f.html'>rotex__functions.f</a></li>
-                <li class="breadcrumb-item"><a href='../module/rotex__functions.html'>rotex__functions</a></li>
-            <li class="breadcrumb-item active" aria-current="page">logp1</li>
+                <li class="breadcrumb-item"><a href='../sourcefile/rotex.f.html'>rotex.f</a></li>
+                <li class="breadcrumb-item"><a href='../program/rotex.html'>rotex</a></li>
+            <li class="breadcrumb-item active" aria-current="page">print_dipole</li>
           </ol>
         </nav>
       </div>
@@ -121,10 +121,10 @@
   </script>
 
   </div>
-
+  
   <div class="row">
     <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
-        <div id="sidebar">
+      <div id="sidebar">
       <h3>Contents</h3>
   
   
@@ -144,42 +144,37 @@
   
   
   
-      <div class="card mb-4">
-      <a data-bs-toggle="collapse" href="#modprocs-0"
-         aria-expanded="false" aria-controls="modprocs-0">
-         <h4 class="card-header bg-primary text-white">Module Procedures</h4>
-      </a>
-      <div id="modprocs-0" class="collapse">
-        <div class="list-group list-group-flush">
-            <a class="list-group-item" href="../interface/logp1.html#moduleprocedure-logp1r">logp1r</a>
-            <a class="list-group-item" href="../interface/logp1.html#moduleprocedure-logp1z">logp1z</a>
-        </div>
-      </div>
-    </div>
-
+  
   
 
 
   </div>
 
     </div>
-
+    
     <div class="col-md-9" id='text'>
-      <h2>public interface logp1</h2>
-      
+    <h2> subroutine print_dipole(dipole)  
+</h2>
+        <div class="card mb-4">
+      <h3 class="card-header card-title bg-light">Uses</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <ul class="list-inline">
+                  <li class="list-inline-item"><a href='../module/rotex__constants.html'>rotex__constants</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
+              </ul>
+            </li>
+        </ul>
+      </div>
+    </div>
 
 
+    <p>Print the dipole components in the determined ABC frame</p>
 
-        <h2>Module Procedures</h2>
-            <div class="card">
-    <div class="card-header codesum"><span class="anchor" id="proc-logp1r"></span> <h3>private module function logp1r(x) result(res)  
-</h3></div>
-    <div class="card-body">
-        <p>Returns <script type="math/tex">\log(x+1)</script> for real z. TODO, replace with a fast and accurate version
-coded natively in fortran !</p>
 
-  <h4>Arguments</h4>
-      <table class="table table-striped varlist">
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
     <thead>
       <tr>
         <th scope="col">Type</th>
@@ -191,7 +186,7 @@ coded natively in fortran !</p>
     <tbody>
         <tr>
             <td>
-              <span class="anchor" id="variable-x~7"></span>
+              <span class="anchor" id="variable-dipole"></span>
               real(kind=dp),
             </td>
 <td>intent(in)</td>
@@ -199,7 +194,7 @@ coded natively in fortran !</p>
               
             </td>
             <td>::</td>
-            <td><strong>x</strong></td>
+            <td><strong>dipole</strong></td>
             <td>
                 
             </td>
@@ -207,62 +202,22 @@ coded natively in fortran !</p>
     </tbody>
   </table>
 
-    <h4>
-    Return Value
-    <small>real(kind=dp)</small>
-    </h4>
+    <br>
+
+
+    
     
 
+    
+    
+
+
+
+    
+    
     </div>
   </div>
 
-            <div class="card">
-    <div class="card-header codesum"><span class="anchor" id="proc-logp1z"></span> <h3>private pure elemental module function logp1z(z) result(res)  
-</h3></div>
-    <div class="card-body">
-        <p>Returns <script type="math/tex">\log(z+1)</script> for complex z. TODO, replace with a fast and accurate version ?
-coded natively in fortran !</p>
-
-  <h4>Arguments</h4>
-      <table class="table table-striped varlist">
-    <thead>
-      <tr>
-        <th scope="col">Type</th>
-<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
-        <th scope="col"></th>
-        <th scope="col">Name</th>
-        <th scope="col"></th>
-    </thead>
-    <tbody>
-        <tr>
-            <td>
-              <span class="anchor" id="variable-z~7"></span>
-              complex(kind=dp),
-            </td>
-<td>intent(in)</td>
-              <td></td>            <td>
-              
-            </td>
-            <td>::</td>
-            <td><strong>z</strong></td>
-            <td>
-                
-            </td>
-        </tr>
-    </tbody>
-  </table>
-
-    <h4>
-    Return Value
-    <small>complex(kind=dp)</small>
-    </h4>
-    
-
-    </div>
-  </div>
-
-</div>
-  </div>
       <hr>
     </div> <!-- /container -->
     <footer>

@@ -5,3 +5,7 @@ typst compile README.typ README.pdf
 typst compile --format=html --features=html README.typ README.html
 
 pandoc README.html -f html -t gfm --wrap=preserve -o README.md
+
+pandoc ford_pages/index.md -o ford_pages/index.html
+pandoc ford_pages/namelists.md -o ford_pages/namelists.html
+pandoc ford_pages/input_format.md -o ford_pages/input_format.html

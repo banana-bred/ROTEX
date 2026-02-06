@@ -92,7 +92,7 @@
 
             <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
               <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
-                 title=" 6.1% of total for procedures.">178 statements</a>
+                 title=" 6.2% of total for procedures.">185 statements</a>
             </li>
 
             <li class="list-inline-item" id="source-file">
@@ -153,7 +153,7 @@
     </div>
     
     <div class="col-md-9" id='text'>
-    <h2>public module subroutine get_smat_probs(total_energy_grid, prob, transitions, nmin, nmax, smat_j, jmin, jmax, channels_j, channels_tot, spin_isomer_kind, symaxis)  
+    <h2>public module subroutine get_smat_probs(total_energy_grid, prob, transitions, nmin, nmax, targcharge, smat_j, jmin, jmax, channels_j, channels_tot, spin_isomer_kind, symaxis)  
 </h2>
         <div class="card mb-4">
       <h3 class="card-header card-title bg-light">Uses</h3>
@@ -161,14 +161,14 @@
         <ul class="list-group list-group-flush">
             <li class="list-group-item">
               <ul class="list-inline">
-                  <li class="list-inline-item"><a href='../module/rotex__characters.html'>rotex__characters</a></li>
-                  <li class="list-inline-item"><a href='https://www.openmp.org/spec-html/5.1/openmpch3.html#x156-1890003'>omp_lib</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__symmetry.html'>rotex__symmetry</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__arrays.html'>rotex__arrays</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__progress.html'>rotex__progress</a></li>
-                  <li class="list-inline-item"><a href='../module/rotex__constants.html'>rotex__constants</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__characters.html'>rotex__characters</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__arrays.html'>rotex__arrays</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__symmetry.html'>rotex__symmetry</a></li>
                   <li class="list-inline-item"><a href='../module/rotex__system.html'>rotex__system</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__types.html'>rotex__types</a></li>
+                  <li class="list-inline-item"><a href='https://www.openmp.org/spec-html/5.1/openmpch3.html#x156-1890003'>omp_lib</a></li>
+                  <li class="list-inline-item"><a href='../module/rotex__constants.html'>rotex__constants</a></li>
               </ul>
             </li>
         </ul>
@@ -268,6 +268,21 @@ cross section probabilities for the supplied transitions.</p>
         </tr>
         <tr>
             <td>
+              <span class="anchor" id="variable-targcharge"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>targcharge</strong></td>
+            <td>
+                <p>Charge of the target molecule</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
               <span class="anchor" id="variable-smat_j"></span>
               type(<a href='../type/cmatrix_type.html'>cmatrix_type</a>),
             </td>
@@ -283,7 +298,7 @@ cross section probabilities for the supplied transitions.</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-jmin~2"></span>
+              <span class="anchor" id="variable-jmin~3"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -298,7 +313,7 @@ cross section probabilities for the supplied transitions.</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-jmax~2"></span>
+              <span class="anchor" id="variable-jmax~3"></span>
               integer,
             </td>
 <td>intent(in)</td>
@@ -343,7 +358,7 @@ cross section probabilities for the supplied transitions.</p>
         </tr>
         <tr>
             <td>
-              <span class="anchor" id="variable-spin_isomer_kind~2"></span>
+              <span class="anchor" id="variable-spin_isomer_kind~3"></span>
               integer,
             </td>
 <td>intent(in)</td>

@@ -16,11 +16,17 @@ See #link2("docs", "https://banana-bred.github.io/ROTEX/index.html") for more de
 Github markdown may have trouble rendering some things.
 
 = ROTational EXcitation of ions by electron impact (ROTEX)
-Calculates electron-impact rotational (de-)excitation cross sections for asymmetric top molecules, using
-+ the _Coulomb-Born (CB) approximation_ and
+This is a semi-post-processing code for the UKRmol+ suite @ukrmolx of electron and positron scattering codes that can determine integrated electron-impact rotational excitation cross sections from pre-calculated K-matrices; compatible and originally intended for ionic target molecules.
+It is semi-post-processing in the sense that, without K-matrices, it can still calculated excited state lifetimes and cross sections in the Coulomb-Born approximation.
+For now, it only works for asymmetric top molecular ions (although linear tops can be approximated by setting the rotational constant $A$ to a large value).
+Spherical, symmetric, and linear tops are also planned, as are neutral molecules.
+Writeup in progress.
+
+This code implements :
++ the _Coulomb-Born (CB) approximation_
 + _Multichannel Quantum Defect Theory (MQDT)_.
 One or both can be used to determine electron-impact rotational excitation cross sections.
-If both are used, then the so-called Born closure will be used for electron-impact transitions that appear in the MQDT and CB cross sections to account for partial waves that are not included in the MQDT treatment:
+If both are used, then the so-called Born closure/completion will be used for electron-impact transitions that appear in the MQDT and CB cross sections to account for partial waves that are not included in the MQDT treatment:
 #align(center)[
   $σ("total") = σ("MQDT") + σ("TCB") - σ("PCB")$
 ]
@@ -28,8 +34,6 @@ If both are used, then the so-called Born closure will be used for electron-impa
 - $σ("PCB")$: CB cross sections for $l=0-l_"max"$
 - $σ("MQDT")$: MQDT cross sections for $l=0-l_"max"$
 The quantity $l_"max"$ is the largest $l$ value for the partial waves in the scattering calculations used to generate K-matrices used in the MQDT approach.
-
-In principle, this also works for symmetric tops and linear rotors, but those special cases have not been explicitly programmed in.
 
 === Build dependencies
 Neither of these are necessary of course, but it will be much easier to build with one of them.
@@ -44,6 +48,12 @@ Currently, `make` gives more flexibility, as the user can choose which optional 
 - (_optional_) #link2("CDMSreader", "https://github.com/banana-bred/CDMSreader") for reading in #link2("CDMS", "https://cdms.astro.uni-koeln.de/") data to use in the Coulomb-Born approximation
 - (_optional_) #link2("Forbear", "https://github.com/szaghi/forbear") for progress bars
 - (_optional_) #link2("OpenMP", "https://www.openmp.org/") for easy thread parallelization
+If this repository is cloned with `git`, then the dependencies will also be pulled and be compiled by the build process.
+
+== Building ROTEX
+Two build methods are provided:
++ #link2("Fortran Package Manager (fpm)", "https://github.com/fortran-lang/fpm")
++ #link2("GNU Make", "https://www.gnu.org/software/make/")
 
 === Building with fpm
 In the package directory, just run
@@ -119,6 +129,7 @@ It controls the main flow of the program and contains the following variables.
   spin_isomer_kind =
     !! The spin isomer kind to enforce for the molecule.
     !!   0*: none (spin symmetry may be self-enforced by the underlying calculations and dipole vector)
+    !!   1 : N parity (even or odd; homonuclear diatomics)
     !!   2 : Ka+Kc parity (odd or even)
   zaxis =
     !! The inertial axis along which the molecular z-axis is fixed. Values

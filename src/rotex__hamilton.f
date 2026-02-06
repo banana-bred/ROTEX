@@ -282,13 +282,20 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine rotate_eigvecs(N, from_axis, to_axis, eigvecs)
     !! Rotate the rigid rotor eigenvectors from one of the principal axes A,B,C to another
-    !! principal axis A,B,C using the Wigner D-matrix
+    !! principal axis A,B,C using the Wigner D-matrix, while ensureing that the coordinate
+    !! system remains right-handed and that each of A,B,C get one of x,y,z.
+    !! The three coordinate systems are:
+    !!   ABC = zxy
+    !!   ABC = xyz
+    !!   ABC = yzx
+    !! where A,B,C is defined to be right-handed as well.
     use rotex__arrays,     only: is_unitary, unitary_defect
     use rotex__kinds,      only: dp
     use rotex__arrays,     only: adjoint
     use rotex__characters, only: lower
+    use rotex__constants,  only: pi, im
     use rotex__system,     only: stderr, die
-    use wignerd,           only: wigner_big_D
+    use wignerd,           only: wigner_big_D, wigner_little_d
     implicit none
     integer,      intent(in)    :: N
       !! The rotational angular moment quantum number
@@ -306,10 +313,23 @@ contains
 
     if(lower(from_axis) .eq. lower(to_axis)) return ! no rotation needed
 
-    R = frame2frame(from_axis, to_axis)
-    call rotmat2zyz(R, a, b, g)
+    ! -- determine the Euler angles α,β,γ for D=Rz(α)Ry(β)Rz(γ). The following are INTRINSIC
+    !    rotations, i.e. body frame rotations where A,B,C stay fixed
+    select case(from_axis)
+    case("a","A")
+      select case(to_axis)
+      case("b", "B") ; a = pi/2 ; b = pi/2 ; g = 0
+      case("c", "C") ; a = pi   ; b = pi/2 ; g = pi/2
+      case default
+        call die("Unacceptable TO_AXIS (" // to_axis //") provided")
+      end select
+    case default
+      call die("FROM_AXIS (" // ") can only be 'A'")
+    end select
 
-    D = wigner_big_D(N, a, b, g, use_analytic = .true.)
+    ! -- swap α and γ for intrinsic -> extrinsic rotation
+    D = wigner_big_D(N, g, b, a, use_analytic = .false.)
+    ! D = wigner_little_d(N, b, use_analytic = .false.)
 
     ! -- unitarity check on D
     if(is_unitary(D) .eqv. .false.) then
@@ -331,65 +351,83 @@ contains
 
   end subroutine rotate_eigvecs
 
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure function axes_abc(zaxis) result(frame)
-    !! Define the right-handed frame given the quantization axis axis
-    use rotex__kinds,  only: dp
-    use rotex__system, only: die
-    character(1), intent(in) :: zaxis
-    real(dp) :: frame(3,3)
-    frame = 0
-    select case(zaxis)
-    case("a","A")
-      frame(:, 1) = [0, 1, 0] ! x=b
-      frame(:, 2) = [0, 0, 1] ! y=c
-      frame(:, 3) = [1, 0, 0] ! z=a
-    case("b","B")
-      frame(:, 1) = [0, 0, 1] ! x=c
-      frame(:, 2) = [1, 0, 0] ! y=a
-      frame(:, 3) = [0, 1, 0] ! z=b
-    case("c","C")
-      frame(:, 1) = [1, 0, 0] ! x=a
-      frame(:, 2) = [0, 1, 0] ! y=b
-      frame(:, 3) = [0, 0, 1] ! z=c
-    case default
-      call die("Untolerated axis "//zaxis//". Must be one of 'A' 'B' 'C'")
-    end select
-  end function axes_abc
+  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
+  ! pure function axes_abc(zaxis) result(frame)
+  !   !! Define the right-handed frame given the quantization axis axis
+  !   use rotex__kinds,  only: dp
+  !   use rotex__system, only: die
+  !   character(1), intent(in) :: zaxis
+  !   real(dp) :: frame(3,3)
+  !   frame = 0
+  !   select case(zaxis)
+  !   case("a","A")
+  !     frame(:, 1) = [0, 1, 0] ! x=b
+  !     frame(:, 2) = [0, 0, 1] ! y=c
+  !     frame(:, 3) = [1, 0, 0] ! z=a
+  !   case("b","B")
+  !     frame(:, 1) = [0, 0, 1] ! x=c
+  !     frame(:, 2) = [1, 0, 0] ! y=a
+  !     frame(:, 3) = [0, 1, 0] ! z=b
+  !   case("c","C")
+  !     frame(:, 1) = [1, 0, 0] ! x=a
+  !     frame(:, 2) = [0, 1, 0] ! y=b
+  !     frame(:, 3) = [0, 0, 1] ! z=c
+  !   case default
+  !     call die("Untolerated axis "//zaxis//". Must be one of 'A' 'B' 'C'")
+  !   end select
+  !
+  ! end function axes_abc
 
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure function frame2frame(from_axis, to_axis) result(R)
-    !! Return the rotation matrix R that maps coordinates between frames
-    use rotex__kinds, only: dp
-    implicit none
-    character(*), intent(in) :: from_axis, to_axis
-    real(dp) :: R(3,3)
-    real(dp) :: from_frame(3,3), to_frame(3,3)
-    from_frame = axes_abc(from_axis)
-    to_frame   = axes_abc(to_axis)
-    R = matmul(to_frame, transpose(from_frame))
-  end function frame2frame
+  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
+  ! pure function frame2frame(from_axis, to_axis) result(R)
+  !   !! Return the rotation matrix R that maps coordinates between frames
+  !   use rotex__kinds, only: dp
+  !   implicit none
+  !   character(*), intent(in) :: from_axis, to_axis
+  !   real(dp) :: R(3,3)
+  !   real(dp) :: from_frame(3,3), to_frame(3,3)
+  !   from_frame = axes_abc(from_axis)
+  !   to_frame   = axes_abc(to_axis)
+  !   R = matmul(to_frame, transpose(from_frame))
+  ! end function frame2frame
 
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure subroutine rotmat2zyz(R, a, b, g)
-    !! Convert a rotation matrix to the zyz Euler angles α(a) β(b) γ(g)
-    !! R = Rz(α)*Ry(β)*Rz(γ)
-    use rotex__kinds, only: dp
-    implicit none
-    real(dp), intent(in) :: R(3,3)
-    real(dp), intent(out) :: a, b, g
-    real(dp), parameter :: EPS = 1000*epsilon(1._dp)
-    real(dp) :: sb
-    b = acos(max(-1._dp, min(1._dp, real(R(3,3), kind=dp))))
-    sb = sin(b)
-    if(abs(sb) .gt. EPS) then
-      a = atan2(R(2,3),  R(1,3))
-      g = atan2(R(3,2), -R(3,1))
-      return
-    endif
-    g = 0._dp
-    a = atan2(R(2,1), R(1,1))
-  end subroutine rotmat2zyz
+  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
+  ! pure subroutine zyz2rotmat(R, a, b, g)
+  !   !! Convert the Euler angles α(a) β(b) γ(g) to the rotation matrix
+  !   !!   R = Rz(α)*Ry(β)*Rz(γ)
+  !   use rotex__kinds, only: dp
+  !   implicit none
+  !   real(dp), intent(out) :: R(3,3)
+  !   real(dp), intent(in) :: a, b, g
+  !   real(dp) :: sa, sb, sg
+  !   real(dp) :: ca, cb, cg
+  !   sa = sin(a) ; sb = sin(b) ; sg = sin(g)
+  !   ca = cos(a) ; cb = cos(b) ; cg = cos(g)
+  !   R(1, 1:3) = [ ca*cb*cg - sa*sg, -cg*sa - ca*cb*sg, ca*sb ]
+  !   R(2, 1:3) = [ ca*sg + cb*cg*sa,  ca*cg - cb*sa*sg, sa*sb ]
+  !   R(3, 1:3) = [ -cg*sb,           sb*sg,             cb    ]
+  ! end subroutine zyz2rotmat
+
+  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
+  ! pure subroutine rotmat2zyz(R, a, b, g)
+  !   !! Convert a rotation matrix to the zyz Euler angles α(a) β(b) γ(g)
+  !   !! R = Rz(α)*Ry(β)*Rz(γ)
+  !   use rotex__kinds, only: dp
+  !   implicit none
+  !   real(dp), intent(in) :: R(3,3)
+  !   real(dp), intent(out) :: a, b, g
+  !   real(dp), parameter :: EPS = 1000*epsilon(1._dp)
+  !   real(dp) :: sb
+  !   b = acos(max(-1._dp, min(1._dp, real(R(3,3), kind=dp))))
+  !   sb = sin(b)
+  !   if(abs(sb) .gt. EPS) then
+  !     a = atan2(R(2,3),  R(1,3))
+  !     g = atan2(R(3,2), -R(3,1))
+  !     return
+  !   endif
+  !   g = 0._dp
+  !   a = atan2(R(2,1), R(1,1))
+  ! end subroutine rotmat2zyz
 
 ! ================================================================================================================================ !
 end module rotex__hamilton

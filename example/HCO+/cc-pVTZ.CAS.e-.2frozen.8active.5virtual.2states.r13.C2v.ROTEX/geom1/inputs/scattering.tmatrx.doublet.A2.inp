@@ -1,0 +1,12 @@
+&tmatin                   ! used by T_MATRX (see docs/tmatrx)
+  name = 'e + HCOX - doublet A2',
+  maxi = 1,               ! the highest initial state for which cross sections are required
+  maxf = 0,               ! the highest final state for which cross sections are required
+  luchan = 10,            ! channel information unit number
+  nchset = 1,  ! index of the dataset in channel information file
+  icform = 'F',           ! format of the channel information file
+  lukmt = 923,        ! K-matrix file unit
+  ikform = 'F',           ! formatted/unformatted switch for unit LUKMT
+  lutmt = 1123,    ! T-matrix file unit
+  itform = 'U',  ! formatted/unformatted switch for unit LUTMT
+/

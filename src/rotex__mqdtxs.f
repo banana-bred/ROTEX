@@ -19,6 +19,7 @@ contains
       , transitions                 &
       , nmin                        &
       , nmax                        &
+      , targcharge                  &
       , smat_j                      &
       , jmin                        &
       , jmax                        &
@@ -56,6 +57,8 @@ contains
       !! Array of transitions that will be considered for (de-)excitation
     integer, intent(in) :: nmin, nmax
       !! Min/max values of N to consider for excitation calculations
+    integer, intent(in) :: targcharge
+      !! Charge of the target molecule
     type(cmatrix_type), intent(in) :: smat_j(jmin:jmax)
       !! Array of S-matrix sub-blocks for each J
     integer, intent(in) :: jmin, jmax
@@ -116,7 +119,7 @@ contains
         !    when excitations are considered
         if(lo % E .ge. up % E) cycle
         !  -- respect ortho/para symmetry if applicable (returns true if theres nothing to respect)
-        if(is_spin_forbidden(lo, up, spin_isomer_kind, symaxis)) cycle
+        if(is_spin_forbidden(lo, up)) cycle
         transition = asymtop_rot_transition_type(lo = lo,  up = up)
         ! -- only append transitions uniquely
         if(allocated(transitions) .eqv. .false.) then
@@ -182,7 +185,7 @@ contains
 
       ! -- loop over the total enrgy grid
       !$omp parallel default(none) &
-      !$omp& shared(ne, channels_this_J, S, prob, transitions, J, nchans_J, total_energy_grid&
+      !$omp& shared(ne, channels_this_J, S, prob, transitions, J, nchans_J, targcharge, total_energy_grid&
 #ifdef USE_FORBEAR
       !$omp&   , progressbar, rprogress, rprogress_inc, iprogress, iprogress_last)&
 #else
@@ -214,7 +217,22 @@ contains
         beta = 0
         Sphys = 0
 
-        call CCEP(S, channels_this_J, q, Etot, Sphys, beta, nopen, nclosed)
+        if(targcharge .eq. 0) then
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          !! Maybe we can have a CCEP for neutrals ?
+          !! This γ parameter is given by something like
+          !!   f + cot(γ)g
+          !! where f and g are reference functions,
+          !! (so, spherical bessels I guess)
+          !! We will need κ, the R-matrix radius probably,
+          !! and possibly the channel l
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          Sphys = S(1:nopen,1:nopen)
+        elseif(targcharge .gt. 0) then
+          call CCEP(S, channels_this_J, q, Etot, Sphys, beta, nopen, nclosed)
+        else
+          call die("CCEP not implemented for negative ions")
+        endif
 
 #ifdef USE_FORBEAR
         !$omp atomic
@@ -278,7 +296,7 @@ contains
       call progressbar % update(current = 1.0_dp)
 #endif
 
-    enddo
+    enddo ! J
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   contains

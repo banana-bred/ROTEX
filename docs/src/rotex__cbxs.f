@@ -35,10 +35,10 @@ contains
       !! The energy (hartrees) of the initial state
     real(dp), intent(in) :: eup
       !! The energy (hartrees) of the final state
-    complex(dp), intent(in) :: eigveclo(:)
+    complex(dp), intent(in), allocatable :: eigveclo(:)
       !! Eigenvector of the initial state in the basis of symmetric top wavefunctions; the coefficients
       !! \(c^{N,\tau}_K)
-    complex(dp), intent(in) :: eigvecup(:)
+    complex(dp), intent(in), allocatable :: eigvecup(:)
       !! Eigenvector of the final state in the basis of symmetric top wavefunctions; the coefficients
       !! \(c^{N',\tau'}_{K})
     real(dp), intent(inout) :: einsta
@@ -106,12 +106,25 @@ contains
   end subroutine get_einsta_only
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine get_CB_xs_asym( energies, sigma, Z &
-                               , N, Np, E, Ep, eigvec, eigvecp &
-                               , einsta, use_CDMS &
-                               , do_dipole, do_quadrupole &
-                               , dipole_moments, quadrupole_moments &
-                               , analytic_total_cb, lmax)
+  module subroutine get_CB_xs_asym( energies           &
+                                  , sigma              &
+                                  , Z                  &
+                                  , rotor_kind         &
+                                  , N                  &
+                                  , Np                 &
+                                  , E                  &
+                                  , Ep                 &
+                                  , eigvec             &
+                                  , eigvecp            &
+                                  , einsta             &
+                                  , use_CDMS           &
+                                  , do_dipole          &
+                                  , do_quadrupole      &
+                                  , dipole_moments     &
+                                  , quadrupole_moments &
+                                  , analytic_total_cb  &
+                                  , lmax               &
+                                  )
                                ! , analytic_total_cb, lmax, atol, rtol)
     !! Calculate the excitation and de-excitation cross sections (xs) for an asymmetric top up.
     !! The sum over partial waves is either truncated to \(l_\text{max}\) or determined analytically.
@@ -122,6 +135,7 @@ contains
     use rotex__system,     only: die
     use rotex__constants,  only: invc
     use rotex__functions,  only: istriangle
+    use rotex__wigner,     only: wigner3j
 
     implicit none
 
@@ -132,6 +146,8 @@ contains
       !! Returned with the same size as `energies`
     integer, intent(in) :: Z
       !! Target charge
+    character(1), intent(in) :: rotor_kind
+      !! The kind of rotor we're dealing with: a(symmetric top), s(ymmetric top), l(inear rotor)
     integer, intent(in) :: N
       !! the angular momentum quantum number \(N\)
     integer, intent(in) :: Np
@@ -215,13 +231,26 @@ contains
       case(1)
         if((use_CDMS .eqv. .false.) .OR. einsta .eq. 0) then
           ! -- calculate the am_summation ourselves
-          call multipole_am_summation_asym(am_summation, lambda, N, Np, multipole_moments, eigvec, eigvecp)
+          select case(rotor_kind)
+          case("l")
+            ! -- |μz|² * (N,N,λ;0,0,0)²
+            am_summation = abs(multipole_moments(2))**2 * wigner3j(N,Np,lambda,0,0,0)**2
+          case("s")
+            ! -- the reduced angular momentum and multipole moment summation
+            !    for symmetric tops
+            call die("multipole am summation not defined yet for symmetric tops")
+          case("a")
+            ! -- the full angular momentum and multipole moment summation
+            !    for asymmetric tops
+            call multipole_am_summation_asym(am_summation, lambda, N, Np, multipole_moments, eigvec, eigvecp)
+          end select
         else
           ! -- use pre-existing Einstein A coeff from the CDMS read
           am_summation = einsta * 3._dp/4._dp * (omega * invc)**(-3) / (2*N+1)
         endif
       case(2)
-        call multipole_am_summation_asym(am_summation, lambda, N, Np, multipole_moments, eigvec, eigvecp)
+        call die("quadrupoles not implemented yet")
+        ! call multipole_am_summation_asym(am_summation, lambda, N, Np, multipole_moments, eigvec, eigvecp)
       end select
 
       nullify(multipole_moments)
@@ -233,7 +262,7 @@ contains
       ! -- if the summation is basically 0 for this multipole term, check the next one
       ! if(am_summation .lt. 1e-16_dp) cycle multipoles
 
-      ! -- do the summation over partial waves
+      ! -- do the summation over partial waves; independent of rotor kind
       if(analytic_total_cb(lambda) .eqv. .true.) then
         call get_infinite_pwsum(pw_summation, energies, E, Ep, lambda, Z)
       else
