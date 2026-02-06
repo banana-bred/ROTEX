@@ -511,6 +511,7 @@ contains
       allocate(asymtop_rot_channels_l_j(jmin:jmax))
       call rft_nonlinear( kmat                     &
                         , jmin, jmax               &
+                        , cfg%rotor_kind           &
                         , smat_j(jmin:jmax)        &
                         , elec_channels            &
                         , n_states                 &
@@ -890,7 +891,7 @@ contains
     type(config_type),   intent(in)  :: cfg
     integer,             intent(in)  :: num_n, n_values(:)
     type(n_states_type), intent(out) :: n_states(:)
-    integer  :: i_n, n
+    integer  :: i_n, n, K
     real(dp) :: E_rot
     type(eigenh_type) :: hka, hkb, hkc
     complex(dp), allocatable :: eigvecs(:,:)
@@ -903,8 +904,10 @@ contains
       n_states(i_n) % n = n
 
       select case(cfg%rotor_kind)
-      !!!!!!!!!!!!!!!!!!!!!!!!! nonlinear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      case("a", "s")
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!! asymmetric rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      case("a", "A")
 
         allocate(n_states(i_n) % einsta(2*n+1), source = 0.0_dp)
 
@@ -912,13 +915,13 @@ contains
 
           ! -- diagonalize in z=A frame so that we can use the CD coefficients and get Ka
           current_axis = "a"
-          call rigid_rotor(n, hka, b, c, a, cfg%cd4, cfg%cd6) ! <-- A basis, Ka = Kz, energies
+          call asym_rigid_rotor(n, hka, b, c, a, cfg%cd4, cfg%cd6) ! <-- A basis, Ka = Kz, energies
           N_states(i_N) % eigenH = HKa
           eigvecs = HKa % eigvecs
           call assign_projections(N, eigvecs, N_states(i_N) % Ka) ! Ka labels
 
           ! -- diagonalize (without CD) in z=C basis to get Kc labels
-          call rigid_rotor(n, hkc, a, b, c) ! <-- C basis, Kc = Kz
+          call asym_rigid_rotor(n, hkc, a, b, c) ! <-- C basis, Kc = Kz
           call assign_projections(N, hkc%eigvecs, N_states(i_N) % Kc) ! Kc labels
 
           ! -- rotate eigenvectors if needed to that xyz align with scattering calculations
@@ -934,8 +937,27 @@ contains
 
         end associate
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!! symmetric rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      case("s", "S")
+        allocate(n_states(i_n) % einsta(2*n+1), source=0.0_dp)
+        associate(a=>cfg%abc(1), c=>cfg%abc(3))
+          select case(cfg%zaxis)
+          case("a", "A")
+            call sym_rigid_rotor(N, N_states(i_N)%eigenH, a, c, cfg%add_cd4, cfg%add_cd6, cfg%cd4, cfg%cd6)
+            N_states(i_N)%Ka = [(K, K=-N, N)]
+          case("c", "C")
+            call sym_rigid_rotor(N, N_states(i_N)%eigenH, c, a, cfg%add_cd4, cfg%add_cd6, cfg%cd4, cfg%cd6)
+            N_states(i_N)%Kc = [(K, K=-N, N)]
+          case default
+            call die("ZAXIS must be 'a' or 'c' for symmetric tops. Got "//cfg%zaxis)
+          end select
+        end associate
+
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!! linear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       case("l")
 
         E_rot = cfg%B_rot * (N*(N+1)) - cfg%D_rot * (N*(N+1))**2 + cfg%H_rot * (N*(N+1))**3
@@ -955,7 +977,31 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-    subroutine rigid_rotor(nn, ham, bx, by, bz, cd4, cd6)
+    subroutine sym_rigid_rotor(nn, ham, bpara, bperp, add_cd4, add_cd6, cd4, cd6)
+      !! Wrapper for calling the hamiltonian routine
+      use rotex__hamilton, only: h_sym
+      use rotex__types,    only: cd4_type, cd6_type
+      implicit none
+      integer,           intent(in)  :: nn
+      type(eigenh_type), intent(out) :: ham
+      real(dp),          intent(in)  :: bpara,  bperp
+      logical,           intent(in)  :: add_cd4, add_cd6
+      type(cd4_type),    intent(in)  :: cd4
+      type(cd6_type),    intent(in)  :: cd6
+      integer :: test
+      ! -- add cd4 ?
+      test = merge(1, 0, add_cd4 .eqv. .true.)
+      ! -- add cd4 & cd6 ?
+      test = merge(2, test, (add_cd6 .eqv. .true.) .AND. (add_cd4 .eqv. .true.))
+      select case(test)
+        case(2) ; call h_sym(nn, ham, bpara, bperp, cd4, cd6)
+        case(1) ; call h_sym(nn, ham, bpara, bperp, cd4)
+        case(0) ; call h_sym(nn, ham, bpara, bperp)
+        case default
+          call die("Somehow got something other than 0,1,2 !")
+      end select
+    end subroutine sym_rigid_rotor
+    subroutine asym_rigid_rotor(nn, ham, bx, by, bz, cd4, cd6)
       !! Wrapper for calling the hamiltonian routine
       use rotex__types, only: cd4_type, cd6_type
       implicit none
@@ -979,7 +1025,7 @@ contains
         case default
           call die("Somehow got something other than 0,1,2 !")
       end select
-    end subroutine rigid_rotor
+    end subroutine asym_rigid_rotor
   end subroutine diagonalize_rotational_hamiltonian
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !

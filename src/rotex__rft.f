@@ -19,8 +19,9 @@ contains
 ! ================================================================================================================================ !
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine RFT_nonlinear( Kmat &
+  module subroutine RFT_nonlinear( Kmat                     &
                                  , Jmin, Jmax               &
+                                 , rotor_kind               &
                                  , Smat_J                   &
                                  , elec_channels            &
                                  , N_states                 &
@@ -48,6 +49,8 @@ contains
       !!  The lowest value of J = N + l
     integer, intent(in) :: Jmax
       !!  The largest value of J = N + l
+    character(1), intent(in) :: rotor_kind
+      !!  The rotor kind: "l"inear, "s"ymmetric, or "a"symmetric top
     type(cmatrix_type), intent(out) :: Smat_J(Jmin:Jmax)
       !! The rotational S-matrices \(S^J\), produced by the RFT
     type(elec_channel_type),        intent(in)                 :: elec_channels(:)
@@ -77,6 +80,7 @@ contains
     nchans_elec = size(elec_channels, 1)
 
     call build_rotational_channels( n_states         &
+                                  , rotor_kind       &
                                   , spin_isomer_kind &
                                   , symaxis          &
                                   , elec_channels    &
@@ -111,7 +115,9 @@ contains
     write(stdout, '(A)') "Frame transformation: S_elec -> S^J"
 
     call do_rft(                 &
-        smat_elec                &
+        rotor_kind               &
+      , symaxis                  &
+      , smat_elec                &
       , smat_j                   &
       , jmin                     &
       , jmax                     &
@@ -125,7 +131,7 @@ contains
   end subroutine RFT_nonlinear
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure subroutine build_rotational_channels(n_states, spin_isomer_kind, symaxis, elec_channels, rot_channels)
+  pure subroutine build_rotational_channels(n_states, rotor_kind, spin_isomer_kind, symaxis, elec_channels, rot_channels)
     !! Build rotational+electronic channels channels: (N Ka Kc)+(l λ) = (N Ka Kc l λ)
     use rotex__kinds,    only: dp
     use rotex__types,    only: n_states_type, elec_channel_type, asymtop_rot_channel_l_type
@@ -133,6 +139,7 @@ contains
     use rotex__symmetry, only: spin_symmetry
     implicit none
     type(N_states_type),            intent(in)               :: n_states(:)
+    character(1),                   intent(in)               :: rotor_kind
     integer,                        intent(in)               :: spin_isomer_kind
     character(1),                   intent(in)               :: symaxis
     type(elec_channel_type),        intent(in)               :: elec_channels(:)
@@ -142,12 +149,23 @@ contains
     integer  :: l, lprev
     real(dp) :: e, e_elec, e_rot
     type(asymtop_rot_channel_l_type) :: channel
+    ka = 0; kc = 0
     ! -- build rotational channels from elec_channels and N_states
     do i_n_state = 1, size(n_states, 1)
       n  = n_states(i_n_state) % n
       do i_tau = 1, 2*n + 1
-        ka = n_states(i_n_state) % ka(i_tau)
-        kc = n_states(i_n_state) % kc(i_tau)
+        select case(rotor_kind)
+        case("a", "A")
+          ka = n_states(i_n_state) % ka(i_tau)
+          kc = n_states(i_n_state) % kc(i_tau)
+        case("s", "S")
+          select case(symaxis)
+          case("a", "A")
+            ka = n_states(i_n_state) % ka(i_tau)
+          case("c", "C")
+            kc = n_states(i_n_state) % kc(i_tau)
+          end select
+        end select
         lprev = elec_channels(1) % l
         do i_elec_channel = 1, size(elec_channels, 1)
           nelec = elec_channels(i_elec_channel) % nelec
@@ -268,7 +286,7 @@ contains
   end subroutine K2S
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine do_rft(Smat_elec, Smat_j, jmin, jmax, n_states &
+  subroutine do_rft(rotor_kind, symaxis, Smat_elec, Smat_j, jmin, jmax, n_states &
       , elec_channels, asymtop_rot_channels_l, asymtop_rot_channels_l_j, point_group)
     !! Perform the rotational frame transformation on the electronic S-matrix
     use rotex__kinds, only: dp
@@ -280,6 +298,10 @@ contains
     use rotex__functions,  only: neg
     use rotex__characters, only: i2c => int2char
     implicit none
+    character(1), intent(in) :: rotor_kind
+    !! The rotor kind: "A", "S", "L"
+    character(1), intent(in) :: symaxis
+    !! The symmetry axis: "A", "B", "C"
     complex(dp),        intent(in)  :: Smat_elec(:,:)
     type(cmatrix_type), intent(out) :: Smat_j(jmin:jmax)
       !! Rotationally resolved S-matrix at each J
@@ -345,7 +367,7 @@ contains
         call realloc(smat_rot_sym, nchans_sym, nchans_sym)
         U = 0
         smat_rot_sym = 0
-        call do_rft_this_sym(j, sym, n_states, elec_channels, rot_channels, smat_elec, smat_rot_sym, U)
+        call do_rft_this_sym(j, rotor_kind, symaxis, sym, n_states, elec_channels, rot_channels, smat_elec, smat_rot_sym, U)
         ! -- add this contribution back to the total S-matrix for this J
         smat_rot(idx, idx) = smat_rot_sym(:,:)
       enddo
@@ -662,7 +684,7 @@ contains
   ! end subroutine do_rft_no_sym
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine do_rft_this_sym(j, sym, n_states, elec_channels, rot_channels, Smat_elec, Smat_rot, U)
+  subroutine do_rft_this_sym(j, rotor_kind, symaxis, sym, n_states, elec_channels, rot_channels, Smat_elec, Smat_rot, U)
     !! Do the rotational frame transformation for a specific symmetry
     use rotex__kinds,      only: dp
     use rotex__types,      only: elec_channel_type, asymtop_rot_channel_l_type, n_states_type
@@ -676,6 +698,10 @@ contains
 
     integer,                          intent(in)  :: j
       !! Total angular momentum quantum number J
+    character(1),                     intent(in)  :: rotor_kind
+      !! "A"symmetric, "s"symmetric, or "l"inear tops
+    character(1),                     intent(in)  :: symaxis
+      !! The symmetry axis, one of  A, B, C
     integer,                          intent(in)  :: sym
       !! The current symmetry
     type(n_states_type),              intent(in)  :: n_states(:)
@@ -717,8 +743,23 @@ contains
 
         ! if(sym .ne. symchan) call die("Channel symmetry does not match transformation symmetry !")
 
+        ! -- get the corresponding eigenvector for this state, indexed by itau.
         in    = findloc(n_states % n, value = ni, dim = 1)
-        mask = (n_states(in) % ka(:) .eq. kai) .AND. (n_states(in) % kc(:) .eq. kci)
+        select case(rotor_kind)
+        case("a", "A")
+          mask = (n_states(in) % ka(:) .eq. kai) .AND. (n_states(in) % kc(:) .eq. kci)
+        case("s", "S")
+          select case(symaxis)
+          case("a", "A")
+            mask = (n_states(in) % ka(:) .eq. kai)
+          case("c", "C")
+            mask = (n_states(in) % kc(:) .eq. kci)
+          case default
+            call die("Somehow got a symmetric top with a SYMAXIS " // symaxis // " that is neither A nor C")
+          end select
+        case default
+          call die("ROTOR_KIND " // rotor_kind // " not allowed in RFT")
+        end select
         itau  = findloc(mask, value = .true., dim = 1)
 
         do jelec = 1, nchans_elec

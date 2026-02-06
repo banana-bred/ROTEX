@@ -1,7 +1,8 @@
 ! ================================================================================================================================ !
 module rotex__hamilton
   !! Module containing procedures to construct and diagonalize rotational Hamiltonians
-  use rotex__types, only: dp, eigenH_type, N_states_type
+  use rotex__kinds, only: dp
+  use rotex__types, only: eigenH_type, N_states_type
 
   implicit none
 
@@ -9,6 +10,7 @@ module rotex__hamilton
 
   ! public :: H_linear
   public :: H_asym
+  public :: H_sym
   public :: assign_projections
   public :: rotate_eigvecs
   ! public :: get_different_K_projections
@@ -16,6 +18,68 @@ module rotex__hamilton
 ! ================================================================================================================================ !
 contains
 ! ================================================================================================================================ !
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  module subroutine H_sym(N, eigenH, Bpara, Bperp, cd4, cd6)
+    !! Get the 2N+1 rotational states for a symmetric top, optionally adding
+    !! diagonal centrifugal distortion (CD) terms
+    !!   E(N,K) = Bperp*N*(N+1) + (Bpara-Bperp)*K² + centrifugal distortion terms
+
+    use rotex__types, only: cd4_type, cd6_type
+
+    implicit none
+
+    integer, intent(in) :: N
+      !! The rotational quantum number \(N\)
+    type(eigenH_type), intent(out) :: eigenH
+      !! The eigenvectors and eigenvalues of \(H\)
+      !! The angular momentum number \(N\)
+    real(dp), intent(in) :: Bpara
+      !! The non-degenerate rotational constant (parallel to symmetry axis)
+    real(dp), intent(in) :: Bperp
+      !! The degenerate rotational constants (perpendicular to symmetry axis)
+    type(cd4_type), intent(in), optional :: cd4
+      !! The quartic centrifugal distortion parameters
+    type(cd6_type), intent(in), optional :: cd6
+      !! The sextic centrifugal distortion parameters
+
+    integer :: numK, ik, K
+    real(dp) :: NNp1, KK, E
+
+    NNp1 = real(N*(N+1), kind=dp)
+
+    numK = 2*N+1
+
+    allocate(eigenH%eigvals(numK))
+    allocate(eigenH%eigvecs(numK,numK), source=(0.0_dp, 0.0_dp))
+
+    ! -- diagonal eigvecs for symmetric top
+    do iK=1, numK
+      eigenH%eigvecs(iK, iK) = (1.0_dp, 0.0_dp)
+    enddo
+
+    do K=-N,N
+      iK = K+N+1
+      KK = real(K*K, kind=dp)
+      E = Bperp*NNp1 + (Bpara-Bperp)*KK
+      cd: if(present(cd4)) then
+        ! -- 4th order CD
+        E = E                            &
+          - cd4%dn  * NNp1 * NNp1        &
+          - cd4%dnk * NNp1 * KK          &
+          - cd4%dk  * KK   * KK
+        if(.not. present(cd6)) exit cd
+        ! -- 6th order CD
+        E = E                            &
+          - cd6%hn  * NNp1 * NNp1 * NNp1 &
+          - cd6%hnk * NNp1 * NNp1 * KK   &
+          - cd6%hkn * NNp1 * KK   * KK   &
+          - cd6%hk  * KK   * KK   * KK
+      endif cd
+      eigenH%eigvals(iK) = E
+    enddo
+
+  end subroutine H_sym
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine H_asym(N, eigenH, Bx, By, Bz, cd4, cd6)

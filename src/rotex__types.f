@@ -184,9 +184,9 @@ module rotex__types
   type config_type
     !! Derived type containing data from the namelist variables
 
-    logical :: add_cd4 = .true.
+    logical :: add_cd4 = .false.
       !! Add centrifugal distortion for fourth order ?
-    logical :: add_cd6 = .true.
+    logical :: add_cd6 = .false.
       !! Add centrifugal distortion for sixth order ?
     logical :: only_einsta
       !! Whether to only calculate the Einstein A coefficients in the Coulomb-Born
