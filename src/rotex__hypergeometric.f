@@ -59,6 +59,10 @@ contains
       if(nint(c) .lt. 1) call die("Hypergeometric function not not defined for c = 0, -1, -2, ..")
     elseif(isint(b-a) .OR. isint(c-a-b)) then
       ! -- linear transformations are not valid for this
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      res = f21_ts_r(a, b, c, x)
+      return
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       res = f21_dispatch_r(a, b, c, x)
       return
     endif
@@ -290,7 +294,7 @@ contains
   ! pure elemental function f21_ts_r(a, b, c, x, tol) result(res)
     !! Returns the Gauss hypergeometric function ₂F₁(a,b,;c;z\) via a Taylor series method, with quad precision
     use rotex__utils,     only: downcast, upcast, kbn_sum, isint
-    use rotex__system,    only: die
+    use rotex__system,    only: die, stderr
     use rotex__constants, only: macheps => macheps_dp, zero, one
     implicit none
     real(dp), intent(in) :: a
@@ -347,7 +351,9 @@ contains
       ! write(6,*) ""
       if( abs(diff) .le. tol_local_qp * abs(sumq) ) exit
       if(k .lt. kmax) cycle
-      call die("k = kmax has been achieved without convergence in gauss_2f1_ts")
+      ! -- non-convergence
+      write(stderr, '("KMAX: ", I0)') kmax
+      call die("k = kmax has been achieved without convergence in f21_ts_r")
     enddo
 
     ! -- downcast to double precision for return value

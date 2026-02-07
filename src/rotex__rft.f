@@ -740,6 +740,7 @@ contains
       do irot = 1, nchans_rot
 
         call get_channel_qnums_rot(rot_channels, irot, neleci, ni, kai, kci, li, symchan)
+        print*, irot,neleci, ni, kai, kci, li, symchan
 
         ! if(sym .ne. symchan) call die("Channel symmetry does not match transformation symmetry !")
 

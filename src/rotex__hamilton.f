@@ -387,6 +387,19 @@ contains
       case default
         call die("Unacceptable TO_AXIS (" // to_axis //") provided")
       end select
+    case("b","B")
+      select case(to_axis)
+      case("c", "C") ; a = pi/2 ; b = pi/2 ; g = 0
+      case("a", "A") ; a = pi   ; b = pi/2 ; g = pi/2
+      case default
+        call die("Unacceptable TO_AXIS (" // to_axis //") provided")
+      end select
+    case("C", "C")
+      case("a", "A") ; a = pi/2 ; b = pi/2 ; g = 0
+      case("b", "B") ; a = pi   ; b = pi/2 ; g = pi/2
+      case default
+        call die("Unacceptable TO_AXIS (" // to_axis //") provided")
+      end select
     case default
       call die("FROM_AXIS (" // ") can only be 'A'")
     end select
