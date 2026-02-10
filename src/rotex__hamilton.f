@@ -4,7 +4,7 @@ module rotex__hamilton
   use rotex__kinds, only: dp
   use rotex__types, only: eigenH_type, N_states_type
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -28,7 +28,7 @@ contains
     use rotex__types,    only: cd4_type, cd6_type
     use rotex__symmetry, only: symtop_rotstate_is_allowed
 
-    implicit none
+    implicit none (type, external)
 
     integer, intent(in) :: N
       !! The rotational quantum number \(N\)
@@ -95,7 +95,7 @@ contains
     use rotex__arrays,    only: eye
     use rotex__constants, only: zero, two, four
 
-    implicit none
+    implicit none (type, external)
 
     integer, intent(in) :: N
       !! The rotational quantum number \(N\)
@@ -179,7 +179,7 @@ contains
     use rotex__utils,     only: assert
     use rotex__arrays,    only: size_check
     use rotex__functions, only: isodd
-    implicit none
+    implicit none (type, external)
     real(dp),       intent(inout) :: H(:,:)
       !! Hamiltonian (already filled with A, B, C parameters)
     type(cd4_type), intent(in)    :: cd4
@@ -238,7 +238,7 @@ contains
     use rotex__utils,     only: assert
     use rotex__arrays,    only: size_check
     use rotex__functions, only: isodd
-    implicit none
+    implicit none (type, external)
     real(dp),       intent(inout) :: H(:,:)
       !! Hamiltonian (already filled with A, B, C parameters)
     type(cd6_type), intent(in)    :: cd6
@@ -314,7 +314,7 @@ contains
     !! This routine will return the array Kvals which indicats the absolute value of the projection that
     !! contributes the most to a particular eigenvector
 
-    implicit none
+    implicit none (type, external)
 
     integer, intent(in) :: N
       !! The rotational quantum number \(N\)
@@ -362,7 +362,7 @@ contains
     use rotex__constants,  only: pi, im
     use rotex__system,     only: stderr, die
     use wignerd,           only: wigner_big_D, wigner_little_d
-    implicit none
+    implicit none (type, external)
     integer,      intent(in)    :: N
       !! The rotational angular moment quantum number
     character(1), intent(inout) :: from_axis
@@ -462,7 +462,7 @@ contains
   ! pure function frame2frame(from_axis, to_axis) result(R)
   !   !! Return the rotation matrix R that maps coordinates between frames
   !   use rotex__kinds, only: dp
-  !   implicit none
+  !   implicit none (type, external)
   !   character(*), intent(in) :: from_axis, to_axis
   !   real(dp) :: R(3,3)
   !   real(dp) :: from_frame(3,3), to_frame(3,3)
@@ -476,7 +476,7 @@ contains
   !   !! Convert the Euler angles α(a) β(b) γ(g) to the rotation matrix
   !   !!   R = Rz(α)*Ry(β)*Rz(γ)
   !   use rotex__kinds, only: dp
-  !   implicit none
+  !   implicit none (type, external)
   !   real(dp), intent(out) :: R(3,3)
   !   real(dp), intent(in) :: a, b, g
   !   real(dp) :: sa, sb, sg
@@ -493,7 +493,7 @@ contains
   !   !! Convert a rotation matrix to the zyz Euler angles α(a) β(b) γ(g)
   !   !! R = Rz(α)*Ry(β)*Rz(γ)
   !   use rotex__kinds, only: dp
-  !   implicit none
+  !   implicit none (type, external)
   !   real(dp), intent(in) :: R(3,3)
   !   real(dp), intent(out) :: a, b, g
   !   real(dp), parameter :: EPS = 1000*epsilon(1._dp)

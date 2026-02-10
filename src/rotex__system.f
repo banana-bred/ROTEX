@@ -5,7 +5,7 @@ module rotex__system
 
   use, intrinsic :: iso_fortran_env, only: input_unit, output_unit, error_unit, iostat_end
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -80,7 +80,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure subroutine die_1(message)
     !! Stop program execution with a message
-    implicit none
+    implicit none (type, external)
     character(*), intent(in), optional :: message
     if(.not.present(message)) error stop ; error stop message
   end subroutine die_1
@@ -88,7 +88,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine warn_1(message)
     !! Print a warning message, but don't stop the program's execution
-    implicit none
+    implicit none (type, external)
     character(*), intent(in) :: message
     write(stderr,*)
     write(stderr,'("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")')
@@ -104,7 +104,7 @@ contains
     !! Detects the type of the operating system. As far as system calls and directory structure go,
     !! this basically resolved to Windows or not Windows.
 
-    implicit none
+    implicit none (type, external)
 
     integer :: OS
 
@@ -150,7 +150,7 @@ contains
   subroutine mkdir(directory)
     !! Makes the directory "directory" and checks that it exists and is writeable
 
-    implicit none
+    implicit none (type, external)
 
     character(*) :: directory
 

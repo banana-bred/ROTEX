@@ -70,7 +70,7 @@ module rotex__functions
     !! Interface to the C functions expm1 for real x
     function c_expm1(x) bind(C, name="expm1") result(res)
       use, intrinsic :: iso_c_binding, only: c_double
-      implicit none
+      implicit none (type, external)
       real(c_double), value :: x
       real(c_double) :: res
     end function c_expm1
@@ -80,7 +80,7 @@ module rotex__functions
     !! Interface to the C functions logp1 for real x
     function c_logp1(x) bind(C, name="logp1") result(res)
       use, intrinsic :: iso_c_binding, only: c_double
-      implicit none
+      implicit none (type, external)
       real(c_double), value :: x
       real(c_double) :: res
     end function c_logp1
@@ -139,7 +139,7 @@ contains
     !! taking machine epsilon for their precision as the default value
     use rotex__constants, only: macheps => macheps_dp
 
-    implicit none
+    implicit none (type, external)
 
     complex(dp), intent(in) :: a, b
     real(dp), intent(in), optional :: tol
@@ -160,7 +160,7 @@ contains
     !! taking machine epsilon for their precision as the default value
     use rotex__constants, only: macheps => macheps_dp
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: a, b
     real(dp), intent(in), optional :: tol
@@ -180,7 +180,7 @@ contains
   pure elemental module function delta(m, n) result(res)
     !! Return the Kronecker delta function \(\delta_{m,n}\)
     use rotex__constants, only: zero, one
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: m, n
     real(dp) :: res
     res = zero ; if(m .eq. n) res = one
@@ -189,7 +189,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module function factorial_int(n) result(res)
     !! !n
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: n
     real(dp) :: res
     res = gamma(real(n + 1, kind = dp))
@@ -199,7 +199,7 @@ contains
   pure elemental module function factorial_real(n) result(res)
     !! !n
     use rotex__constants, only: one
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: n
     real(dp) :: res
     res = gamma(n + one)
@@ -210,7 +210,7 @@ contains
     !! Returns \(e^x - 1\). TODO, replace with a fast and accurate version
     !! coded natively in fortran !
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in), value :: x
     real(dp) :: res
@@ -220,7 +220,7 @@ contains
   module function expm1z(z) result(res)
     !! Returns \(e^x - 1\). TODO, replace with a fast and accurate version
     !! coded natively in fortran !
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: z ! = a + ib
     complex(dp) :: res
     real(dp) :: sin_bover2
@@ -233,7 +233,7 @@ contains
   module function logp1r(x) result(res)
     !! Returns \(\log(x+1)\) for real x. TODO, replace with a fast and accurate version
     !! coded natively in fortran !
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     real(dp) :: res
     res = c_logp1(x)
@@ -243,7 +243,7 @@ contains
     !! Returns \(\log(z+1)\) for complex z. TODO, replace with a fast and accurate version ?
     !! coded natively in fortran !
     use rotex__constants, only: one
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: z
     complex(dp) :: res
     complex(dp) :: zp1
@@ -254,7 +254,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module function isintegerr(x) result(res)
     !! Check if x is an integer
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     logical :: res
     res = .false.
@@ -265,7 +265,7 @@ contains
   pure elemental module function isintegerz(z) result(res)
     !! Check if z is an integer
     use rotex__constants, only: zero
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: z
     logical :: res
     res = .false.
@@ -278,7 +278,7 @@ contains
   pure elemental module function isnaturalr(x) result(res)
     !! Check if x is a natural number (1, 2, 3, ...)
     use rotex__constants, only: zero
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     logical :: res
     integer :: nintx
@@ -292,7 +292,7 @@ contains
   pure elemental module function isnaturalz(z) result(res)
     !! Check if z is a natural number (1, 2, 3, ...)
     use rotex__constants, only: zero
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: z
     logical :: res
     integer :: nintz
@@ -308,7 +308,7 @@ contains
   pure elemental module function argi(z) result(res)
     !! Return the phase of an integer (as a complex number) in (-π,π]
     use rotex__constants, only: pi
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: z
     real(dp) :: res
     res = 0.0_dp
@@ -319,7 +319,7 @@ contains
   pure elemental module function argr(z) result(res)
     !! Return the phase of a real number (as a complex number) in (-π,π]
     use rotex__constants, only: pi
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: z
     real(dp) :: res
     res = 0.0_dp
@@ -330,7 +330,7 @@ contains
   pure elemental module function argc(z) result(res)
     !! Return the phase of a complex number in (-π,π]
     use rotex__constants, only: pi, zero
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: z
     real(dp) :: res
     res = zero
@@ -341,7 +341,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module function invi(i) result(res)
     !! Return the real 1/i for integer i
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: i
     real(dp) :: res
     res = 1.0_dp/real(i, kind = dp)
@@ -350,7 +350,7 @@ contains
   pure elemental module function invr(x) result(res)
     !! Return 1/x
     use rotex__constants, only: zero
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     real(dp) :: res
     res = 1.0_dp/x
@@ -359,7 +359,7 @@ contains
   pure elemental module function invz(z) result(res)
     !! Return 1/z for complex z. If the imaginary part of z is 0, flip its sign
     use ieee_arithmetic, only: ieee_is_negative, ieee_copy_sign
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: z
     complex(dp) :: res
     res = 1.0_dp/z
@@ -388,7 +388,7 @@ contains
     !! returns whether the arguments satisfy the triangle inequality,
     !! assuming that they're positive quantities
 
-    implicit none
+    implicit none (type, external)
 
     integer, intent(in) :: a
     integer, intent(in) :: b
@@ -409,7 +409,7 @@ contains
   pure elemental module function log_factorial_i(n) result(res)
     !! returns ln(n!) for integer n
     use rotex__system, only: die
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: n
     real(dp) :: res
     select case(n)
@@ -424,7 +424,7 @@ contains
   pure elemental module function log_factorial_r(n) result(res)
     !! returns ln(n!) for real n
     use rotex__system, only: die
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: n
     real(dp) :: res
     if(n .lt. 0) call die("ln(n!) not defined for negative real n")
@@ -434,7 +434,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental function logb_ii(b, x) result(res)
     !! Returns the logarithm of x in the base b
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: b
     integer, intent(in) :: x
     real(dp) :: res
@@ -442,7 +442,7 @@ contains
   end function logb_ii
   pure elemental function logb_rr(b, x) result(res)
     !! Returns the logarithm of x in the base b
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: b
     real(dp), intent(in) :: x
     real(dp) :: res
@@ -450,7 +450,7 @@ contains
   end function logb_rr
   pure elemental function logb_cc(b, x) result(res)
     !! Returns the logarithm of x in the base b
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: b
     complex(dp), intent(in) :: x
     complex(dp) :: res
@@ -461,7 +461,7 @@ contains
   pure function logrange_ib(a, b, n, base, inclast) result(res)
     !! Returns an array of n log-spaced values from a to b. By default, the base is 10
     !! if omitted but can be changed by the user
-    implicit none
+    implicit none (type, external)
     integer(dp), intent(in) :: a, b
     integer,  intent(in) :: n
     integer,  intent(in), optional :: base
@@ -478,7 +478,7 @@ contains
   pure function logrange_rb(a, b, n, base, inclast) result(res)
     !! Returns an array of n log-spaced values from a to b. By default, the base is 10
     !! if omitted but can be changed by the user
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: a, b
     integer,  intent(in) :: n
     real(dp), intent(in), optional :: base
@@ -509,7 +509,7 @@ contains
   ! -------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental module function neg(i) result(res)
     !! Returns the integer \((-1)^{i)\)}
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: i
     integer :: res
     res = 1
@@ -520,7 +520,7 @@ contains
   ! -------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental function sinpi_rdp(x, tol) result(res)
     use rotex__constants, only: pi
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     real(dp), intent(in), optional :: tol
     real(dp) :: res
@@ -542,7 +542,7 @@ contains
   ! -------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental function sinpi_rqp(x, tol) result(res)
     use rotex__constants, only: pi => pi_qp
-    implicit none
+    implicit none (type, external)
     real(qp), intent(in) :: x
     real(qp), intent(in), optional :: tol
     real(qp) :: res
@@ -564,7 +564,7 @@ contains
 
   ! -------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental function cospi_rdp(x, tol) result(res)
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     real(dp), intent(in), optional :: tol
     real(dp) :: res
@@ -574,7 +574,7 @@ contains
   end function cospi_rdp
   ! -------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental function cospi_rqp(x, tol) result(res)
-    implicit none
+    implicit none (type, external)
     real(qp), intent(in) :: x
     real(qp), intent(in), optional :: tol
     real(qp) :: res
@@ -586,7 +586,7 @@ contains
   ! -------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental function cotpi_rdp(x, tol) result(res)
     use rotex__constants, only: pi
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     real(dp), intent(in), optional :: tol
     real(dp) :: res
@@ -608,7 +608,7 @@ contains
   ! -------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental function cotpi_rqp(x, tol) result(res)
     use rotex__constants, only: pi => pi_qp
-    implicit none
+    implicit none (type, external)
     real(qp), intent(in) :: x
     real(qp), intent(in), optional :: tol
     real(qp) :: res

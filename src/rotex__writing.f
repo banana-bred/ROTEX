@@ -2,7 +2,7 @@
 module rotex__writing
   !! Procedures for writing data to disk
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -19,21 +19,17 @@ contains
 ! ================================================================================================================================ !
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine write_lifetimes_to_file(output_directory, N_min, N_max, N_states, zaxis)
+  module subroutine write_lifetimes_to_file(N_states)
     !! Writes the states involved in the excitation and their lifetimes
 
-    use rotex__types,     only: dp, N_states_type
+    use rotex__globals,   only: G
+    use rotex__kinds,     only: dp
+    use rotex__types,     only: N_states_type
     use rotex__constants, only: au2ev, au2sec
 
-    implicit none
+    implicit none (type, external)
 
-    character(*), intent(in) :: output_directory
-      !! The directory in which output files are placed
-    integer, intent(in) :: N_min, N_max
-      !! Minimum and maximum value of N for which lifetimes were evaluated
     type(N_states_type), intent(in) :: N_states(:)
-    character(1),        intent(in) :: zaxis
-      !! The array of states
 
     integer :: funit
     integer :: inlo, i_tau
@@ -44,20 +40,20 @@ contains
     character(:), allocatable :: fmt
     character(15) :: lifetime_char
 
-    filename = output_directory // "lifetimes.dat"
+    filename = G%OUTPUT_DIRECTORY // "lifetimes.dat"
     open(newunit = funit, file = filename)
 
     nc = maxval(N_states(:) % N) + 1
 
     ! -- write file header
-    write(funit, '("# The z-axis is aligned with the ", A, " axis")') zaxis
+    write(funit, '("# The z-axis is aligned with the ", A, " axis")') G%ROTOR_ZAXIS
     write(funit, '("# ", 3A6, 2A16)') "N", "Ka", "Kc", "energy (meV)", "lifetime (s)"
 
     do inlo = 1, size(N_states, 1)
 
       N = N_states(inlo) % N
-      if(N .lt. N_min) cycle
-      if(N .gt. N_max) cycle
+      if(N .lt. G%NMIN) cycle
+      if(N .gt. G%NMAX) cycle
 
       do i_tau = 1, 2*N+1
 
@@ -93,7 +89,6 @@ contains
   module subroutine write_CB_xs_to_file( &
       prefix                             &
     , output_directory                   &
-    , zaxis                              &
     , E_el                                &
     , xs                                 &
     , init                               &
@@ -103,19 +98,18 @@ contains
     )
     !! Writes a Coulomb-Born cross section to a file whos name and file header
     !! carry information about the state symmetry
-    use rotex__types,      only: dp, N_states_type, asymtop_rot_channel_type
+    use rotex__kinds,      only: dp
+    use rotex__types,      only: N_states_type, asymtop_rot_channel_type
     use rotex__characters, only: add_trailing,  sub, sup
     use rotex__constants,  only: au2eV, au2cm
     use rotex__functions,  only: logrange
 
-    implicit none
+    implicit none (type, external)
 
     character(*),                      intent(in) :: prefix
       !! filename prefix
     character(*),                      intent(in) :: output_directory
       !! The directory in which output files are placed
-    character(1),                      intent(in) :: zaxis
-      !! The A, B, or C axis that lies along z
     real(dp),                          intent(in) :: E_el(:)
       !! the scattering eneries in au
     real(dp),                          intent(in) :: xs(:)
@@ -165,7 +159,7 @@ contains
     ! -- write cross sections
     filename  = output_directory // prefix_local // state_name1 // "." // state_name2 // ".dat"
     open(newunit = funit,   file = filename)
-    call write_xs_header(funit,   zaxis, ni, kai, kci, nf, kaf, kcf, xs_type_, lmax)
+    call write_xs_header(funit,  ni, kai, kci, nf, kaf, kcf, xs_type_, lmax)
     iemin = findloc(xs .gt. 0, .true., 1)
     do ie = iemin, ne
       write(funit, ENERGY_XS_WRITE_FMT) E_el(ie) * au2eV, xs(ie) * au2cm * au2cm
@@ -178,7 +172,6 @@ contains
   module subroutine write_smat_xs_to_file( &
       prefix                               &
     , output_directory                     &
-    , zaxis                                &
     , egrid_total                          &
     , transition                           &
     , exxs                                 &
@@ -187,21 +180,20 @@ contains
     )
     !! Writes an S-matrix (+CB) cross section to a file whos name and file header
     !! carry information about the state symmetry
-    use rotex__types,      only: dp, rvector_type, asymtop_rot_transition_type,  asymtop_rot_channel_type
+    use rotex__kinds,      only: dp
+    use rotex__types,      only: rvector_type, asymtop_rot_transition_type,  asymtop_rot_channel_type
     use rotex__arrays,     only: size_check
     use rotex__system,     only: die, warn, mkdir
     use rotex__characters, only: add_trailing, sub, sup, i2c => int2char
     use rotex__constants,  only: au2eV, au2cm, pi
     use rotex__functions,  only: logrange
 
-    implicit none
+    implicit none (type, external)
 
     character(*), intent(in) :: prefix
       !! filename prefix
     character(*), intent(in) :: output_directory
       !! The directory in which output files are placed
-    character(1), intent(in) :: zaxis
-      !! The A, B, or C axis that lies along z
     real(dp), intent(in) :: egrid_total(:)
       !! The grid of total energies in au
     type(asymtop_rot_transition_type), intent(in) :: transition
@@ -266,8 +258,8 @@ contains
     open(newunit = funit_ex,  file = filename_ex)
     open(newunit = funit_dex, file = filename_dex)
 
-    call write_xs_header(funit_ex,  zaxis, Nlo, Kalo, Kclo, Nup, Kaup, Kcup, "S-matrix", i2c(lmax))
-    call write_xs_header(funit_dex, zaxis, Nup, Kaup, Kcup, Nlo, Kalo, Kclo, "S-matrix", i2c(lmax))
+    call write_xs_header(funit_ex,  Nlo, Kalo, Kclo, Nup, Kaup, Kcup, "S-matrix", i2c(lmax))
+    call write_xs_header(funit_dex, Nup, Kaup, Kcup, Nlo, Kalo, Kclo, "S-matrix", i2c(lmax))
 
     do ie = iemin, ne
       sigmaup   = exxs(ie)
@@ -287,7 +279,6 @@ contains
   module subroutine write_total_xs_to_file( &
       prefix                                &
     , output_directory                      &
-    , zaxis                                 &
     , Eel_ex                                &
     , Eel_dex                               &
     , transition                            &
@@ -304,14 +295,12 @@ contains
     use rotex__system,     only: mkdir
     use rotex__constants,  only: au2ev, au2cm
 
-    implicit none
+    implicit none (type, external)
 
     character(*), intent(in) :: prefix
       !! filename prefix
     character(*), intent(in) :: output_directory
       !! The directory in which output files are placed
-    character(1), intent(in) :: zaxis
-      !! The A, B, or C axis that lies along z
     real(dp), intent(in) :: Eel_ex(:)
       !! The excitation electron energy grid in au
     real(dp), intent(in) :: Eel_dex(:)
@@ -375,8 +364,8 @@ contains
     ! -- write data to file
     open(newunit = funit_ex,  file = filename_ex)
     open(newunit = funit_dex, file = filename_dex)
-    call write_xs_header(funit_ex,  zaxis, Nlo, Kalo, Kclo, Nup, Kaup, Kcup, XS_TYPE, i2c(lmax), "∞")
-    call write_xs_header(funit_dex, zaxis, Nup, Kaup, Kcup, Nlo, Kalo, Kclo, XS_TYPE, i2c(lmax), "∞")
+    call write_xs_header(funit_ex,  Nlo, Kalo, Kclo, Nup, Kaup, Kcup, XS_TYPE, i2c(lmax), "∞")
+    call write_xs_header(funit_dex, Nup, Kaup, Kcup, Nlo, Kalo, Kclo, XS_TYPE, i2c(lmax), "∞")
     do ie = iemin, ne
       write(funit_ex,  ENERGY_XS_WRITE_FMT) Eel_ex(ie)  * au2ev, xs_xcite(ie)  * au2cm*au2cm
       write(funit_dex, ENERGY_XS_WRITE_FMT) Eel_dex(ie) * au2ev, xs_dxcite(ie) * au2cm*au2cm
@@ -391,18 +380,18 @@ contains
   !   !! Extrapolate a cross section as 1/E towards 0, given the cross section xs1 at
   !   !! energy E1
   !   use rotex__types, only: dp
-  !   implicit none
+  !   implicit none (type, external)
   !   real(dp), intent(in) :: xs1, E1, Etarg
   !   real(dp) :: res
   !   res = xs1*E1/Etarg
   ! end function xtrap_xs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine write_xs_header(funit, axis, N, Ka, Kc, Np, kaup, kcup, xs_type, lmax, lmax2)
+  subroutine write_xs_header(funit, N, Ka, Kc, Np, kaup, kcup, xs_type, lmax, lmax2)
+    use rotex__globals, only: G
     use rotex__characters, only: ndigits, i2c => int2char
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: funit
-    character(*), intent(in) :: axis
     integer, intent(in) :: N, Ka, Kc, Np, kaup, kcup
     character(:), allocatable :: fmt, fmtp
     character(:), allocatable :: nc, ncp
@@ -419,7 +408,7 @@ contains
     else
       write(funit, '("# lmax: ", A)') lmax
     endif
-    write(funit,   '("# The z-axis is aligned with the ", A, " axis")') axis
+    write(funit,   '("# The z-axis is aligned with the ", A, " axis")') G%ROTOR_ZAXIS
     write(funit, '("# ", 2(A' // nc  // ',","), A' // nc  // ')',  advance = "no") "N", "Ka", "Kc"
     write(funit, '(2X,A)',                                                advance = "no") "-->"
     write(funit, '(2(A'   // ncp // ',","), A' // ncp // ')')                    "N", "Ka", "Kc"
@@ -433,21 +422,27 @@ contains
   end subroutine write_xs_header
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine write_channels_to_file(filename, jmin, jmax, n_states, channels_l, channels_l_j, spin_isomer_kind, symaxis)
+  module subroutine write_channels_to_file( &
+        filename                            &
+      , jmin                                &
+      , jmax                                &
+      , n_states                            &
+      , channels_l                          &
+      , channels_l_j                        &
+    )
     !! Write rotational channel info to file
-    use rotex__types, only: dp, asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
-                          , n_states_type, asymtop_rot_channel_type, operator(.eq.)
+
+    use rotex__kinds, only: dp
+    use rotex__types, only: asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
+                          , n_states_type, asymtop_rot_channel_type
+    use rotex__channel_ops, only: operator(.eq.)
     use rotex__constants, only: au2ev
     use rotex__symmetry, only: spin_symmetry
-    implicit none
+    implicit none (type, external)
     character(*), intent(in) :: filename
       !! File to which we write channels
     integer, intent(in) :: jmin, jmax
       !! Total angular momentum mim/max
-    integer, intent(in) :: spin_isomer_kind
-      !! Kind of nuclear spin to preserve
-    character(1), intent(in) :: symaxis
-      !! Symmetry axis for nuclear spin
     type(n_states_type), intent(in) :: n_states(:)
     type(asymtop_rot_channel_l_type),        intent(in) :: channels_l(:)
       !! Rotational channels

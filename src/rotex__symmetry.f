@@ -1,8 +1,9 @@
 ! ================================================================================================================================ !
 module rotex__symmetry
   !! All things related to symmetry
+  use rotex__globals,   only: G
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -14,6 +15,7 @@ module rotex__symmetry
   public :: is_spin_allowed
   public :: is_spin_forbidden
   public :: symtop_rotstate_is_allowed
+  public :: rotstate_is_allowed
 
   interface is_spin_allowed
     module procedure :: is_spin_allowed_chan
@@ -73,7 +75,7 @@ contains
     !! Return the number of elements in point_group
     use rotex__system,     only: die
     use rotex__characters, only: to_upper
-    implicit none
+    implicit none (type, external)
     character(*), intent(in) :: point_group
     integer :: n
     character(:), allocatable :: pg
@@ -101,7 +103,7 @@ contains
     use rotex__system,     only: die
     use rotex__characters, only: to_upper
 
-    implicit none
+    implicit none (type, external)
 
     character(*), intent(in) :: point_group
     character(:), intent(out), allocatable :: irreps(:)
@@ -180,7 +182,7 @@ contains
     use rotex__system,     only: die
     use rotex__characters, only: to_upper
 
-    implicit none
+    implicit none (type, external)
 
     integer, intent(in) :: irrep
     character(*), intent(in) :: point_group
@@ -202,7 +204,7 @@ contains
   pure module function possible_spin_symmetries(kind) result(res)
     !! Returns an array of possible spin symmetry values
     use rotex__system, only: die
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: kind
     integer, allocatable :: res(:)
     select case(kind)
@@ -222,7 +224,7 @@ contains
     !!   Linear rotors: only N is used
     !!   Asymmetric rotors: Ka, Kc, or Ka+Kc is used
     !!   Symmetric rotors: Ka or Kc is used
-    !! GLOBAL_SPIN_ISOMER_KIND:
+    !! G%SPIN_ISOMER_KIND:
     !!   0: no symmetry
     !!   1: linear only, N parity
     !!   2: Kz (mod 2) (should only be relevant for asymmetric tops)
@@ -233,27 +235,27 @@ contains
     !!       which are different and should be uncoupled in the frame transformation.
 
     use rotex__system, only: die
-    use rotex__globals, only: GLOBAL_ROTOR_ZAXIS, GLOBAL_ROTOR_KIND, GLOBAL_SPIN_ISOMER_KIND
 
-    implicit none
+    implicit none (type, external)
 
     integer,      intent(in) :: n, ka, kc
     integer :: ksym
     integer :: res
 
-    if(any(GLOBAL_ROTOR_KIND .eq. ["s", "S"]) .AND. any(GLOBAL_ROTOR_ZAXIS .eq. ["b","B"])) then
+    ! -- guard against ambiguous tops
+    if(G%ROTOR_KIND .eq. "s" .AND. G%ROTOR_ZAXIS .eq. "b") then
       call die("Symmetric top with rotor zaxis = B detected. Pick one of A or C")
     endif
 
-    select case(GLOBAL_ROTOR_ZAXIS)
+    select case(G%ROTOR_ZAXIS)
     case("a", "A") ; Ksym = Ka
     case("b", "B") ; Ksym = Ka+Kc
     case("c", "C") ; Ksym = Kc
     case default
-      call die("GLOBAL_ROTOR_ZAXIS must be one of A B C")
+      call die("G%ROTOR_ZAXIS must be one of A B C")
     end select
 
-    select case(GLOBAL_SPIN_ISOMER_KIND)
+    select case(G%SPIN_ISOMER_KIND)
     case(0)
 
       ! -- no restriction
@@ -261,7 +263,7 @@ contains
 
     case(1)
 
-      select case(GLOBAL_ROTOR_KIND)
+      select case(G%ROTOR_KIND)
       case("s","S","A","a")
         call die("Rotor kind 1 is not meaningful for a nonlinear molecule")
       end select
@@ -273,23 +275,23 @@ contains
 
       ! -- water-like. asymtop, two identical nuclei. Ka and Kc are positive
       !    exchange about C₂(Z): parity = |Kz| (mod 2)
-      select case(GLOBAL_ROTOR_KIND)
+      select case(G%ROTOR_KIND)
       case("l","L") ; call die("Spin isomer kind 2 is not meaningful for linear rotors")
       case("s","S") ; call die("Symmetric top with spin isomer kind 2 is probably not meaningful")
       case("a","A") ; res = modulo(Ksym, 2)
       case default
-        call die("Unexpected rotor kind: " // GLOBAL_ROTOR_KIND)
+        call die("Unexpected rotor kind: " // G%ROTOR_KIND)
       end select
 
     case(3:) ! K (mod n)
 
-      select case(GLOBAL_ROTOR_KIND)
+      select case(G%ROTOR_KIND)
         case("a", "A") ; call die("Asymmetric top with K (mod n) n>2 detected")
         case("l", "L") ; call die("Linear rotor with K (mod n) rule is not meaningful")
         case("s", "S") ; res = modulo(Ksym, 3) ! 0->0; 1->1; 2->2; 3->0; -1->2
         ! case("s", "S") ; res = mod(Ksym, 3) ! 0->0; 1->1; 2->2; 3->0; -1->-1..
         case default
-          call die("Unexpected rotor kind: " // GLOBAL_ROTOR_KIND)
+          call die("Unexpected rotor kind: " // G%ROTOR_KIND)
       end select
 
     case default
@@ -304,7 +306,7 @@ contains
   pure elemental module function is_spin_allowed_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis) result(res)
     !! Determine if the transition Nlo,Kalo,Kclo -> Nup,Kaup,Kcup is allowed by nuclear spin symmetry
     !! selection rules
-    implicit none
+    implicit none (type, external)
     integer,      intent(in) :: nlo, kalo, kclo, nup, kaup, kcup, kind
     character(1), intent(in) :: symaxis
     logical :: res
@@ -314,7 +316,7 @@ contains
   pure elemental module function is_spin_allowed_chan(channel1, channel2) result(res)
     !! Test if two rotational channels respect ortho/para symmetry
     use rotex__types, only: asymtop_rot_channel_type
-    implicit none
+    implicit none (type, external)
     type(asymtop_rot_channel_type), intent(in) :: channel1, channel2
     logical :: res
     res = .false.
@@ -326,7 +328,7 @@ contains
   pure elemental module function is_spin_forbidden_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis) result(res)
     !! Determine if the transition Nlo,Kalo,Kclo -> Nup,Kaup,Kcup is forbidden by nuclear spin symmetry
     !! selection rules
-    implicit none
+    implicit none (type, external)
     integer,      intent(in) :: nlo, kalo, kclo, nup, kaup, kcup, kind
     character(1), intent(in) :: symaxis
     logical :: res
@@ -336,7 +338,7 @@ contains
   pure elemental module function is_spin_forbidden_chan(channel1, channel2) result(res)
     !! Test if two rotational channels respect ortho/para symmetry
     use rotex__types, only: asymtop_rot_channel_type
-    implicit none
+    implicit none (type, external)
     type(asymtop_rot_channel_type), intent(in) :: channel1, channel2
     logical :: res
     res = .true.
@@ -347,19 +349,60 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental function symtop_rotstate_is_allowed(N, K) result(res)
     !! Test whether the rotational state (N,K) is allowed, check special cases
-    use rotex__globals,   only: GLOBAL_FORBIDDEN_STATES_KIND
     use rotex__functions, only: isodd
     use rotex__system,    only: die
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: N, K
     logical :: res
-    select case(GLOBAL_FORBIDDEN_STATES_KIND)
+    select case(G%FORBIDDEN_STATES_KIND)
     case(0) ; res = .true.
     case(1) ; res = isodd(N) .OR. K .ne. 0
     case default
-      call die("Unexpected GLOBAL_FORBIDDEN_STATES_KIND. Must be 0 or 1")
+      call die("Unexpected G%FORBIDDEN_STATES_KIND. Must be 0 or 1")
     end select
   end function symtop_rotstate_is_allowed
+
+  ! ------------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function rotstate_is_allowed(N, Ka, Kc) result(res)
+    !! Test whether the rotational state (N,K) is allowed, check special cases
+    use rotex__functions, only: isodd
+    use rotex__system,    only: die
+    implicit none (type, external)
+    integer, intent(in) :: N, Ka, Kc
+    logical :: res
+    integer :: K, Ksym
+    select case(G%FORBIDDEN_STATES_KIND)
+
+    case(0)
+
+      res = .true.
+
+    case(1)
+
+      select case(G%ROTOR_KIND)
+      case("s")
+
+        select case(G%ROTOR_ZAXIS)
+        case("a") ; Ksym = Ka
+        case("b") ; call die("Ksym = B is ambiguous; pick A or C")
+        case("c") ; Ksym = Kc
+        end select
+
+        res = symtop_rotstate_is_allowed(N, Ksym)
+
+      case("a", "l")
+
+        call die("G%FORBIDDEN_STATES_KIND = 1 is not meaningful for a non-symmetric-top rotor")
+
+      end select
+
+    case default
+
+      call die("Unexpected G%FORBIDDEN_STATES_KIND. Must be 0 or 1")
+
+    end select
+  end function rotstate_is_allowed
+
 
 ! ================================================================================================================================ !
 end module rotex__symmetry

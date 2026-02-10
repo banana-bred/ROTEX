@@ -1,8 +1,9 @@
 ! ================================================================================================================================ !
 module rotex__RFT
   !! Procedures used to carry out the rotational frame transformation
+  use rotex__globals, only: G
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -21,27 +22,24 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine RFT_nonlinear( Kmat                     &
                                  , Jmin, Jmax               &
-                                 , rotor_kind               &
                                  , Smat_J                   &
                                  , elec_channels            &
                                  , N_states                 &
                                  , asymtop_rot_channels_l   &
                                  , asymtop_rot_channels_l_J &
-                                 , spin_isomer_kind         &
-                                 , symaxis                  &
-                                 , real_spherical_harmonics &
-                                 , point_group              &
                                  )
     !! Build the electronic S-matrix from the electronic K-matrix, then perform the rotational frame transformation on the S-matrix
 
-    use rotex__types,     only: dp, elec_channel_type, asymtop_rot_channel_l_type, N_states_type, cmatrix_type &
-                              , sort_channels_by_energy, asymtop_rot_channel_l_vector_type
+    use rotex__kinds,     only: dp
+    use rotex__types,     only: elec_channel_type, asymtop_rot_channel_l_type, N_states_type, cmatrix_type &
+                              , asymtop_rot_channel_l_vector_type
+    use rotex__channel_ops, only: sort_channels_by_energy
     use rotex__system,    only: stdout, die
     use rotex__symmetry,  only: possible_spin_symmetries, spin_symmetry
     use rotex__constants, only: im
     use rotex__arrays,    only: append, is_unitary
 
-    implicit none
+    implicit none (type, external)
 
     real(dp),                       intent(inout), allocatable :: Kmat(:,:)
       !! The K-matrix, needed as input for the RFT
@@ -49,8 +47,6 @@ contains
       !!  The lowest value of J = N + l
     integer, intent(in) :: Jmax
       !!  The largest value of J = N + l
-    character(1), intent(in) :: rotor_kind
-      !!  The rotor kind: "l"inear, "s"ymmetric, or "a"symmetric top
     type(cmatrix_type), intent(out) :: Smat_J(Jmin:Jmax)
       !! The rotational S-matrices \(S^J\), produced by the RFT
     type(elec_channel_type),        intent(in)                 :: elec_channels(:)
@@ -61,16 +57,6 @@ contains
       !! The array of rotational channels (N, Ka, Kc, l) that make up the basis of the S-matrix
     type(asymtop_rot_channel_l_vector_type), intent(out) :: asymtop_rot_channels_l_J(Jmin:Jmax)
       !! The array of arrays of rotational channels (N, Ka, Kc, l) that make up the basis of the S-matrix subblocks at each J
-    integer, intent(in) :: spin_isomer_kind
-      !! Spin isomer kind
-    character(1), intent(in) :: symaxis
-      !! Symmetry axis for respecting nuclear spin symmetry
-    logical, intent(in) :: real_spherical_harmonics
-      !! Whether the input K-matrices are evaluated in a basis of real spherical harmonics
-      !! for the scattering electron. If .true., transform the S-matrix into a basis of
-      !! complex-valued spherical harmonics
-    character(*), intent(in) :: point_group
-      !! The point group of the calculation
 
     integer :: nelec, l
     integer :: ml
@@ -80,9 +66,6 @@ contains
     nchans_elec = size(elec_channels, 1)
 
     call build_rotational_channels( n_states         &
-                                  , rotor_kind       &
-                                  , spin_isomer_kind &
-                                  , symaxis          &
                                   , elec_channels    &
                                   , asymtop_rot_channels_l)
 
@@ -96,7 +79,7 @@ contains
     allocate(smat_elec(nchans_elec, nchans_elec))
     smat_elec = 0
     ! call K2S(Kmat, smat_elec, elec_channels, real_spherical_harmonics, point_group)
-    call K2S_cayley(Kmat, smat_elec, elec_channels, real_spherical_harmonics, point_group)
+    call K2S_cayley(Kmat, smat_elec, elec_channels)
 
     write(stdout, '(A)') "Channel-by-channel unitarity of the electronic S-matrix:"
     write(stdout, '(8X, 4A4, A15)') "i", "n", "l", "ml", "||S(:,i)||₂"
@@ -115,9 +98,7 @@ contains
     write(stdout, '(A)') "Frame transformation: S_elec -> S^J"
 
     call do_rft(                 &
-        rotor_kind               &
-      , symaxis                  &
-      , smat_elec                &
+        smat_elec                &
       , smat_j                   &
       , jmin                     &
       , jmax                     &
@@ -125,24 +106,20 @@ contains
       , elec_channels            &
       , asymtop_rot_channels_l   &
       , asymtop_rot_channels_l_j &
-      , point_group              &
     )
 
   end subroutine RFT_nonlinear
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure subroutine build_rotational_channels(n_states, rotor_kind, spin_isomer_kind, symaxis, elec_channels, rot_channels)
+  pure subroutine build_rotational_channels(n_states, elec_channels, rot_channels)
     !! Build rotational+electronic channels channels: (N Ka Kc)+(l λ) = (N Ka Kc l λ)
     use rotex__kinds,    only: dp
     use rotex__types,    only: n_states_type, elec_channel_type, asymtop_rot_channel_l_type
     use rotex__arrays,   only: append
     use rotex__symmetry, only: spin_symmetry
     use rotex__system,   only: die
-    implicit none
+    implicit none (type, external)
     type(N_states_type),            intent(in)               :: n_states(:)
-    character(1),                   intent(in)               :: rotor_kind
-    integer,                        intent(in)               :: spin_isomer_kind
-    character(1),                   intent(in)               :: symaxis
     type(elec_channel_type),        intent(in)               :: elec_channels(:)
     type(asymtop_rot_channel_l_type), intent(out), allocatable :: rot_channels(:)
     integer  :: i_N_state, i_tau, i_elec_channel
@@ -158,12 +135,12 @@ contains
 
       do i_tau = 1, 2*n + 1
 
-        select case(rotor_kind)
+        select case(G%ROTOR_KIND)
         case("a", "A")
           ka = n_states(i_n_state) % ka(i_tau)
           kc = n_states(i_n_state) % kc(i_tau)
         case("s", "S")
-          select case(symaxis)
+          select case(G%ROTOR_ZAXIS)
           case("a", "A")
             ksym = n_states(i_n_state) % ka(i_tau)
             ka = ksym
@@ -173,7 +150,7 @@ contains
             ka = 0
             kc = ksym
           case default
-            call die("Symtop rotational symaxis must be A or C")
+            call die("Symtop rotational G%ROTOR_ZAXIS must be A or C")
           end select
 
           ! ! -- skip forbidden channels
@@ -203,7 +180,7 @@ contains
   end subroutine build_rotational_channels
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine K2S_cayley(Kmat, Smat, elec_channels, real_spherical_harmonics, point_group)
+  subroutine K2S_cayley(Kmat, Smat, elec_channels)
     !! electronic Kmat -> electronic Smat via Cayley transform. Also ensures that the
     !! S-matrix is in the basis of complex-valued spherical harmonics
     use rotex__kinds,      only: dp
@@ -213,12 +190,10 @@ contains
     use rotex__system,     only: die
     use rotex__characters, only: i2c => int2char
     use rotex__linalg,     only: dsyev, zgesv
-    implicit none
+    implicit none (type, external)
     real(dp),    intent(in)  :: Kmat(:,:)
     complex(dp), intent(out) :: Smat(:,:)
     type(elec_channel_type), intent(in) :: elec_channels(:)
-    logical,     intent(in)  :: real_spherical_harmonics
-    character(*), intent(in) :: point_group
     character(1), parameter :: jobz = "V"
     character(1), parameter :: uplo = "U"
     integer :: n, info
@@ -239,14 +214,14 @@ contains
     call zgesv(n, n, A, n, ipiv, smat, n, info)
 
     ! -- transform real-valued Xlm basis to complex-valued Ylm if desired
-    if(real_spherical_harmonics .eqv. .false.) return
+    if(G%REAL_SPHERICAL_HARMONICS .eqv. .false.) return
 
-    call real2complex_ylm(smat, elec_channels, point_group)
+    call real2complex_ylm(smat, elec_channels)
 
   end subroutine K2S_cayley
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine K2S(Kmat, Smat, elec_channels, real_spherical_harmonics, point_group)
+  subroutine K2S(Kmat, Smat, elec_channels)
     !! electronic Kmat -> electronic Smat
     use rotex__kinds,      only: dp
     use rotex__types,      only: elec_channel_type
@@ -255,12 +230,10 @@ contains
     use rotex__system,     only: die
     use rotex__characters, only: i2c => int2char
     use rotex__linalg,     only: dsyev, zgesv
-    implicit none
+    implicit none (type, external)
     real(dp),    intent(in)  :: Kmat(:,:)
     complex(dp), intent(out) :: Smat(:,:)
     type(elec_channel_type), intent(in) :: elec_channels(:)
-    logical,     intent(in)  :: real_spherical_harmonics
-    character(*), intent(in) :: point_group
     character(1), parameter :: jobz = "V"
     character(1), parameter :: uplo = "U"
     integer :: ichan
@@ -293,16 +266,25 @@ contains
     smat = matmul( U, matmul(smat , adjoint(U)) )
 
     ! -- transform real-valued Ylm basis to complex-valued Ylm if desired
-    if(real_spherical_harmonics .eqv. .false.) return
+    if(G%REAL_SPHERICAL_HARMONICS .eqv. .false.) return
 
-    call real2complex_ylm(smat, elec_channels, point_group)
+    call real2complex_ylm(smat, elec_channels)
 
   end subroutine K2S
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine do_rft(rotor_kind, symaxis, Smat_elec, Smat_j, jmin, jmax, n_states &
-      , elec_channels, asymtop_rot_channels_l, asymtop_rot_channels_l_j, point_group)
+  subroutine do_rft(             &
+        Smat_elec                &
+      , Smat_j                   &
+      , jmin                     &
+      , jmax                     &
+      , n_states                 &
+      , elec_channels            &
+      , asymtop_rot_channels_l   &
+      , asymtop_rot_channels_l_j &
+    )
     !! Perform the rotational frame transformation on the electronic S-matrix
+
     use rotex__kinds, only: dp
     use rotex__types, only: cmatrix_type, asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
                           , elec_channel_type, N_states_type
@@ -311,11 +293,7 @@ contains
     use rotex__arrays,     only: realloc, is_unitary, uniq
     use rotex__functions,  only: neg
     use rotex__characters, only: i2c => int2char
-    implicit none
-    character(1), intent(in) :: rotor_kind
-    !! The rotor kind: "A", "S", "L"
-    character(1), intent(in) :: symaxis
-    !! The symmetry axis: "A", "B", "C"
+    implicit none (type, external)
     complex(dp),        intent(in)  :: Smat_elec(:,:)
     type(cmatrix_type), intent(out) :: Smat_j(jmin:jmax)
       !! Rotationally resolved S-matrix at each J
@@ -326,7 +304,6 @@ contains
     type(asymtop_rot_channel_l_type), intent(in) :: asymtop_rot_channels_l(:)
     type(asymtop_rot_channel_l_vector_type), intent(out) :: asymtop_rot_channels_l_j(jmin:jmax)
     type(asymtop_rot_channel_l_type), allocatable :: rot_channels(:)
-    character(*), intent(in) :: point_group
     logical :: flag
     logical, allocatable :: mask(:)
     integer :: nsyms, nchans_elec
@@ -381,7 +358,7 @@ contains
         call realloc(smat_rot_sym, nchans_sym, nchans_sym)
         U = 0
         smat_rot_sym = 0
-        call do_rft_this_sym(j, rotor_kind, symaxis, sym, n_states, elec_channels, rot_channels, smat_elec, smat_rot_sym, U)
+        call do_rft_this_sym(j, sym, n_states, elec_channels, rot_channels, smat_elec, smat_rot_sym, U)
         ! -- add this contribution back to the total S-matrix for this J
         smat_rot(idx, idx) = smat_rot_sym(:,:)
       enddo
@@ -419,7 +396,7 @@ contains
   !   !! Real-valued version of the complex-valued equivalent
   !   use rotex__types,  only: dp, elec_channel_type
   !   use rotex__system, only: die
-  !   implicit none
+  !   implicit none (type, external)
   !   real(dp), intent(inout) :: M(:,:)
   !     !! The S/K-matrix
   !   type(elec_channel_type), intent(in) :: chans(:)
@@ -432,24 +409,23 @@ contains
   ! end subroutine real2complex_ylm_r
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure subroutine real2complex_ylm_c(M, chans, point_group)
+  pure subroutine real2complex_ylm_c(M, chans)
     !! Take an S/K-matrix that is in a basis of electronic channels for exactly
     !! one electronic state and a basis of real-valued spherical harmonics, and
     !! transform it to an S/K-matrix in a basis of the same electronic state but
     !! complex-valued spherical harmonics for the scattering electron
 
-    use rotex__types,  only: dp, elec_channel_type
+    use rotex__kinds,  only: dp
+    use rotex__types,  only: elec_channel_type
     use rotex__arrays, only: adjoint, size_check, is_unitary
     use rotex__system, only: die
 
-    implicit none
+    implicit none (type, external)
 
     complex(dp), intent(inout) :: M(:,:)
       !! The S/K-matrix
     type(elec_channel_type), intent(in) :: chans(:)
       !! The electronic channels
-    character(*), intent(in) :: point_group
-      !! Point group of the scattering calculations
 
     integer :: n, i, j
     integer :: eleci, li, lambi, elecj, lj, lambj
@@ -511,7 +487,7 @@ contains
     !! is the same
     use rotex__kinds, only: dp
     use rotex__functions, only: neg
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: mr
       !! The order (m) for the real spherical harmonic
     integer, intent(in) :: mc
@@ -544,7 +520,7 @@ contains
     !! Given an array of channels with quantum numbers, extract the quantum numbers at index irot
     use rotex__types,  only: asymtop_rot_channel_l_type
     use rotex__system, only: die
-    implicit none
+    implicit none (type, external)
     type(asymtop_rot_channel_l_type), intent(in)  :: channels(:)
     integer,                          intent(in)  :: irot
     integer,                          intent(out) :: nelec, N, Ka, Kc, l
@@ -566,7 +542,7 @@ contains
     !! obey the degenerate triangle inequality for N, l, J
     use rotex__types,     only: asymtop_rot_channel_l_type
     use rotex__functions, only: istriangle
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: j
       !! Total angular momentum J
     type(asymtop_rot_channel_l_type), intent(in) :: channels_l(:)
@@ -609,7 +585,7 @@ contains
   !   use rotex__system,     only: die, stderr, stdout
   !   use rotex__functions,  only: neg
   !   use rotex__characters, only: i2c => int2char
-  !   implicit none
+  !   implicit none (type, external)
   !   integer,                          intent(in)  :: j
   !     !! Total angular momentum quantum number J
   !   type(n_states_type),              intent(in)  :: n_states(:)
@@ -698,7 +674,7 @@ contains
   ! end subroutine do_rft_no_sym
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine do_rft_this_sym(j, rotor_kind, symaxis, sym, n_states, elec_channels, rot_channels, Smat_elec, Smat_rot, U)
+  subroutine do_rft_this_sym(j, sym, n_states, elec_channels, rot_channels, Smat_elec, Smat_rot, U)
     !! Do the rotational frame transformation for a specific symmetry
     use rotex__kinds,      only: dp
     use rotex__types,      only: elec_channel_type, asymtop_rot_channel_l_type, n_states_type
@@ -708,14 +684,10 @@ contains
     use rotex__functions,  only: neg
     use rotex__characters, only: i2c => int2char
 
-    implicit none
+    implicit none (type, external)
 
     integer,                          intent(in)  :: j
       !! Total angular momentum quantum number J
-    character(1),                     intent(in)  :: rotor_kind
-      !! "A"symmetric, "s"symmetric, or "l"inear tops
-    character(1),                     intent(in)  :: symaxis
-      !! The symmetry axis, one of  A, B, C
     integer,                          intent(in)  :: sym
       !! The current symmetry
     type(n_states_type),              intent(in)  :: n_states(:)
@@ -759,20 +731,20 @@ contains
 
         ! -- get the corresponding eigenvector for this state, indexed by itau.
         in    = findloc(n_states % n, value = ni, dim = 1)
-        select case(rotor_kind)
+        select case(G%ROTOR_KIND)
         case("a", "A")
           mask = (n_states(in) % ka(:) .eq. kai) .AND. (n_states(in) % kc(:) .eq. kci)
         case("s", "S")
-          select case(symaxis)
+          select case(G%ROTOR_ZAXIS)
           case("a", "A")
             mask = (n_states(in) % ka(:) .eq. kai)
           case("c", "C")
             mask = (n_states(in) % kc(:) .eq. kci)
           case default
-            call die("Somehow got a symmetric top with a SYMAXIS " // symaxis // " that is neither A nor C")
+            call die("Somehow got a symmetric top with a G%ROTOR_ZAXIS " // G%ROTOR_ZAXIS // " that is neither A nor C")
           end select
         case default
-          call die("ROTOR_KIND " // rotor_kind // " not allowed in RFT")
+          call die("ROTOR_KIND " // G%ROTOR_KIND // " not allowed in RFT")
         end select
         itau  = findloc(mask, value = .true., dim = 1)
 
@@ -861,7 +833,7 @@ contains
   !   use rotex__functions,  only: neg, iseven
   !   use rotex__system,   only: die
   !   use rotex__symmetry, only: m_parity, even, odd
-  !   implicit none
+  !   implicit none (type, external)
   !   integer, intent(in) :: mr
   !     !! The order (m) for the real spherical harmonic
   !   integer, intent(in) :: mc
@@ -902,7 +874,7 @@ contains
   !   !! is the same
   !   use rotex__kinds, only: dp
   !   use rotex__functions, only: neg
-  !   implicit none
+  !   implicit none (type, external)
   !   integer, intent(in) :: mr
   !     !! The order (m) for the real spherical harmonic
   !   integer, intent(in) :: mc
@@ -945,7 +917,7 @@ contains
   !   use rotex__system,   only: die
   !   use rotex__symmetry, only: m_parity, even, odd
   !   use rotex__functions, only: neg
-  !   implicit none
+  !   implicit none (type, external)
   !   integer, intent(in) :: mr
   !     !! The order (m) for the real spherical harmonic
   !   integer, intent(in) :: mc

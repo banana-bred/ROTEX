@@ -6,7 +6,7 @@ module rotex__polygamma
 !   use stdlib_specialfunctions_gamma, only: gamma, log_gamma
 ! #endif
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -159,7 +159,7 @@ contains
     !! OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     !! SOFTWARE.
     use rotex__utils, only: downcast
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: z
     complex(dp) :: res
     integer :: i
@@ -245,7 +245,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental function l_gamma_rdp(x) result(res)
     !! Computes ln(Γ(x)) for real x
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     real(dp) :: res
     intrinsic :: log_gamma
@@ -355,7 +355,7 @@ contains
   pure elemental function digamma_i(n) result(res)
     !! Returns the digamma function ψ(n) using a truncated Stirling / de Moivre series
     !! for integral n
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: n
     real(dp) :: res
     res = digamma_rdp(real(n, kind=dp))
@@ -371,7 +371,7 @@ contains
     use rotex__functions, only: cotpi, isinteger, iseven
     use rotex__system,    only: die
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: x
     real(dp) :: res
@@ -427,7 +427,7 @@ contains
   pure function horner_rdp(coeffs, x) result(res)
     !! Evaluate S(x) = c₁x + c₂x² + ... + cₙxⁿ using Horner's rule :
     !! S(x) = y*(c₁ + y*( c₂ + y*( c₃ + ... ) ))
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: coeffs(:)
     real(dp), intent(in) :: x
     real(dp) :: res
@@ -443,7 +443,7 @@ contains
   pure function horner_cdp(coeffs, z) result(res)
     !! Evaluate S(z) = c₁z + c₂z² + ... + cₙzⁿ using Horner's rule :
     !! S(z) = y*(c₁ + y*( c₂ + y*( c₃ + ... ) ))
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: coeffs(:)
     complex(dp), intent(in) :: z
     complex(dp) :: res
@@ -459,7 +459,7 @@ contains
   pure function horner_rqp(coeffs, x) result(res)
     !! Evaluate S(x) = c₁x + c₂x² + ... + cₙxⁿ using Horner's rule :
     !! S(x) = y*(c₁ + y*( c₂ + y*( c₃ + ... ) ))
-    implicit none
+    implicit none (type, external)
     real(qp), intent(in) :: coeffs(:)
     real(qp), intent(in) :: x
     real(qp) :: res
@@ -475,7 +475,7 @@ contains
   pure function horner_cqp(coeffs, z) result(res)
     !! Evaluate S(z) = c₁z + c₂z² + ... + cₙzⁿ using Horner's rule :
     !! S(z) = y*(c₁ + y*( c₂ + y*( c₃ + ... ) ))
-    implicit none
+    implicit none (type, external)
     real(qp), intent(in) :: coeffs(:)
     complex(qp), intent(in) :: z
     complex(qp) :: res

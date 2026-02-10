@@ -3,7 +3,7 @@ module rotex__utils
   !! Some small utilities
   use rotex__kinds, only: dp, qp
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -51,7 +51,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental subroutine assert(test, message)
     use rotex__system, only: die
-    implicit none
+    implicit none (type, external)
     logical,      intent(in) :: test
     character(*), intent(in) :: message
     if(test .eqv. .true.) return
@@ -61,7 +61,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine read_blank(read_unit, num_read)
     !! Reads num_read lines from unit read_unit, not storing any information. If num_read is not supplied, read one line.
-    implicit none
+    implicit none (type, external)
     integer, intent(in)           :: read_unit
     integer, intent(in), optional :: num_read
     integer :: k, n
@@ -71,7 +71,7 @@ contains
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module function isint_r(x) result(res)
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x
     logical :: res
     real(dp) :: tol
@@ -82,7 +82,7 @@ contains
   end function isint_r
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module function isint_c(z) result(res)
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: z
     logical :: res
     real(dp) :: tol
@@ -98,7 +98,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental subroutine kbn_sum_rdp(summation, c, input)
     !! Improved Kahan-Babuška algorithm accumulation for summations
-    implicit none
+    implicit none (type, external)
     real(dp), intent(inout) :: summation, c
     real(dp), intent(in)    :: input
     real(dp) :: t
@@ -113,7 +113,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental subroutine kbn_sum_rqp(summation, c, input)
     !! Improved Kahan-Babuška algorithm accumulation for summations
-    implicit none
+    implicit none (type, external)
     real(qp), intent(inout) :: summation, c
     real(qp), intent(in)    :: input
     real(qp) :: t
@@ -128,7 +128,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental subroutine kbn_sum_cdp(summation, c, input)
     !! Improved Kahan-Babuška algorithm accumulation for summations
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(inout) :: summation, c
     complex(dp), intent(in)    :: input
     complex(dp) :: t
@@ -143,7 +143,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental subroutine kbn_sum_cqp(summation, c, input)
     !! Improved Kahan-Babuška algorithm accumulation for summations
-    implicit none
+    implicit none (type, external)
     complex(qp), intent(inout) :: summation, c
     complex(qp), intent(in)    :: input
     complex(qp) :: t
@@ -159,16 +159,16 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module subroutine downcast_r(hi, lo)
     !! Send the value of hi to lo, respecting the kind of the types
-    use rotex__types, only: dp, qp
-    implicit none
+    use rotex__kinds, only: dp, qp
+    implicit none (type, external)
     real(qp), intent(in)  :: hi
     real(dp), intent(out) :: lo
     lo = real(hi, kind = dp)
   end subroutine downcast_r
   pure elemental module subroutine downcast_c(hi, lo)
     !! Send the value of hi to lo, respecting the kind of the types
-    use rotex__types, only: dp, qp
-    implicit none
+    use rotex__kinds, only: dp, qp
+    implicit none (type, external)
     complex(qp), intent(in)  :: hi
     complex(dp), intent(out) :: lo
     lo = cmplx(hi%re, hi%im, kind = dp)
@@ -177,16 +177,16 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure elemental module subroutine upcast_r(lo, hi)
     !! Send the value of lo to hi, respecting the kind of the types
-    use rotex__types, only: dp, qp
-    implicit none
+    use rotex__kinds, only: dp, qp
+    implicit none (type, external)
     real(dp), intent(in)  :: lo
     real(qp), intent(out) :: hi
     hi = real(lo, kind = qp)
   end subroutine upcast_r
   pure elemental module subroutine upcast_c(lo, hi)
     !! Send the value of lo to hi, respecting the kind of the types
-    use rotex__types, only: dp, qp
-    implicit none
+    use rotex__kinds, only: dp, qp
+    implicit none (type, external)
     complex(dp), intent(in)  :: lo
     complex(qp), intent(out) :: hi
     hi = cmplx(lo%re, lo%im, kind = qp)
@@ -297,7 +297,7 @@ contains
   pure elemental module function isin(x, xl, xr, lclosed, rclosed) result(res)
     !! Test whether x is in the interval spanned by x1,x2
     !! l/rclosed if true include xl and xr, respectively. They are true by default
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: x, xl, xr
     logical, intent(in), optional :: lclosed, rclosed
     logical :: res

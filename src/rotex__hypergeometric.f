@@ -4,7 +4,7 @@ module rotex__hypergeometric
   use rotex__kinds,     only: dp, qp
   use rotex__constants, only: macheps_dp
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -51,7 +51,7 @@ contains
     use rotex__constants, only: pi
     use rotex__polygamma, only: lgamma => log_gamma
 
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: a, b, c, x
     real(dp) :: res
 
@@ -138,7 +138,7 @@ contains
     use rotex__functions, only: inv
     use rotex__polygamma, only: lgamma => log_gamma
 
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: a, b, c
     real(dp),    intent(in) :: x
     complex(dp) :: res
@@ -207,7 +207,7 @@ contains
     use rotex__constants, only: ABC_THRESHOLD => HYPGEO_ABC_THRESHOLD
     use rotex__system,    only: die, stderr
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: a
     real(dp), intent(in) :: b
@@ -258,7 +258,7 @@ contains
     use rotex__constants, only: ABC_THRESHOLD => HYPGEO_ABC_THRESHOLD
     use rotex__system, only: die, stderr
 
-    implicit none
+    implicit none (type, external)
 
     complex(dp), intent(in) :: za
     complex(dp), intent(in) :: zb
@@ -314,7 +314,7 @@ contains
     use rotex__utils,     only: downcast, upcast, kbn_sum, isint
     use rotex__system,    only: die, stderr
     use rotex__constants, only: macheps => macheps_dp, zero, one
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: a
     real(dp), intent(in) :: b
     real(dp), intent(in) :: c
@@ -385,7 +385,7 @@ contains
     use rotex__utils,     only: downcast, upcast, kbn_sum, isint
     use rotex__system,    only: die
     use rotex__constants, only: macheps => macheps_dp, zero, one
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: a
     complex(dp), intent(in) :: b
     complex(dp), intent(in) :: c
@@ -449,7 +449,7 @@ contains
     !! rising factorial will eventually be 0
     use rotex__utils,  only: isint, kbn_sum
     use rotex__system, only: die, stderr
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: a,b,c,x
     real(dp) :: res, Sk, comp
     integer :: n, m, nc
@@ -488,7 +488,7 @@ contains
     !! rising factorial will eventually be 0
     use rotex__utils,  only: isint, kbn_sum
     use rotex__system, only: die, stderr
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: a,b,c,z
     complex(dp) :: res, Sk, comp
     integer :: n, m, nc
@@ -531,7 +531,7 @@ contains
     use rotex__functions, only: logp1, factorial
     use rotex__system,    only: stderr
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: a, b
     integer,  intent(in) :: m
@@ -619,7 +619,7 @@ contains
     use rotex__functions, only: logp1
     use rotex__constants, only: macheps => macheps_dp
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: a, b
     integer,  intent(in) :: m
@@ -646,7 +646,7 @@ contains
   !   !! y(1)    = y  ; y(2)    = y'
   !   !! dydx(1) = y' ; dydx(2) = y''
   !   use rotex__system, only: die
-  !   implicit none
+  !   implicit none (type, external)
   !   real(dp),    intent(in)  :: x
   !   complex(dp), intent(in)  :: y(2)
   !   complex(dp), intent(in)  :: a, b, c
@@ -665,7 +665,7 @@ contains
   !   !!  | ab/[x(1-x)] ;-[c-(a+b+1)x]/[x(1-x)] |
   !   !! Solve the 2x2 matrix equation M
   !   use rotex__system, only: die
-  !   implicit none
+  !   implicit none (type, external)
   !   real(dp),    intent(in)  :: x
   !   complex(dp), intent(in)  :: a, b, c
   !   complex(dp), intent(out) :: M(2,2)
@@ -681,7 +681,7 @@ contains
   ! ! ------------------------------------------------------------------------------------------------------------------------------ !
   ! pure subroutine solve2x2(m, b, x)
   !   !! Solve the 2x2 matrix equation Mx = b
-  !   implicit none
+  !   implicit none (type, external)
   !   complex(dp), intent(in)  :: m(2,2), b(2)
   !   complex(dp), intent(out) :: x(2)
   !   complex(dp) :: det
@@ -694,7 +694,7 @@ contains
   ! pure subroutine step_midpt(xn, h, a, b, c, Yn, Ynp1)
   !   !! Implicit midpoint
   !   !!   (I - (h/2)*Amid)Ynp1 = (I + (h/2)*Amid )Yn; Amid = A(xn + h/2)
-  !   implicit none
+  !   implicit none (type, external)
   !   real(dp), intent(in) :: xn
   !     !! The point x(n)
   !   real(dp), intent(in) :: h
@@ -724,7 +724,7 @@ contains
   !   use rotex__utils,     only: kbn_sum
   !   use rotex__system,    only: die
   !   use rotex__constants, only: macheps_dp
-  !   implicit none
+  !   implicit none (type, external)
   !   complex(dp), intent(in) :: a, b, c
   !     !! Hypergeometric function parameters
   !   real(dp), intent(in) :: x0
@@ -768,7 +768,7 @@ contains
   !   use rotex__utils,     only: isin
   !   use rotex__system,    only: die, stderr
 
-  !   implicit none
+  !   implicit none (type, external)
 
   !   complex(dp), intent(in) :: za, zb, zc
   !     !! The parameters a,b,c

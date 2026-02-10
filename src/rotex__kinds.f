@@ -1,7 +1,7 @@
 ! ================================================================================================================================ !
 module rotex__kinds
   !! Contains kind definitions (double, xtended double, quad precision)
-  implicit none
+  implicit none (type, external)
   private
   integer, parameter, public :: dp  = selected_real_kind(15)
   integer, parameter, public :: xdp = selected_real_kind(18)

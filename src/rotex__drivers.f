@@ -1,12 +1,12 @@
 ! ================================================================================================================================ !
 module rotex__drivers
-  !! Driver used by the PROGRAM (helps me keep variables local and be sure I'm not accidentally
-  !! using globals if I make typos or something)
+  !! Driver used by the PROGRAM in main
 
-  use rotex__types,     only: dp
+  use rotex__kinds,     only: dp
+  use rotex__globals,   only: G
   use rotex__constants, only: UKRMOLX, MQDTR2K, DEFAULT_CHAR1
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -29,14 +29,14 @@ contains
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine do_coulomb_born_approx( &
-      cfg                            &
-    , n_states                       &
-    , egrid_elec_cb                  &
-    , transitions_cb                 &
-    , xs_xcite_pcb                   &
-    , xs_xcite_tcb                   &
-    , pcb_output_directory           &
-    , tcb_output_directory)
+        n_states                            &
+      , egrid_elec_cb                       &
+      , transitions_cb                      &
+      , xs_xcite_pcb                        &
+      , xs_xcite_tcb                        &
+      , pcb_output_directory                &
+      , tcb_output_directory                &
+    )
     !! Use the Coulomb-Born approximation to get scattering cross sections for e⁻ + target.
     !! Also determines Einstein A coefficients and excited state average lifetimes within
     !! !! the radiative dipole/multipole approximation. The target charge Z is supplied and
@@ -48,20 +48,18 @@ contains
     use rotex__symmetry,   only: is_spin_forbidden, spin_symmetry, symtop_rotstate_is_allowed
     use rotex__system,     only: stdout, die
     use rotex__functions,  only: istriangle, logrange
-    use rotex__types,      only: asymtop_rot_channel_type, asymtop_rot_transition_type, operator(.eq.) &
-                               , n_states_type, rvector_type, config_type
+    use rotex__types,      only: asymtop_rot_channel_type, asymtop_rot_transition_type, n_states_type, rvector_type
+    use rotex__channel_ops, only: operator(.eq.)
     use rotex__writing,    only: write_CB_xs_to_file, write_lifetimes_to_file
     use rotex__cbxs,       only: get_cb_xs_asym, get_einsta_only, xtrapolate_cb_xs
     use rotex__characters, only: i2c => int2char
-    use rotex__globals, only: GLOBAL_ROTOR_ZAXIS, GLOBAL_ROTOR_KIND
 #ifdef USE_CDMSREADER
     use CDMSreader__types, only: asymtop_state_type      => asymtop_state_nohfs &
                                , asymtop_transition_type => asymtop_transition_nohfs
 #endif
 
-    implicit none
+    implicit none (type, external)
 
-    type(config_type),   intent(in) :: cfg
     type(n_states_type), intent(inout), allocatable :: n_states(:)
     type(rvector_type),  intent(out), allocatable :: egrid_elec_cb(:)
       !! Array of arrays of electron/collision energies for each transition
@@ -103,17 +101,17 @@ contains
     num_n = size(n_states, 1)
 
     ! -- cartesian multipoles → spherical multipoles.
-    if(cfg%do_dipole     .eqv. .true.) &
-      call convert_multipoles(cfg%cartesian_dipole_moments,     spherical_dipole_moments)
-    if(cfg%do_quadrupole .eqv. .true.) &
-      call convert_multipoles(cfg%cartesian_quadrupole_moments, spherical_quadrupole_moments)
+    if(G%DO_DIPOLE     .eqv. .true.) &
+      call convert_multipoles(G%CARTESIAN_DIPOLE_MOMENTS,     spherical_dipole_moments)
+    if(G%DO_QUADRUPOLE .eqv. .true.) &
+      call convert_multipoles(G%CARTESIAN_QUADRUPOLE_MOMENTS, spherical_quadrupole_moments)
 
-    lambdas = pack([1, 2],  [cfg%do_dipole, cfg%do_quadrupole])
+    lambdas = pack([1, 2],  [G%DO_DIPOLE, G%DO_QUADRUPOLE])
 
 #ifdef USE_CDMSREADER
     ! -- whether to use the CDMS einstein A coefficients in our Coulomb-Born approximation
-    if(cfg%use_cdms_einsta .eqv. .true.) then
-      call get_cdms_data(cfg%cdms_file, cfg%output_directory, cdms_states, cdms_transitions)
+    if(G%USE_CDMS_EINSTA .eqv. .true.) then
+      call get_cdms_data(G%CDMS_FILE, G%OUTPUT_DIRECTORY, cdms_states, cdms_transitions)
       call get_cdms_state_energies(n_states, cdms_states) ! n_states <— cdms data
     endif
 #endif
@@ -127,24 +125,24 @@ contains
     nlo_loop: do inlo = 1, num_n
 
       nlo = n_states(inlo) % n
-      if(nlo .lt. cfg%nmin) cycle nlo_loop
-      if(nlo .gt. cfg%nmax) cycle nlo_loop
+      if(nlo .lt. G%NMIN) cycle nlo_loop
+      if(nlo .gt. G%NMAX) cycle nlo_loop
 
       ! -- only consider 1 electronic state for now
       neleclo = 1
 
-      select case(GLOBAL_ROTOR_KIND)
+      select case(G%ROTOR_KIND)
       case("l")      ; num_klo = 1
       case("a", "s") ; num_klo = 2*nlo+1
-      case default   ; call die("ROTOR_KIND ( "// GLOBAL_ROTOR_KIND //" )is neither 'l', 'a', or 's'")
+      case default   ; call die("ROTOR_KIND ( "// G%ROTOR_KIND //" )is neither 'l', 'a', or 's'")
       end select
 
       ! -- only consider excitation pairs; de-excitation is handled symmetrically
       nup_loop: do inup = inlo, num_n
 
         nup = n_states(inup) % n
-        if(nup .lt. cfg%nmin) cycle nup_loop
-        if(nup .gt. cfg%nmax) cycle nup_loop
+        if(nup .lt. G%NMIN) cycle nup_loop
+        if(nup .gt. G%NMAX) cycle nup_loop
 
         ! -- only consider 1 electronic state for now
         nelecup = 1
@@ -155,14 +153,14 @@ contains
 
         write(stdout, '("N : ", I0, " —> ", I0)') nlo, nup
 
-        select case(GLOBAL_ROTOR_KIND)
+        select case(G%ROTOR_KIND)
         case("l")      ; num_kup = 1
         case("a", "s") ; num_kup = 2*nup+1
         end select
 
         taulo_loop: do itaulo=1, num_klo
 
-          select case(GLOBAL_ROTOR_KIND)
+          select case(G%ROTOR_KIND)
           case("l")
 
             kalo = 0
@@ -175,7 +173,7 @@ contains
 
           case("s")
 
-            select case(GLOBAL_ROTOR_ZAXIS)
+            select case(G%ROTOR_ZAXIS)
             case("A","a")
 
               kalo = n_states(inlo) % ka(itaulo)
@@ -193,7 +191,7 @@ contains
               if(symtop_rotstate_is_allowed(nlo, Kclo) .eqv. .false.) cycle taulo_loop
 
             case default
-              call die("GLOBAL_ROTOR_ZAXIS must be A or C")
+              call die("G%ROTOR_ZAXIS must be A or C")
             end select
 
           end select
@@ -203,7 +201,7 @@ contains
 
           tauup_loop: do itauup=1, num_kup
 
-            select case(GLOBAL_ROTOR_KIND)
+            select case(G%ROTOR_KIND)
             case("l")
 
               kaup = 0
@@ -216,7 +214,7 @@ contains
 
             case("s")
 
-              select case(GLOBAL_ROTOR_ZAXIS)
+              select case(G%ROTOR_ZAXIS)
               case("A","a")
 
                 kaup = n_states(inup) % ka(itauup)
@@ -234,7 +232,7 @@ contains
                 if(symtop_rotstate_is_allowed(nup, Kcup) .eqv. .false.) cycle tauup_loop
 
               case default
-                call die("GLOBAL_ROTOR_ZAXIS must be A or C")
+                call die("G%ROTOR_ZAXIS must be A or C")
               end select
             end select
 
@@ -250,7 +248,7 @@ contains
             ipair = ipair + 1
             transition = asymtop_rot_transition_type(lo = lo, up = up)
 
-            select case(cfg%rotor_kind)
+            select case(G%ROTOR_KIND)
             case("a", "s")
               write(stdout, '(2X, "(Ka,Kc) : ", I0,",",I0, " --> ", I0,",",I0, " ... ")', advance = "no") &
                 kalo, kclo, kaup, kcup
@@ -259,7 +257,7 @@ contains
             end select
 
             ! -- check if we need to respect ortho-para symmetry
-            if( is_spin_forbidden(nlo, kalo, kclo, nup, kaup, kcup, cfg%spin_isomer_kind, cfg%zaxis) ) then
+            if( is_spin_forbidden(nlo, kalo, kclo, nup, kaup, kcup, G%SPIN_ISOMER_KIND, G%ROTOR_ZAXIS) ) then
               write(stdout, "(A)") "is forbidden (ortho-para violation) !"
               cycle tauup_loop
             endif
@@ -269,19 +267,19 @@ contains
             de = eup - elo
             ! -- the starting value of the calculation grid based on the maximum allowed value of
             !    η' for an excitation.
-            ei = 1.0_dp / (2.0_dp*cfg%eta_thresh**2)
+            ei = 1.0_dp / (2.0_dp*G%ETA_THRESH**2)
             estart = de + ei
-            eend = cfg%ef
+            eend = G%EF
             if(eend .le. estart) call die("The starting energy of this coulomb-born energy grid is higher than the ending energy")
-            Eel = logrange(estart, eend, cfg%ne)
+            Eel = logrange(estart, eend, G%NE)
 
             einsta = 0
 
 #ifdef USE_CDMSREADER
             ! -- get CDMS Einstein A coefficients
-            if(cfg%use_cdms_einsta .eqv. .true.) then
+            if(G%USE_CDMS_EINSTA .eqv. .true.) then
               call get_cdms_einsta(nlo, kalo, kclo, nup, kaup, kcup, cdms_transitions, einsta)
-              select case(cfg%rotor_kind)
+              select case(G%ROTOR_KIND)
               case("a") ; continue
               case("s") ; call die("Can't get CDMS for a symmetric top yet")
               case("l") ; call die("Can't get CDMS for linear rotor yet")
@@ -289,14 +287,12 @@ contains
             endif
 #endif
 
-            if(cfg%only_einsta .eqv. .false.) then
+            if(G%ONLY_EINSTA .eqv. .false.) then
 
               ! -- get partial CB cross sections Nτ —> N'τ'
               call get_cb_xs_asym(             &
                   Eel                          &
                 , sigma_pcb                    &
-                , cfg%target_charge            &
-                , cfg%rotor_kind               &
                 , nlo                          &
                 , nup                          &
                 , elo                          &
@@ -304,30 +300,24 @@ contains
                 , eigveclo                     &
                 , eigvecup                     &
                 , einsta                       &
-                , cfg%use_cdms_einsta          &
-                , cfg%do_dipole                &
-                , cfg%do_quadrupole            &
                 , spherical_dipole_moments     &
                 , spherical_quadrupole_moments &
                 , [.false., .false.]           & ! explicitly request partial xs
-                , cfg%lmax_partial             &
+                , G%LMAX_PARTIAL               &
               )
 
             elseif(einsta .eq. 0) then
 
               ! -- get calculate only Einstein A coefficients if they're not found in the CDMS
-              call get_einsta_only(        &
-                  einsta                   &
-                , nlo                      &
-                , nup                      &
-                , elo                      &
-                , eup                      &
-                , eigveclo                 &
-                , eigvecup                 &
-                , cfg%use_cdms_einsta      &
-                , cfg%do_dipole            &
-                , cfg%do_quadrupole        &
-                , spherical_dipole_moments &
+              call get_einsta_only(            &
+                  einsta                       &
+                , nlo                          &
+                , nup                          &
+                , elo                          &
+                , eup                          &
+                , eigveclo                     &
+                , eigvecup                     &
+                , spherical_dipole_moments     &
                 , spherical_quadrupole_moments &
               )
 
@@ -336,7 +326,7 @@ contains
             ! -- add the einstein coefficients to the upper state for this transition
             n_states(inup) % einsta(itauup) = n_states(inup) % einsta(itauup) + einsta
 
-            if(cfg%only_einsta .eqv. .true.) then
+            if(G%ONLY_EINSTA .eqv. .true.) then
               if(EinstA .eq. 0) then
                 write(stdout, "(A)") "is forbidden (Einstein A coefficient is 0)!"
               else
@@ -363,8 +353,6 @@ contains
             call get_cb_xs_asym(             &
                 Eel                          &
               , sigma_tcb                    &
-              , cfg%target_charge            &
-              , cfg%rotor_kind               &
               , nlo                          &
               , nup                          &
               , elo                          &
@@ -372,18 +360,15 @@ contains
               , eigveclo                     &
               , eigvecup                     &
               , einsta                       &
-              , cfg%use_cdms_einsta          &
-              , cfg%do_dipole                &
-              , cfg%do_quadrupole            &
               , spherical_dipole_moments     &
               , spherical_quadrupole_moments &
-              , cfg%analytic_total_cb        & ! as per user request
-              , cfg%lmax_total &
+              , G%ANALYTIC_TOTAL_CB          & ! as per user request
+              , G%LMAX_TOTAL                 &
             )
 
             ! -- extrapolate excitation CB cross sections as 1/E to threshold ?
-            ! if(cfg%do_xtrap) call xtrapolate_cb_xs(cfg%Ei_xtrap, dE, cfg%nE_xtrap, Eel, sigma_pcb, sigma_tcb)
-            if(cfg%do_xtrap) call xtrapolate_cb_xs(cfg%Ei_xtrap, dE, cfg%nE_xtrap, Eel, sigma_pcb, sigma_tcb)
+            ! if(G%do_xtrap) call xtrapolate_cb_xs(G%Ei_xtrap, dE, G%nE_xtrap, Eel, sigma_pcb, sigma_tcb)
+            if(G%DO_XTRAP) call xtrapolate_cb_xs(G%EI_XTRAP, dE, G%NE_XTRAP, Eel, sigma_pcb, sigma_tcb)
 
             ! -- append energy grid, including extrapolated energies if that happened
             call append(egrid_elec_cb, Eel)
@@ -397,22 +382,20 @@ contains
             call write_CB_xs_to_file(    &
                 "PCB"                 &
               , pcb_output_directory  &
-              , cfg%zaxis             &
               , Eel                   &
               , sigma_pcb             &
               , transition%lo         &
               , transition%up         &
-              , i2c(cfg%lmax_partial) &
+              , i2c(G%LMAX_PARTIAL) &
             )
             call write_CB_xs_to_file(    &
                 "TCB"                 &
               , tcb_output_directory  &
-              , cfg%zaxis             &
               , Eel                   &
               , sigma_tcb             &
               , transition%lo         &
               , transition%up         &
-              , i2c(cfg%lmax_partial) &
+              , i2c(G%LMAX_PARTIAL) &
             )
 
             ! -- get corresponding de-excitation cross section
@@ -427,22 +410,20 @@ contains
             call write_CB_xs_to_file( &
                 "PCB"                 &
               , pcb_output_directory  &
-              , cfg%zaxis             &
               , Eel - dE              &
               , sigma_pcb             &
               , transition%up         &
               , transition%lo         &
-              , i2c(cfg%lmax_partial) &
+              , i2c(G%LMAX_PARTIAL) &
             )
             call write_CB_xs_to_file( &
                 "TCB"                 &
               , tcb_output_directory  &
-              , cfg%zaxis             &
               , Eel - dE              &
               , sigma_tcb             &
               , transition%up         &
               , transition%lo         &
-              , i2c(cfg%lmax_partial) &
+              , i2c(G%LMAX_PARTIAL) &
             )
 
             write(stdout, "(A)") "done !"
@@ -455,21 +436,30 @@ contains
 
     enddo Nlo_loop
 
-    call write_lifetimes_to_file(cfg%output_directory, cfg%nmin, cfg%nmax, n_states, cfg%zaxis)
+    call write_lifetimes_to_file(n_states)
 
   end subroutine do_coulomb_born_approx
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine do_kmat_xs(cfg, n_states, egrid_tot_smat, smat_output_directory, transitions, xs_xcite_spinavg, xs_dxcite_spinavg)
+  module subroutine do_kmat_xs( &
+        n_states                &
+      , egrid_tot_smat          &
+      , smat_output_directory   &
+      , transitions             &
+      , xs_xcite_spinavg        &
+      , xs_dxcite_spinavg       &
+    )
     !! Read K-matrices from an electron-molecule scattering calculation, get S-matrices, add the rotation via
     !! the rotational frame transformation for asymmetric tops, then use the MQDT channel elimination to
     !! get electron-impact excitation cross sections entirely from the K-matrix scattering data.
 
-    use rotex__types,     only: dp, n_states_type, cmatrix_type, elec_channel_type &
+    use rotex__kinds,     only: dp
+    use rotex__channel_ops, only: findloc_transitions
+    use rotex__types,     only: n_states_type, cmatrix_type, elec_channel_type &
                            , asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
-                           , asymtop_rot_transition_type, rvector_type, config_type, findloc_transitions
+                           , asymtop_rot_transition_type, rvector_type
     use rotex__system,    only: die, DS => DIRECTORY_SEPARATOR, stdout
-    use rotex__constants, only: spinmult_names
+    use rotex__constants, only: SPINMULT_NAMES
     use rotex__rft,       only: rft_nonlinear
     use rotex__arrays,    only: append_uniq
     use rotex__mqdtxs,    only: get_smat_probs
@@ -477,9 +467,8 @@ contains
     use rotex__reading,   only: read_kmats
     use rotex__writing,   only: write_smat_xs_to_file, write_channels_to_file
 
-    implicit none
+    implicit none (type, external)
 
-    type(config_type),   intent(in) :: cfg
     type(n_states_type), intent(in) :: n_states(:)
     real(dp), intent(in) :: egrid_tot_smat(:)
       !! Total energy grid for the S-matrix cross sections
@@ -512,14 +501,14 @@ contains
     type(asymtop_rot_channel_l_vector_type), allocatable :: asymtop_rot_channels_l_j(:)
     type(asymtop_rot_transition_type),       allocatable :: transitions_this_spin(:)
 
-    nspins = size(cfg%spinmults, 1)
+    nspins = size(G%SPINMULTS, 1)
     spinsdo: do ispin= 1, nspins
 
       ! -- determine energy and channel units
-      kmat_eval_e_units = cfg%kmat_energy_units_override
-      channel_e_units   = cfg%channel_energy_units_override
+      kmat_eval_e_units = G%KMAT_ENERGY_UNITS_OVERRIDE
+      channel_e_units   = G%CHANNEL_ENERGY_UNITS_OVERRIDE
       ! -- check if we need to use default values
-      select case(cfg%kmat_output_type)
+      select case(G%KMAT_OUTPUT_TYPE)
       case(UKRMOLX)
         if(kmat_eval_e_units .eq. DEFAULT_CHAR1) kmat_eval_e_units = UKRMOLX_KMAT_ENERGY_UNITS
         if(channel_e_units   .eq. DEFAULT_CHAR1) channel_e_units   = UKRMOLX_CHANNEL_ENERGY_UNITS
@@ -527,31 +516,31 @@ contains
         if(kmat_eval_e_units .eq. DEFAULT_CHAR1) kmat_eval_e_units = MQDTR2K_KMAT_ENERGY_UNITS
         if(channel_e_units   .eq. DEFAULT_CHAR1) channel_e_units   = MQDTR2K_CHANNEL_ENERGY_UNITS
       case default
-        call die("KMAT_OUTPUT_TYPE ("//cfg%kmat_output_type//") must be one of "//UKRMOLX//" or "//MQDTR2K)
+        call die("KMAT_OUTPUT_TYPE ("//G%KMAT_OUTPUT_TYPE//") must be one of "//UKRMOLX//" or "//MQDTR2K)
       end select
 
       call read_kmats(                                &
-          kmat_dir          = cfg%kmat_dir            &
-        , channels_dir      = cfg%channels_dir         &
-        , point_group       = cfg%point_group         &
-        , spinmult          = cfg%spinmults(ispin)    &
-        , kmat_lmax         = cfg%lmax_kmat &
+          kmat_dir          = G%KMAT_DIR            &
+        , channels_dir      = G%CHANNELS_DIR         &
+        , point_group       = G%POINT_GROUP         &
+        , spinmult          = G%SPINMULTS(ISPIN)    &
+        , kmat_lmax         = G%LMAX_KMAT &
         , kmat              = kmat                    &
         , elec_channels     = elec_channels           &
         , channel_e_units   = channel_e_units         &
         , kmat_eval_E_units = kmat_eval_e_units       &
-        , kmat_output_type  = cfg%kmat_output_type    &
-        , kmat_e_closest    = cfg%kmat_energy_closest &
+        , kmat_output_type  = G%KMAT_OUTPUT_TYPE    &
+        , kmat_e_closest    = G%KMAT_ENERGY_CLOSEST &
         )
 
-      if(maxval(elec_channels % l) .gt. cfg%lmax_kmat) call die("K-matrix has at least one channel with&
-        & l > LMAX_KMAT: " // i2c(maxval(elec_channels % l)) // " > " // i2c(cfg%lmax_kmat))
+      if(maxval(elec_channels % l) .gt. G%LMAX_KMAT) call die("K-matrix has at least one channel with&
+        & l > LMAX_KMAT: " // i2c(maxval(elec_channels % l)) // " > " // i2c(G%LMAX_KMAT))
 
       write(stdout, '(A)') "Performing the rotational frame transformation"
       write(stdout, '(A)') "----------------------------------------------"
       write(stdout, *)
 
-      select case(cfg%rotor_kind)
+      select case(G%ROTOR_KIND)
       case("l")
         call die("Linear RFT not programmed yet. Just use ABC with large A (hundreds+)")
       case("s", "a")
@@ -561,31 +550,31 @@ contains
       end select
 
       ! -- min and max values of total J
-      jmin = max(0, cfg%nmin - cfg%lmax_kmat)
-      jmax = abs(cfg%nmax + cfg%lmax_kmat)
+      jmin = max(0, G%NMIN - G%LMAX_KMAT)
+      jmax = abs(G%NMAX + G%LMAX_KMAT)
       allocate(smat_j(jmin:jmax))
       allocate(asymtop_rot_channels_l_j(jmin:jmax))
       call rft_nonlinear( kmat                     &
                         , jmin, jmax               &
-                        , cfg%rotor_kind           &
                         , smat_j(jmin:jmax)        &
                         , elec_channels            &
                         , n_states                 &
                         , asymtop_rot_channels_l   &
                         , asymtop_rot_channels_l_j(jmin:jmax) &
-                        , cfg%spin_isomer_kind   &
-                        , cfg%zaxis              &
-                        , cfg%real_spherical_harmonics &
-                        , cfg%point_group &
       )
       deallocate(elec_channels)
 
 
-      channels_file_this_spin = cfg%output_directory &
-        // spinmult_names(cfg%spinmults(ispin)) // ".channels"
-      call write_channels_to_file( channels_file_this_spin, jmin, jmax, n_states &
-        , asymtop_rot_channels_l, asymtop_rot_channels_l_j(jmin:jmax) &
-        , cfg%spin_isomer_kind, cfg%zaxis )
+      channels_file_this_spin = G%OUTPUT_DIRECTORY // SPINMULT_NAMES(G%SPINMULTS(ispin)) // ".channels"
+
+      call write_channels_to_file(            &
+          channels_file_this_spin             &
+        , jmin                                &
+        , jmax                                &
+        , n_states                            &
+        , asymtop_rot_channels_l              &
+        , asymtop_rot_channels_l_j(jmin:jmax) &
+      )
 
       write(stdout, *)
       write(stdout, '(A)') "--------------------------"
@@ -595,17 +584,12 @@ contains
       call get_smat_probs(         &
           egrid_tot_smat           &
         , prob_smat                &
-        , cfg%rotor_kind           &
         , transitions_this_spin    &
-        , cfg%nmin                 &
-        , cfg%nmax                 &
-        , cfg%target_charge        &
         , smat_j(jmin:jmax)        &
         , jmin, jmax               &
         , asymtop_rot_channels_l_j &
         , asymtop_rot_channels_l   &
-        , cfg%spin_isomer_kind     &
-        , cfg%zaxis)
+        )
 
 
       deallocate(smat_J)
@@ -619,26 +603,24 @@ contains
         , egrid_tot_smat        &
         , xs_xcite              &
         , xs_dxcite             &
-        , cfg%xs_zero_threshold &
       )
 
       write(stdout, *)
-      write(stdout, '(A)') "Writing " // spinmult_names(cfg%spinmults(ispin)) // " S-matrix cross sections to disk"
+      write(stdout, '(A)') "Writing " // SPINMULT_NAMES(G%SPINMULTS(ispin)) // " S-matrix cross sections to disk"
       write(stdout, *)
 
       smat_output_directory_this_spin = &
-        & smat_output_directory // spinmult_names(cfg%spinmults(ispin)) // DS
+        & smat_output_directory // SPINMULT_NAMES(G%SPINMULTS(ispin)) // DS
 
       do itrans = 1, size(transitions_this_spin, 1)
         call write_smat_xs_to_file(              &
             "Smat"                          &
           , smat_output_directory_this_spin &
-          , cfg%zaxis                       &
           , egrid_tot_smat                  &
           , transitions_this_spin(itrans)   &
           , xs_xcite(itrans)%vec            &
           , xs_dxcite(itrans)%vec           &
-          , cfg%lmax_kmat                   &
+          , G%LMAX_KMAT                   &
         )
       enddo
 
@@ -672,7 +654,6 @@ contains
       call add_xs_contrib_this_spin( &
           transitions                &
         , idxmap                     &
-        , cfg%spinmults              &
         , ispin                      &
         , xs_xcite                   &
         , xs_dxcite                  &
@@ -693,12 +674,11 @@ contains
       call write_smat_xs_to_file(              &
           "Smat"                          &
         , smat_output_directory_all_spins &
-        , cfg%zaxis                       &
         , egrid_tot_smat                  &
         , transitions(itrans)             &
         , xs_xcite_spinavg(itrans)%vec    &
         , xs_dxcite_spinavg(itrans)%vec   &
-        , cfg%lmax_kmat                   &
+        , G%LMAX_KMAT                   &
         )
     enddo
 
@@ -708,11 +688,11 @@ contains
   module subroutine convert_multipoles(cartesian_moments_array, spherical_moments_array)
     !! Convert the supplied array of multipole moments from cartesian, obtained as typical output from
     !! quantum chemistry codes, to spherical multipole tensors
-    use rotex__types,     only: dp
+    use rotex__kinds,     only: dp
     use rotex__system,    only: die
     use rotex__constants, only: im, pi
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: cartesian_moments_array(:)
       !! Array containing cartesian multipole moments.
@@ -767,80 +747,68 @@ contains
   end subroutine convert_multipoles
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine make_grid(grid, E0, num_segments, grid_segments, nelemnts_per_seg, spacing)
+  module subroutine make_grid(grid, E0)
     !! Make a segmented grid starting at E0
     !! Example with
-    !!   num_segments = 3, grid_segments = [1e-3, 1e-2, 1e-1, 1], nelemnts_per_seg = [1000,1000, 100]
+    !!   G%NUM_EGRID_SEGS = 3, G%EGRID_SEGS = [1e-3, 1e-2, 1e-1, 1], G%NUM_EGRID = [1000,1000, 100]
     !! E0+1e-3           E0+1e-2              E0+1e-1           E0+1.0
     !!   !------------------!-------------------!- - - - - - - - -!
     !!      1000 energies     1000 energies      100 energies
     use rotex__system, only: die
     use rotex__arrays, only: realloc
-    implicit none
+    implicit none (type, external)
     real(dp), intent(inout), allocatable :: grid(:)
       !! The energy grid
     real(dp), intent(in) :: E0
       !! The lowest energy
-    integer,  intent(in) :: num_segments
-      !! The number of segments in the energy grid
-    real(dp), intent(in) :: grid_segments(:)
-      !! The boundaries of the grid segments
-    integer, intent(in) :: nelemnts_per_seg(:)
-      !! The number of elements in each grid segment
-    character(3), intent(in) :: spacing
-      !! The spacing type in each segment. "LIN" for linear or "LOG" for logarithmic
     integer :: ie, iseg
     real(dp), allocatable :: dE(:)
-    allocate(dE(num_segments), source = 0.0_dp)
-    select case(spacing)
+    allocate(dE(G%NUM_EGRID_SEGS), source = 0.0_dp)
+    select case(G%EGRID_SPACING)
     case("lin")
       dE = [(                                                                      &
-          (grid_segments(iseg+1) - grid_segments(iseg))/(nelemnts_per_seg(iseg)-1) &
-        , iseg=1, num_segments                                                     &
+          (G%EGRID_SEGS(iseg+1) - G%EGRID_SEGS(iseg))/(G%NUM_EGRID(iseg)-1) &
+        , iseg=1, G%NUM_EGRID_SEGS                                                     &
       )]
       grid = [                                                                                               &
           E0                                                                                                 &
-        , E0 + grid_segments(1)                                                                              &
-        , ( (E0 + grid_segments(iseg) + ie*dE(iseg), ie=1, nelemnts_per_seg(iseg)-1), iseg=1, num_segments ) &
+        , E0 + G%EGRID_SEGS(1)                                                                              &
+        , ( (E0 + G%EGRID_SEGS(iseg) + ie*dE(iseg), ie=1, G%NUM_EGRID(iseg)-1), iseg=1, G%NUM_EGRID_SEGS ) &
       ]
     case("log")
       dE = [(                                                                                       &
-          (grid_segments(iseg+1)/grid_segments(iseg))**(1/real(nelemnts_per_seg(iseg)-1,  kind=dp)) &
-        , iseg=1, num_segments                                                                      &
+          (G%EGRID_SEGS(iseg+1)/G%EGRID_SEGS(iseg))**(1/real(G%NUM_EGRID(iseg)-1,  kind=dp)) &
+        , iseg=1, G%NUM_EGRID_SEGS                                                                      &
       )]
       grid = [                                                                                                &
           E0                                                                                                  &
-        , E0 + grid_segments(1)                                                                               &
-        , ( (E0 + grid_segments(iseg) * dE(iseg)**ie, ie=1, nelemnts_per_seg(iseg)-1 ), iseg=1, num_segments ) &
+        , E0 + G%EGRID_SEGS(1)                                                                               &
+        , ( (E0 + G%EGRID_SEGS(iseg) * dE(iseg)**ie, ie=1, G%NUM_EGRID(iseg)-1 ), iseg=1, G%NUM_EGRID_SEGS ) &
       ]
     case default
-      call die("EGRID_SPACING (" // spacing // ") must be LIN or LOG")
+      call die("EGRID_G%EGRID_SPACING (" // G%EGRID_SPACING // ") must be LIN or LOG")
     end select
   end subroutine make_grid
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine make_output_directories(output_directory, use_CB, spinmults, use_kmat &
-      , pcb_output_directory, tcb_output_directory, smat_output_directory)
+  module subroutine make_output_directories(pcb_output_directory, tcb_output_directory, smat_output_directory)
     use rotex__system,    only: DS => DIRECTORY_SEPARATOR, mkdir
-    use rotex__constants, only: spinmult_names
-    implicit none
-    character(*), intent(in) :: output_directory
-    logical,      intent(in) :: use_cb, use_kmat
-    integer,      intent(in) :: spinmults(:)
-    character(:), intent(inout), allocatable :: pcb_output_directory, tcb_output_directory, smat_output_directory
+    use rotex__constants, only: SPINMULT_NAMES
+    implicit none (type, external)
+    character(:), intent(out), allocatable :: pcb_output_directory, tcb_output_directory, smat_output_directory
     integer :: ispin
-    call mkdir(output_directory)
-    if(use_CB .eqv. .true.) then
-      pcb_output_directory = output_directory // "PCB" // DS
-      tcb_output_directory = output_directory // "TCB" // DS
+    call mkdir(G%OUTPUT_DIRECTORY)
+    if(G%USE_CB .eqv. .true.) then
+      pcb_output_directory = G%OUTPUT_DIRECTORY // "PCB" // DS
+      tcb_output_directory = G%OUTPUT_DIRECTORY // "TCB" // DS
       call mkdir(PCB_output_directory)
       call mkdir(TCB_output_directory)
     endif
-    if(use_kmat .eqv. .true.) then
-      smat_output_directory = output_directory // "Smat" // DS
+    if(G%USE_KMAT .eqv. .true.) then
+      smat_output_directory = G%OUTPUT_DIRECTORY // "Smat" // DS
       call mkdir(smat_output_directory)
-      do ispin = 1, size(spinmults, 1)
-        call mkdir(smat_output_directory // spinmult_names(spinmults(ispin))  // DS)
+      do ispin = 1, size(G%SPINMULTS, 1)
+        call mkdir(smat_output_directory // SPINMULT_NAMES(G%SPINMULTS(ispin))  // DS)
       enddo
     endif
   end subroutine make_output_directories
@@ -853,7 +821,7 @@ contains
     use CDMSreader__readwrite, only: CDMS_readfile_nohfs
     use CDMSreader__types,     only: asymtop_state_type => asymtop_state_nohfs &
                                    , asymtop_transition_type => asymtop_transition_nohfs
-    implicit none
+    implicit none (type, external)
     character(*), intent(in) :: filename
     character(*), intent(in) :: output_directory
     integer :: funit_in, funit_out
@@ -875,7 +843,7 @@ contains
     use rotex__types,      only: n_states_type
     use rotex__constants,  only: au2invcm
     use cdmsreader__types, only: asymtop_state_type => asymtop_state
-    implicit none
+    implicit none (type, external)
     type(n_states_type),       intent(inout) :: n_states(:)
     class(asymtop_state_type), intent(in)    :: cdms_states(:)
     integer :: in, itau, icdms
@@ -911,7 +879,7 @@ contains
     use rotex__constants,  only: au2sec
     use CDMSreader__types, only: asymtop_transition_type       => asymtop_transition &
                                , asymtop_transition_nohfs_type => asymtop_transition_nohfs
-    implicit none
+    implicit none (type, external)
     integer,                        intent(in)  :: Nlo, Kalo, Kclo, Nup, Kaup, Kcup
     class(asymtop_transition_type), intent(in)  :: CDMS_transitions(:)
     real(dp),                       intent(out) :: EinstA
@@ -937,16 +905,16 @@ contains
 #endif
 
   ! -------------------------------------------------------------------------------------------------------------------------------
-  module subroutine diagonalize_rotational_hamiltonian(cfg, num_n, n_values, n_states)
+  module subroutine diagonalize_rotational_hamiltonian(num_n, n_values, n_states)
     !! Build the rigid-rotor hamiltonian for each N and diagonalize it. Keep eigenenergies and
     !! eigenvectors, stored in the eigenH type of n_states
-    use rotex__types,      only: dp, n_states_type, eigenh_type, config_type
+    use rotex__kinds,      only: dp
+    use rotex__types,      only: n_states_type, eigenh_type
     use rotex__system,     only: die
     use rotex__arrays,     only: size_check
     use rotex__hamilton,   only: h_asym, assign_projections, rotate_eigvecs
     use rotex__characters, only: lower
-    implicit none
-    type(config_type),   intent(in)  :: cfg
+    implicit none (type, external)
     integer,             intent(in)  :: num_n, n_values(:)
     type(n_states_type), intent(out) :: n_states(:)
     integer  :: i_n, n, K
@@ -961,7 +929,7 @@ contains
       n = n_values(i_n)
       n_states(i_n) % n = n
 
-      select case(cfg%rotor_kind)
+      select case(G%ROTOR_KIND)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!! asymmetric rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -969,11 +937,11 @@ contains
 
         allocate(n_states(i_n) % einsta(2*n+1), source = 0.0_dp)
 
-        associate(a => cfg%abc(1), b => cfg%abc(2), c => cfg%abc(3))
+        associate(a => G%ABC(1), b => G%ABC(2), c => G%ABC(3))
 
           ! -- diagonalize in z=A frame so that we can use the CD coefficients and get Ka
           current_axis = "a"
-          call asym_rigid_rotor(n, hka, b, c, a, cfg%cd4, cfg%cd6) ! <-- A basis, Ka = Kz, energies
+          call asym_rigid_rotor(n, hka, b, c, a, G%CD4, G%CD6) ! <-- A basis, Ka = Kz, energies
           N_states(i_N) % eigenH = HKa
           eigvecs = HKa % eigvecs
           call assign_projections(N, eigvecs, N_states(i_N) % Ka) ! Ka labels
@@ -983,13 +951,13 @@ contains
           call assign_projections(N, hkc%eigvecs, N_states(i_N) % Kc) ! Kc labels
 
           ! -- rotate eigenvectors if needed to that xyz align with scattering calculations
-          select case(cfg%zaxis)
+          select case(G%ROTOR_ZAXIS)
           case("a","A")
             continue
           case("b","B","c","C")
             ! call rigid_rotor(n, hkb, c, a, b) ! <-- C basis, Kc = Kz
             ! N_states(i_N) % eigenH = hkb
-            call rotate_eigvecs(N, current_axis, cfg%zaxis, eigvecs)
+            call rotate_eigvecs(N, current_axis, G%ROTOR_ZAXIS, eigvecs)
             N_states(i_N) % eigenH % eigvecs = eigvecs
           end select
 
@@ -1003,31 +971,31 @@ contains
         allocate(n_states(i_n) % einsta(2*n+1), source=0.0_dp)
 
         ! -- appropriate energies whether z is aligned with A or C
-        associate(a=>cfg%abc(1), c=>cfg%abc(3))
-          select case(cfg%zaxis)
+        associate(a=>G%ABC(1), c=>G%ABC(3))
+          select case(G%ROTOR_ZAXIS)
           case("a", "A")
-            call sym_rigid_rotor(N, N_states(i_N)%eigenH, a, c, cfg%add_cd4, cfg%add_cd6, cfg%cd4, cfg%cd6)
+            call sym_rigid_rotor(N, N_states(i_N)%eigenH, a, c, G%ADD_CD4, G%ADD_CD6, G%CD4, G%CD6)
             N_states(i_N)%Ka = [(K, K=-N, N)]
           case("c", "C")
-            call sym_rigid_rotor(N, N_states(i_N)%eigenH, c, a, cfg%add_cd4, cfg%add_cd6, cfg%cd4, cfg%cd6)
+            call sym_rigid_rotor(N, N_states(i_N)%eigenH, c, a, G%ADD_CD4, G%ADD_CD6, G%CD4, G%CD6)
             N_states(i_N)%Kc = [(K, K=-N, N)]
           case default
-            call die("ZAXIS must be 'a' or 'c' for symmetric tops. Got "//cfg%zaxis)
+            call die("ZAXIS must be 'a' or 'c' for symmetric tops. Got "//G%ROTOR_ZAXIS)
           end select
         end associate
 
         ! -- if C₂ axis is the z-axis of the scattering calculations and is different than
         !    the rotational z-axis, rotate eigenvectors so that the z-axis lines up with the C₂ axis
-        if(lower(cfg%c2axis) .eq. lower(cfg%zaxis)) cycle
-        current_axis = cfg%zaxis
-        call rotate_eigvecs(N, current_axis, cfg%c2axis, N_states(i_N)%eigenH%eigvecs)
+        if(lower(G%ROTOR_C2AXIS) .eq. lower(G%ROTOR_ZAXIS)) cycle
+        current_axis = G%ROTOR_ZAXIS
+        call rotate_eigvecs(N, current_axis, G%ROTOR_C2AXIS, N_states(i_N)%eigenH%eigvecs)
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!! linear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       case("l")
 
-        E_rot = cfg%B_rot * (N*(N+1)) - cfg%D_rot * (N*(N+1))**2 + cfg%H_rot * (N*(N+1))**3
+        E_rot = G%B_ROT * (N*(N+1)) - G%D_ROT * (N*(N+1))**2 + G%H_ROT * (N*(N+1))**3
         allocate(n_states(i_n) % einsta(1),             source = 0.0_dp)
         allocate(n_states(i_n) % eigenH % eigvals(1),   source = E_rot )
         ! allocate(n_states(i_n) % Kc(1),               source = 0.0_dp)
@@ -1035,7 +1003,7 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       case default
 
-        call die("Undefined value for namelist variable ROTOR_KIND: " // cfg%rotor_kind)
+        call die("Undefined value for namelist variable ROTOR_KIND: " // G%ROTOR_KIND)
 
       end select
 
@@ -1048,7 +1016,7 @@ contains
       !! Wrapper for calling the hamiltonian routine
       use rotex__hamilton, only: h_sym
       use rotex__types,    only: cd4_type, cd6_type
-      implicit none
+      implicit none (type, external)
       integer,           intent(in)  :: nn
       type(eigenh_type), intent(out) :: ham
       real(dp),          intent(in)  :: bpara,  bperp
@@ -1071,7 +1039,7 @@ contains
     subroutine asym_rigid_rotor(nn, ham, bx, by, bz, cd4, cd6)
       !! Wrapper for calling the hamiltonian routine
       use rotex__types, only: cd4_type, cd6_type
-      implicit none
+      implicit none (type, external)
       integer,           intent(in)  :: nn
       type(eigenh_type), intent(out) :: ham
       real(dp),          intent(in)  :: bx, by, bz
@@ -1099,7 +1067,6 @@ contains
   pure module subroutine add_xs_contrib_this_spin( &
       transitions                           &
     , idxmap                                &
-    , ispinmults                            &
     , ispin                                 &
     , xs_xcite                              &
     , xs_dxcite                             &
@@ -1113,16 +1080,14 @@ contains
     use rotex__utils,  only: assert
     use rotex__arrays, only: size_check
 
-    implicit none
+    implicit none (type, external)
 
     type(asymtop_rot_transition_type), intent(in) :: transitions(:)
       !! List of transitions between states lo and up
     integer, intent(in) :: idxmap(:)
       !! Mapping from XS_(D)XCITE to the arrays {TRANSITIONS, XS_(D)XCITE_SPINAVG}
-    integer, intent(in) :: ispinmults(:)
-      !! Array of spin multiplicities 2S+1
     integer, intent(in) :: ispin
-      !! The current index of ispinmults
+      !! The current index of spin multiplicities
     type(rvector_type), intent(in) :: xs_xcite(:), xs_dxcite(:)
       !! Cross sections for this spin multiplicity
     type(rvector_type), intent(inout) :: xs_dxcite_spinavg(:), xs_xcite_spinavg(:)
@@ -1142,29 +1107,36 @@ contains
       & However, this XS_XCITE and XS_DXCITE_SPINAVAG have the same number of elements, so something&
       & very unexpected has happened")
 
-    sum_spinmults = real(sum(ispinmults), kind = dp)
+    sum_spinmults = real(sum(G%SPINMULTS), kind = dp)
 
     ! -- σ_allspins += + σ(ispin) * (2S+1)/Σ(2S+1)
     do itrans=1, ntrans
       xs_xcite_spinavg(itrans)%vec  = xs_xcite_spinavg(itrans)%vec  &
-                                    + xs_xcite(idxmap(itrans))%vec  * ispinmults(ispin) / sum_spinmults
+                                    + xs_xcite(idxmap(itrans))%vec  * G%SPINMULTS(ispin) / sum_spinmults
       xs_dxcite_spinavg(itrans)%vec = xs_dxcite_spinavg(itrans)%vec &
-                                    + xs_dxcite(idxmap(itrans))%vec * ispinmults(ispin) / sum_spinmults
+                                    + xs_dxcite(idxmap(itrans))%vec * G%SPINMULTS(ispin) / sum_spinmults
     enddo
 
   end subroutine add_xs_contrib_this_spin
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine get_xs_from_smat(prob, transitions, egrid_tot, xs_xcite, xs_dxcite, xs_zero_threshold)
+  module subroutine get_xs_from_smat( &
+        prob                          &
+      , transitions                   &
+      , egrid_tot                     &
+      , xs_xcite                      &
+      , xs_dxcite                     &
+    )
     !! Calculate excitation and de-excitation cross sections from probabilities
 
+    use rotex__kinds,       only: dp
+    use rotex__types,       only: rvector_type, asymtop_rot_transition_type, asymtop_rot_channel_type
+    use rotex__arrays,      only: size_check
+    use rotex__symmetry,    only: rotstate_is_allowed
+    use rotex__constants,   only: pi
+    use rotex__channel_ops, only: reduce_symtop_ksign
 
-    use rotex__kinds,     only: dp
-    use rotex__types,     only: rvector_type, asymtop_rot_transition_type, asymtop_rot_channel_type
-    use rotex__arrays,    only: size_check
-    use rotex__constants, only: pi
-
-    implicit none
+    implicit none (type, external)
 
     type(rvector_type), intent(in) :: prob(:)
       !! Array of arrays of probabilities P
@@ -1176,12 +1148,9 @@ contains
       !! Array of arrays of excitation cross sections σ ~ P/E
     type(rvector_type), intent(out), allocatable :: xs_dxcite(:)
       !! Array of arrays of de-excitation cross sections σ ~ P/E
-    real(dp), intent(in) :: xs_zero_threshold
-      !! Transitions with excitation and de-excitation cross sections below this will
-      !! be removed
 
     logical, allocatable :: keeptrans(:)
-    integer :: ntrans, itrans, iemin, nlo, nup, ne
+    integer :: ntrans, itrans, iemin, nlo, nup, ne, kaup, kcup, kalo, kclo, ksymlo, ksymup
     real(dp) :: Elo, Eup
     real(dp), allocatable :: Eel_ex(:), Eel_dex(:)
     type(asymtop_rot_channel_type) :: lo, up
@@ -1198,17 +1167,24 @@ contains
       allocate(xs_dxcite(itrans)%vec(ne), source=0.0_dp)
     enddo
 
-    allocate(keeptrans(ntrans), source = .true.)
+    allocate(keeptrans(ntrans), source = .false.)
 
     do itrans = 1, ntrans
 
       ! -- get state info for this transition
-      lo = transitions(itrans) % lo
-      up = transitions(itrans) % up
-      nlo = lo % n
-      nup = up % n
-      Elo = lo % E
-      Eup = up % E
+      lo   = transitions(itrans) % lo
+      up   = transitions(itrans) % up
+      nlo  = lo % n
+      kalo = lo%ka
+      kclo = lo%kc
+      nup  = up % n
+      kaup = up%ka
+      kcup = up%kc
+      Elo  = lo % E
+      Eup  = up % E
+
+      if(rotstate_is_allowed(nlo, kalo, kclo) .eqv. .false.) cycle
+      if(rotstate_is_allowed(nup, kaup, kcup) .eqv. .false.) cycle
 
       ! -- find the starting point of our energy grid
       iemin = findloc(prob(itrans) % vec(:) .gt. 0.0_dp, .true., 1)
@@ -1221,10 +1197,11 @@ contains
       xs_xcite(itrans)  % vec(iemin:) = prob(itrans)%vec(iemin:) * pi/(2*Eel_ex(:))  / (2*Nlo+1)
       xs_dxcite(itrans) % vec(iemin:) = prob(itrans)%vec(iemin:) * pi/(2*Eel_dex(:)) / (2*Nup+1)
 
-      if( all(xs_xcite(itrans)  % vec(iemin:).gt. xs_zero_threshold) ) cycle
-      if( all(xs_dxcite(itrans) % vec(iemin:).gt. xs_zero_threshold) ) cycle
+      ! -- filter out tiny cross sections
+      if( all(xs_xcite(itrans)  % vec(iemin:) .lt. G%XS_ZERO_THRESHOLD) ) cycle
+      if( all(xs_dxcite(itrans) % vec(iemin:) .lt. G%XS_ZERO_THRESHOLD) ) cycle
 
-      keeptrans(itrans) = .false.
+      keeptrans(itrans) = .true.
 
     enddo
 
@@ -1232,12 +1209,21 @@ contains
     xs_dxcite   = pack(xs_dxcite,   keeptrans)
     transitions = pack(transitions, keeptrans)
 
+    if(G%ROTOR_KIND .ne. "s") return
+
+    ! -- symmetric top extra reduction
+    !    Reduce, e.g., four transitions to one
+    !    (1-1) -> (2-1)    +> (11) -> (21)
+    !    (1-1) -> (2 1)   /
+    !    (1 1) -> (2-1)  /
+    !    (1 1) -> (2 1) /
+    call reduce_symtop_ksign(transitions, xs_xcite, xs_dxcite)
+
   end subroutine get_xs_from_smat
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine combine_cb_smat_xs( &
-      cfg                                      &
-    , egrid_cb                                 &
+      egrid_cb                                 &
     , egrid_tot_smat                           &
     , transitions_cb                           &
     , xs_xcite_pcb                             &
@@ -1253,18 +1239,16 @@ contains
     !! together:
     !!   σ(tot) = σ(S-mat) + σ(TCB) - σ(PCB)
 
-    use rotex__types,     only: rvector_type, art_type => asymtop_rot_transition_type, findloc_transitions&
-                              , config_type, n_states_type
+    use rotex__channel_ops, only: findloc_transitions
+    use rotex__types,     only: rvector_type, art_type => asymtop_rot_transition_type, n_states_type
     use rotex__system,    only: stdout, stderr, die, DS => DIRECTORY_SEPARATOR
     use rotex__arrays,    only: append_uniq, size_check
     use rotex__splines,   only: interpolate_replace
     use rotex__constants, only: au2ev
     use rotex__writing,   only: write_cb_xs_to_file, write_smat_xs_to_file, write_total_xs_to_file
 
-    implicit none
+    implicit none (type, external)
 
-    type(config_type), intent(in) :: cfg
-      !! Program config variables
     type(rvector_type), intent(in) :: egrid_cb(:)
       !! Array of arrays of electron energy grids for the CB cross sections for each transition
     real(dp),           intent(in) :: egrid_tot_smat(:)
@@ -1344,7 +1328,7 @@ contains
       itrans_smat = idx_all2smat(itrans_all)
       itrans_cb = idx_all2cb(itrans_all)
 
-      total_xs_output_dir = cfg%output_directory // "Total" // DS
+      total_xs_output_dir = G%OUTPUT_DIRECTORY // "Total" // DS
 
       if(itrans_cb .eq. 0) then
 
@@ -1354,15 +1338,14 @@ contains
         ! -- no CB transition, but we do have an S-matrix. Print the corresponding S-matrix
         !    cross sections as the Total cross sections
 
-        call write_smat_xs_to_file( &
-            "Total" &
-          , total_xs_output_dir &
-          , cfg%zaxis &
-          , egrid_tot_smat &
-          , transitions_all(itrans_all) &
-          , xs_xcite_smat(itrans_smat)%vec &
+        call write_smat_xs_to_file(         &
+            "Total"                         &
+          , total_xs_output_dir             &
+          , egrid_tot_smat                  &
+          , transitions_all(itrans_all)     &
+          , xs_xcite_smat(itrans_smat)%vec  &
           , xs_dxcite_smat(itrans_smat)%vec &
-          , cfg%lmax_kmat &
+          , G%LMAX_KMAT                     &
         )
 
         ! -- transitions are unique, so it should be safe to deallocate here
@@ -1391,7 +1374,6 @@ contains
         call write_CB_xs_to_file(             &
             "Total"                        &
           , total_xs_output_dir            &
-          , cfg%zaxis                      &
           , egrid_cb(itrans_cb)%vec        &
           , xs_xcite_tcb(itrans_cb)%vec     &
           , transitions_all(itrans_all)%lo &
@@ -1413,7 +1395,6 @@ contains
         call write_CB_xs_to_file(             &
             "Total"                        &
           , total_xs_output_dir            &
-          , cfg%zaxis                      &
           , egrid_cb(itrans_cb)%vec - dE    &
           , xs_tcb    &
           , transitions_all(itrans_all)%up &
@@ -1519,13 +1500,12 @@ contains
       call write_total_xs_to_file(            &
           "Total"                             &
         , total_xs_output_dir                 &
-        , cfg%zaxis                           &
         , Egrid_xcite                         &
         , Egrid_dxcite                        &
         , transitions_all(itrans_all)         &
         , xs_xcite_combined                   &
         , xs_dxcite_combined                  &
-        , cfg%lmax_kmat                       &
+        , G%LMAX_KMAT                       &
       )
 
     enddo transloop
@@ -1538,7 +1518,7 @@ contains
     use rotex__kinds, only: dp
     use rotex__types, only: asymtop_rot_transition_type
     use rotex__system, only: die
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: Eel_xcite(:)
     real(dp), intent(inout) :: xs(:)
     type(asymtop_rot_transition_type), intent(in) :: transition

@@ -2,7 +2,9 @@
 module rotex__MQDTXS
   !! Routines to calculate cross sections with MQDT + S-matrix
 
-  implicit none
+  use rotex__globals, only: G
+
+  implicit none (type, external)
 
   private
 
@@ -16,26 +18,20 @@ contains
   module subroutine get_smat_probs( &
         total_energy_grid           &
       , prob                        &
-      , rotor_kind                  &
       , transitions                 &
-      , nmin                        &
-      , nmax                        &
-      , targcharge                  &
       , smat_j                      &
       , jmin                        &
       , jmax                        &
       , channels_j                  &
       , channels_tot                &
-      , spin_isomer_kind            &
-      , rotor_symaxis               &
     )
     !! Given a rotationally resolved S-matrix, calculate rotational (de-)excitation
     !! cross section probabilities for the supplied transitions.
 
-    use rotex__types,      only: dp, rvector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
-                               , asymtop_rot_channel_type, cmatrix_type, n_states_type, asymtop_rot_transition_type &
-                               , operator(.ne.), operator(.eq.), operator(.isin.) &
-                               , trim_channel_l, get_channel_index
+    use rotex__kinds,      only: dp
+    use rotex__types,      only: rvector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
+                               , asymtop_rot_channel_type, cmatrix_type, n_states_type, asymtop_rot_transition_type
+    use rotex__channel_ops, only: operator(.ne.), operator(.eq.), operator(.isin.), trim_channel_l, get_channel_index
     use rotex__arrays,     only: append, size_check, realloc
     use rotex__symmetry,   only: is_spin_forbidden
     use rotex__system,     only: die, stdout, stderr
@@ -48,20 +44,14 @@ contains
     use omp_lib, only: omp_get_thread_num
 #endif
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: total_energy_grid(:)
       !! The total energy grid on which the S-matrix will be evaluated
     type(rvector_type), intent(out), allocatable :: prob(:)
       !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
-    character(1), intent(in) :: rotor_kind
-      !! The rotor kind: "a"symmetric top, "s"ymmetric top, or "l"inear rotor
     type(asymtop_rot_transition_type), intent(inout), allocatable :: transitions(:)
       !! Array of transitions that will be considered for (de-)excitation
-    integer, intent(in) :: nmin, nmax
-      !! Min/max values of N to consider for excitation calculations
-    integer, intent(in) :: targcharge
-      !! Charge of the target molecule
     type(cmatrix_type), intent(in) :: smat_j(jmin:jmax)
       !! Array of S-matrix sub-blocks for each J
     integer, intent(in) :: jmin, jmax
@@ -70,10 +60,6 @@ contains
       !! Contains the array of channels for each J
     type(asymtop_rot_channel_l_type), intent(in) :: channels_tot(:)
       !! Contains the array of channels ∀ J
-    integer, intent(in) :: spin_isomer_kind
-      !! What kinda spin symmetry we need to respect
-    character(1), intent(in) :: rotor_symaxis
-      !! The symmetry axis of the target
 
 #ifdef USE_FORBEAR
     integer, parameter :: NDOTS2PRINT = 5
@@ -108,13 +94,13 @@ contains
     ! -- build combinations of states (without l), de-excitations will be handled by symmetry
     do ichan = 1, nchans_tot
       Ni = channels_tot(ichan) % N
-      if(Ni .lt.  Nmin) cycle
-      if(Ni .gt.  Nmax) cycle
+      if(Ni .lt.  G%NMIN) cycle
+      if(Ni .gt.  G%NMAX) cycle
       lo = trim_channel_l(channels_tot(ichan))
       do fchan = ichan+1, nchans_tot
         Nf = channels_tot(fchan) % N
-        if(Nf .lt. Nmin) cycle
-        if(Nf .gt. Nmax) cycle
+        if(Nf .lt. G%NMIN) cycle
+        if(Nf .gt. G%NMAX) cycle
         up = trim_channel_l(channels_tot(fchan))
         ! -- skip elastic pairs
         if(lo .eq. up) cycle
@@ -188,7 +174,7 @@ contains
 
       ! -- loop over the total enrgy grid
       !$omp parallel default(none) &
-      !$omp& shared(ne, channels_this_J, S, prob, transitions, J, nchans_J, targcharge, total_energy_grid&
+      !$omp& shared(ne, channels_this_J, S, prob, transitions, J, nchans_J, G, total_energy_grid&
 #ifdef USE_FORBEAR
       !$omp&   , progressbar, rprogress, rprogress_inc, iprogress, iprogress_last)&
 #else
@@ -220,7 +206,7 @@ contains
         beta = 0
         Sphys = 0
 
-        if(targcharge .eq. 0) then
+        if(G%TARGCHARGE .eq. 0) then
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           !! Maybe we can have a CCEP for neutrals ?
           !! This γ parameter is given by something like
@@ -231,7 +217,7 @@ contains
           !! and possibly the channel l
           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           Sphys = S(1:nopen,1:nopen)
-        elseif(targcharge .gt. 0) then
+        elseif(G%TARGCHARGE .gt. 0) then
           call CCEP(S, channels_this_J, q, Etot, Sphys, beta, nopen, nclosed)
         else
           call die("CCEP not implemented for negative ions")
@@ -310,7 +296,7 @@ contains
       !! Given an array of channels, determine the factor B for each channel at a particular total energy E
       use rotex__system,    only: die
       use rotex__constants, only: pi
-      implicit none
+      implicit none (type, external)
       type(asymtop_rot_channel_l_type), intent(in) :: channels(:)
         !! Array of channels for which we want to get the factor B
       real(dp), intent(in) :: Etot
@@ -338,7 +324,7 @@ contains
     ! ---------------------------------------------------------------------------------------------------------------------------- !
     pure elemental function A_coulomb(e, l) result(res)
       !! Calcualte the factor A for the Coulomb functions (Seaton, 2002, Comp. Phys. Comm.)
-      implicit none
+      implicit none (type, external)
       real(dp), intent(in) :: e
       integer,  intent(in) :: l
       real(dp) :: res
@@ -353,14 +339,15 @@ contains
     !! Given the S-matrix, its basis of channels, the total energy E, and the number of open/closed channels,
     !! carry out the MQDT Closed-Channel Elimination Procedure to obtain the nopen x nopen physical S matrix
 
-    use rotex__types,      only: dp, asymtop_rot_channel_l_type
+    use rotex__kinds,      only: dp
+    use rotex__types,      only: asymtop_rot_channel_l_type
     use rotex__system,     only: die
     use rotex__linalg,     only: zgesv, right_divide
     use rotex__arrays,     only: size_check
     use rotex__constants,  only: im, pi
     use rotex__characters, only: i2c => int2char
 
-    implicit none
+    implicit none (type, external)
 
     complex(dp), intent(in) :: S(:,:)
       !! The n x n S-matrix before channel elimination

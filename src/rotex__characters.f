@@ -5,7 +5,7 @@ module rotex__characters
   use rotex__kinds,     only: dp
   use rotex__functions, only: iseven
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -44,7 +44,7 @@ contains
   pure module function int_s2hms(s) result(time)
     !! Given an integer 's' in seconds, convert to the format hh:mm:ss.
 
-    implicit none
+    implicit none (type, external)
 
     integer, intent(in) :: s
     character(:), allocatable :: time
@@ -66,7 +66,7 @@ contains
   ! ---------------------------------------------------------------------------------------------------------------------------------!
   pure module function real_s2hms(s_re) result(time)
     !! Given an integer in seconds, convert to the format hh:mm:ss. Input is a real, gets converted to int
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: s_re
     character(:), allocatable :: time
@@ -94,7 +94,7 @@ contains
   pure elemental function ndigits(n) result(num)
     !! Returns number of characters an integer will occupy
     use rotex__constants, only: one
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: n
     integer :: num
     num = 1
@@ -107,7 +107,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure function scalar_int2char(i) result(res)
     !! Writes the value i to a character as I0
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: i
     character(:), allocatable :: res
     allocate(character(ndigits(i)) :: res)
@@ -117,7 +117,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure function vector_int2char(i) result(res)
     !! Writes the value i to a character as I0
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: i(:)
     character(:), allocatable :: res
     integer :: n
@@ -137,7 +137,7 @@ contains
     !! Add a trailing character `trail` to the character `chr` if it is not already the
     !! last character
 
-    implicit none
+    implicit none (type, external)
 
     character(:), allocatable,  intent(inout) :: chr
     character(*), intent(in) :: trail
@@ -163,7 +163,7 @@ contains
     !! dJ2char(2) -> "1"
     !! dJ2char(3) -> "3/2"
 
-    implicit none
+    implicit none (type, external)
 
     integer, intent(in) :: dJ
       !! Twice the angular momentum
@@ -181,7 +181,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure function lower(chr) result(res)
     !! returns a lower case character
-    implicit none
+    implicit none (type, external)
     character(*), intent(in) :: chr
     character(:), allocatable :: res
     integer, parameter :: shift = ichar('a') - ichar("A")
@@ -200,7 +200,7 @@ contains
   end function lower
   pure elemental subroutine to_lower(chr)
     !! converts a character to lower case
-    implicit none
+    implicit none (type, external)
     character(*), intent(inout) :: chr
     integer, parameter :: shift = ichar('a') - ichar("A")
     integer, parameter :: uppercase_a = ichar('A')
@@ -217,7 +217,7 @@ contains
   end subroutine to_lower
   pure function upper(chr) result(res)
     !! returns an upper case character
-    implicit none
+    implicit none (type, external)
     character(*), intent(in) :: chr
     character(:), allocatable :: res
     integer, parameter :: shift = ichar('a') - ichar("A")
@@ -236,7 +236,7 @@ contains
   end function upper
   pure elemental subroutine to_upper(chr)
     !! converts a character to upper case
-    implicit none
+    implicit none (type, external)
     character(*), intent(inout) :: chr
     integer, parameter :: shift = ichar('a') - ichar("A")
     integer, parameter :: lowercase_a = ichar('a')
@@ -255,7 +255,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure function sub(x) result(res)
     !! Returns the subscript version of the integer x
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: x
     character(:), allocatable :: res
     integer :: i
@@ -283,7 +283,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure function sup(x) result(res)
     !! Returns the superscript version of the integer x
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: x
     character(:), allocatable :: res
     integer :: i

@@ -2,7 +2,7 @@
 module rotex__wigner
   !! Calculate the Wigner 3j symbols
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -18,9 +18,9 @@ contains
     !! Returns the Clebsch-Gordan coefficient
     !! \(C^{jm}_{j_1m_1,j_2m_2} \equiv \left\langle j_1m_1,j_2_m2|jm \right\rangle\)
     !! by using its relation to the Wigner 3j symbol
-    use rotex__types,     only: dp
+    use rotex__kinds,     only: dp
     use rotex__functions, only: neg
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: j1, m1, j2, m2, j, m
     real(dp) :: res
     if(m .ne. m1+m2) then
@@ -39,12 +39,12 @@ contains
     !! it tries to allocate (2N+1)^6 doubles. NOTE: for the high partial wave, we know that
     !! we'll only need values with m1 = m2 = m3 = 0, so take advantage of this ?
 
-    use rotex__types,     only: dp
+    use rotex__kinds,     only: dp
     use rotex__system,    only: die
     use rotex__constants, only: two
     use rotex__functions, only: istriangle, iseven, logfac => log_factorial
 
-    implicit none
+    implicit none (type, external)
 
     integer, intent(in) :: dj1, dj2, dj3
       !! twice the angular momenta j

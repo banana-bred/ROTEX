@@ -1,9 +1,9 @@
 ! ================================================================================================================================ !
 module rotex__arrays
   !! Various routines for arrays
-  use rotex__types, only: dp
+  use rotex__kinds, only: dp
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -69,7 +69,7 @@ contains
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine realloc_1d_int(arr, n)
-    implicit none
+    implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:)
     integer,  intent(in)                 :: n
     if(allocated(arr)) then
@@ -82,7 +82,7 @@ contains
   end subroutine realloc_1d_int
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine realloc_1d_real(arr, n)
-    implicit none
+    implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:)
     integer,  intent(in)                 :: n
     if(allocated(arr)) then
@@ -95,7 +95,7 @@ contains
   end subroutine realloc_1d_real
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine realloc_1d_cmplx(arr, n)
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:)
     integer,  intent(in)                 :: n
     if(allocated(arr)) then
@@ -109,7 +109,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine realloc_1d_elec_channel(arr, n)
     use rotex__types, only: elec_channel_type
-    implicit none
+    implicit none (type, external)
     type(elec_channel_type), intent(inout), allocatable :: arr(:)
     integer,  intent(in)                 :: n
     if(allocated(arr)) then
@@ -122,7 +122,7 @@ contains
   end subroutine realloc_1d_elec_channel
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine realloc_2d_real(arr, n, m)
-    implicit none
+    implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:,:)
     integer,  intent(in)                 :: n, m
     if(allocated(arr)) then
@@ -135,7 +135,7 @@ contains
   end subroutine realloc_2d_real
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine realloc_2d_cmplx(arr, n, m)
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:,:)
     integer,  intent(in)                 :: n, m
     if(allocated(arr)) then
@@ -150,7 +150,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function norm_frob_i(A) result(res)
     !! Returns the Frobenius norm for a matrix A
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: A(:,:)
     real(dp) :: res
     res = sqrt(real(sum(A*A), kind=dp))
@@ -158,7 +158,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function norm_frob_r(A) result(res)
     !! Returns the Frobenius norm for a matrix A
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: A(:,:)
     real(dp) :: res
     res = sqrt(sum(A*A))
@@ -166,7 +166,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function norm_frob_c(A) result(res)
     !! Returns the Frobenius norm for a matrix A
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: A(:,:)
     real(dp) :: res
     res = sqrt(sum(abs(A)**2))
@@ -175,7 +175,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function adjoint_i(A) result(res)
     !! Returns the adjoint of an integer-valued matrix
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: A(:,:)
     integer :: res(size(A, 2), size(A, 1))
     res = transpose(A)
@@ -183,7 +183,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function adjoint_r(A) result(res)
     !! Returns the adjoint of a real-valued matrix
-    implicit none
+    implicit none (type, external)
     real(dp), intent(in) :: A(:,:)
     real(dp) :: res(size(A, 2), size(A, 1))
     res = transpose(A)
@@ -191,7 +191,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function adjoint_c(A) result(res)
     !! Returns the adjoint of a complex-valued matrix
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: A(:,:)
     complex(dp) :: res(size(A, 2), size(A, 1))
     res = conjg(transpose(A))
@@ -202,7 +202,7 @@ contains
     !! Return the unitary defect with respect to the Frobenius norm
     !! \(rF = ||A^{\dagger}A-I||_F / sqrt{n}\)
     use rotex__system, only: die
-    implicit none
+    implicit none (type, external)
     class(*), intent(in) :: A(:,:)
     real(dp) :: rF
     integer :: n, m
@@ -333,7 +333,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine remove_value(arr, val)
     !! Remove all instances of the value val from the array arr
-    implicit none
+    implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:)
     integer, intent(in) :: val
     integer, allocatable :: tmp(:)
@@ -353,7 +353,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine append_uniq_i(arr, new)
     !! Append unique element "new" to array "arr"
-    implicit none
+    implicit none (type, external)
     integer, intent(in)                 :: new
     integer, intent(inout), allocatable :: arr(:)
     select case(allocated(arr))
@@ -368,8 +368,9 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine append_uniq_transition(old, new)
     !! Append unique element "new" to array "old"
-    use rotex__types, only: asymtop_rot_transition_type, operator(.ne.), operator(.isin.)
-    implicit none
+    use rotex__types, only: asymtop_rot_transition_type
+    use rotex__channel_ops, only: operator(.ne.), operator(.isin.)
+    implicit none (type, external)
     type(asymtop_rot_transition_type), intent(in)                 :: new(:)
     type(asymtop_rot_transition_type), intent(inout), allocatable :: old(:)
 
@@ -413,7 +414,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine append_i(arr, val)
     !! Append the value val to the array arr
-    implicit none
+    implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:)
     integer, intent(in) :: val
     select case(allocated(arr))
@@ -426,7 +427,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine append_r(arr, val)
     !! Append the value val to the array arr
-    implicit none
+    implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:)
     real(dp), intent(in) :: val
     select case(allocated(arr))
@@ -440,7 +441,7 @@ contains
   pure module subroutine append_rvector(arr, val)
     !! Append the value val to the array arr
     use rotex__types, only: rvector_type
-    implicit none
+    implicit none (type, external)
     type(rvector_type), intent(inout), allocatable :: arr(:)
     real(dp), intent(in) :: val(:)
     type(rvector_type) :: elem
@@ -457,7 +458,7 @@ contains
   pure module subroutine append_asymtop_transition(arr, val)
     !! Append the value val to the array arr
     use rotex__types, only: asymtop_rot_transition_type
-    implicit none
+    implicit none (type, external)
     type(asymtop_rot_transition_type), intent(inout), allocatable :: arr(:)
     type(asymtop_rot_transition_type), intent(in) :: val
     select case(allocated(arr))
@@ -471,7 +472,7 @@ contains
   pure module subroutine append_elec_channel(channels, channel)
     !! Append elec_channel to the array elec_channels
     use rotex__types, only: elec_channel_type
-    implicit none
+    implicit none (type, external)
     type(elec_channel_type), intent(inout), allocatable :: channels(:)
     type(elec_channel_type), intent(in) :: channel
     select case(allocated(channels))
@@ -483,7 +484,7 @@ contains
   pure module subroutine append_elec_channels(channels, channels2)
     !! Append channels2 to the array channels
     use rotex__types, only: elec_channel_type
-    implicit none
+    implicit none (type, external)
     type(elec_channel_type), intent(inout), allocatable :: channels(:)
     type(elec_channel_type), intent(in) :: channels2(:)
     select case(allocated(channels))
@@ -495,7 +496,7 @@ contains
   pure module subroutine append_asymtop_rot_channel(channels, channel)
     !! Append asymtop_rot_channel to the array asymtop_rot_channels
     use rotex__types, only: asymtop_rot_channel_type
-    implicit none
+    implicit none (type, external)
     type(asymtop_rot_channel_type), intent(inout), allocatable :: channels(:)
     type(asymtop_rot_channel_type), intent(in) :: channel
     select case(allocated(channels))
@@ -507,7 +508,7 @@ contains
   pure module subroutine append_asymtop_rot_channel_l(channels, channel)
     !! Append asymtop_rot_channel to the array asymtop_rot_channels
     use rotex__types, only: asymtop_rot_channel_l_type
-    implicit none
+    implicit none (type, external)
     type(asymtop_rot_channel_l_type), intent(inout), allocatable :: channels(:)
     type(asymtop_rot_channel_l_type), intent(in) :: channel
     select case(allocated(channels))
@@ -521,7 +522,7 @@ contains
     !! Check that the size of the array arr is of length larr
     use rotex__system,     only: die
     use rotex__characters, only: i2c => int2char
-    implicit none
+    implicit none (type, external)
     class(*), intent(in) :: arr(:)
     integer, intent(in) :: larr
     character(*), intent(in) :: name
@@ -533,7 +534,7 @@ contains
     !! Check that the size of the array arr is of length larr
     use rotex__system,     only: die
     use rotex__characters, only: i2c => int2char
-    implicit none
+    implicit none (type, external)
     class(*), intent(in) :: arr(:,:)
     integer, intent(in) :: larr(:)
     character(*), intent(in) :: name
@@ -544,7 +545,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function uniq(arr) result(res)
     !! Returns the unique elements of arr
-    implicit none
+    implicit none (type, external)
     integer, intent(in)  :: arr(:)
     integer, allocatable :: res(:)
     integer :: n, i, k
@@ -566,7 +567,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine sort_index(vals, idx)
     !! Sort the array vals and return the permutation indices
-    implicit none
+    implicit none (type, external)
     real(dp),    intent(in)  :: vals(:)
     integer,     intent(out) :: idx(:)
     integer :: i, j, n

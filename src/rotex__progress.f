@@ -5,7 +5,7 @@ module rotex__progress
   use forbear, only: progressbar_type => bar_object
 #endif
 
-  implicit none
+  implicit none (type, external)
 
   public
 

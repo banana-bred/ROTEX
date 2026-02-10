@@ -5,7 +5,7 @@ module rotex__constants
   use iso_fortran_env, only: IOSTAT_END
   use rotex__kinds,    only: dp, qp
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -60,7 +60,7 @@ module rotex__constants
   character(1), parameter, public :: DEFAULT_CHAR1 = "x"
   character(7), parameter, public :: UKRMOLX = 'ukrmol+'
   character(7), parameter, public :: MQDTR2K = 'mqdtr2k'
-  character(7), parameter, public :: spinmult_names(5) = &
+  character(7), parameter, public :: SPINMULT_NAMES(5) = &
     [ 'singlet', 'doublet', 'triplet', 'quartet', 'quintet' ]
 
 ! ================================================================================================================================ !

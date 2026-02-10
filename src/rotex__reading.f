@@ -3,7 +3,7 @@ module rotex__reading
   !! Contains procedures used in reading data (K-matrices and namelist data)
   use rotex__constants, only: UKRMOLX, MQDTR2K
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -29,7 +29,9 @@ contains
                               , kmat_e_closest    )
     !! Reads in a K-matrix from a file with a very particular file format given by kmat_output_type
 
-    use rotex__types,      only: dp, elec_channel_type, permsort_channels, rvector_type, ivector_type
+    use rotex__kinds,      only: dp
+    use rotex__types,      only: elec_channel_type, rvector_type, ivector_type
+    use rotex__channel_ops, only: permsort_channels
     use rotex__utils,      only: read_blank
     use rotex__arrays,     only: append, is_symmetric, realloc
     use rotex__system,     only: die, stdout, stderr
@@ -37,7 +39,7 @@ contains
     use rotex__constants,  only: au2ev, IOSTAT_END, IOSTAT_OK, spinmult_names, DEFAULT_INT
     use rotex__characters, only: int2char
 
-    implicit none
+    implicit none (type, external)
 
     character(*), intent(in) :: kmat_dir
       !! Directory in which the files containing the K-matrices
@@ -218,7 +220,7 @@ contains
     use rotex__system,     only: die
     use rotex__symmetry,   only: Ap, App, m_parity, even, odd, elecstate_parity_set, elecstate_parity
     use rotex__characters, only: i2c => int2char
-    implicit none
+    implicit none (type, external)
     integer, intent(in) :: lmax_kmat
       !! Max value of l for the electronic channels
     type(elec_channel_type), intent(in) :: elec_channels(:)
@@ -285,7 +287,7 @@ contains
     use rotex__utils,     only: read_blank
     use rotex__system,    only: stdout, stderr, die
 
-    implicit none
+    implicit none (type, external)
 
     character(*), intent(in) :: channels_filename
     character(*), intent(in) :: kmat_filename
@@ -459,7 +461,7 @@ contains
     use rotex__utils,     only: read_blank
     use rotex__system,    only: stdout, die
 
-    implicit none
+    implicit none (type, external)
 
     character(*), intent(in) :: kmat_filename
     real(dp), intent(inout), allocatable :: kmat_flat(:)
@@ -546,7 +548,7 @@ contains
     use rotex__kinds,  only: dp
     use rotex__types,  only: elec_channel_type
     use rotex__system, only: stdout
-    implicit none
+    implicit none (type, external)
     type(elec_channel_type), intent(in) :: channels(:)
     integer, intent(in), optional :: funit
     integer :: nelec, l, ml, iq, funit_, ichan, nchans
@@ -571,9 +573,10 @@ contains
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure function find_global_channel_index(channel, channels) result(i)
-    use rotex__types,  only: operator(.ne.), elec_channel_type
+    use rotex__types,  only: elec_channel_type
+    use rotex__channel_ops,  only: operator(.ne.)
     use rotex__system, only: die
-    implicit none
+    implicit none (type, external)
     type(elec_channel_type), intent(in) :: channel
     type(elec_channel_type), intent(in) :: channels(:)
     integer :: i, n
@@ -586,18 +589,18 @@ contains
   end function find_global_channel_index
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine read_namelists(cfg)
+  subroutine read_namelists
     !! Reads user parameters and puts them into the config derived type
-    use rotex__types,      only: dp, config_type, cd4_type, cd6_type
+    use rotex__kinds,      only: dp
+    use rotex__types,      only: cd4_type, cd6_type
+    use rotex__globals,    only: G, config_type
     use rotex__arrays,     only: append, remove_value
     use rotex__system,     only: stdin, stdout, ds => directory_separator, die
     use rotex__constants,  only: au2invcm, au2ev, macheps => macheps_dp, au2cm, au2deb, DEFAULT_CHAR1&
                                , UKRMOLX, MQDTR2K
     use rotex__characters, only: add_trailing, to_lower, lower
 
-    implicit none
-
-    type(config_type), intent(out) :: cfg
+    implicit none (type, external)
 
     integer, parameter :: DEFAULT_INT = huge(1)
 
@@ -610,10 +613,10 @@ contains
     integer :: forbidden_states_kind = 0
     character(:), allocatable :: output_directory
     character(1) :: rotor_kind = DEFAULT_CHAR1
-    character(1) :: zaxis = DEFAULT_CHAR1, c2axis = DEFAULT_CHAR1
+    character(1) :: rotor_zaxis = DEFAULT_CHAR1, rotor_c2axis = DEFAULT_CHAR1
     real(dp) :: abc(3) = 0.0_dp
     real(dp) :: B_rot = 0.0_dp, H_rot = 0.0_dp, D_rot = 0.0_dp
-    integer :: target_charge = DEFAULT_INT
+    integer :: targcharge = DEFAULT_INT
     logical :: add_cd4 = .false.
     logical :: add_cd6 = .false.
     ! -- cd4
@@ -666,26 +669,26 @@ contains
     real(dp) :: kmat_energy_closest = 0.0_dp ! just take the first one
     character(:), allocatable :: CDMS_file
 
-    namelist / control_namelist /                 &
+    namelist / control_namelist /                            &
       !! Contains parameters and values that are necessary to run the program
-                         output_directory         &
-                       , spin_isomer_kind         &
-                       , forbidden_states_kind    &
-                       , nmin                     &
-                       , nmax                     &
-                       , use_kmat                 &
-                       , use_cb                   &
-                       , zaxis                    &
-                       , c2axis                   &
-                       , rotor_kind               &
-                       , target_charge            &
-                       , abc                      &
-                       , B_rot                    &
-                       , D_rot                    &
-                       , H_rot                    &
-                       , add_cd4                  &
-                       , add_cd6                  &
-                       , dn, dnk, dk, deltan, deltak &
+                         output_directory                    &
+                       , spin_isomer_kind                    &
+                       , forbidden_states_kind               &
+                       , nmin                                &
+                       , nmax                                &
+                       , use_kmat                            &
+                       , use_cb                              &
+                       , rotor_zaxis                         &
+                       , rotor_c2axis                        &
+                       , rotor_kind                          &
+                       , targcharge                       &
+                       , abc                                 &
+                       , B_rot                               &
+                       , D_rot                               &
+                       , H_rot                               &
+                       , add_cd4                             &
+                       , add_cd6                             &
+                       , dn, dnk, dk, deltan, deltak         &
                        , hn, hnk, hkn, hk, etan, etank, etak &
                        , xs_zero_threshold
 
@@ -734,9 +737,9 @@ contains
     if(Nmin          .eq. DEFAULT_INT)   call die("Must specify NMIN in CONTROL_NAMELIST")
     if(Nmax          .eq. DEFAULT_INT)   call die("Must specify NMAX in CONTROL_NAMELIST")
     if(rotor_kind    .eq. DEFAULT_CHAR1) call die("Must specify ROTOR_KIND in CONTROL_NAMELIST")
-    if(target_charge .eq. DEFAULT_INT)   call die("Must specify TARGET_CHARGE in CONTROL_NAMELIST")
-    if(ZAXIS         .eq. DEFAULT_CHAR1) call die("Must specify ZAXIS in CONTROL_NAMELIST")
-    if(C2AXIS        .eq. DEFAULT_CHAR1) call die("Must specify C2AXIS in CONTROL_NAMELIST")
+    if(targcharge .eq. DEFAULT_INT)   call die("Must specify TARGCHARGE in CONTROL_NAMELIST")
+    if(rotor_zaxis         .eq. DEFAULT_CHAR1) call die("Must specify ZAXIS in CONTROL_NAMELIST")
+    if(rotor_c2axis        .eq. DEFAULT_CHAR1) call die("Must specify C2AXIS in CONTROL_NAMELIST")
     if(lower(rotor_kind) .eq. "l") then
       if(B_rot .le. 0.0_dp) call die("Must have a positive rotational constant B_rot for a linear molecule")
     else
@@ -820,8 +823,8 @@ contains
     endif
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    call to_lower(zaxis)
-    call to_lower(c2axis)
+    call to_lower(rotor_zaxis)
+    call to_lower(rotor_c2axis)
 
     ! -- convert to atomic units
     Ef                = Ef                / au2ev
@@ -866,34 +869,34 @@ contains
 
     ! -- checks
     if(Nmin .gt. Nmax) call die("Nmin > Nmax not allowed")
-    if(target_charge .eq. DEFAULT_INT) call die("Must set the charge of the target in namelist CONTROL !")
+    if(targcharge .eq. DEFAULT_INT) call die("Must set the charge of the target in namelist CONTROL !")
 
     ! -- namelist: control
-    cfg%nmin              = nmin
-    cfg%nmax              = nmax
-    cfg%use_kmat          = use_kmat
-    cfg%use_cb            = use_cb
-    cfg%spin_isomer_kind  = spin_isomer_kind
-    cfg%forbidden_states_kind  = forbidden_states_kind
-    cfg%output_directory  = output_directory
-    cfg%rotor_kind        = rotor_kind
-    cfg%zaxis             = zaxis
-    cfg%c2axis            = c2axis
-    cfg%abc               = abc(:)
-    cfg%b_rot             = b_rot
-    cfg%d_rot             = d_rot
-    cfg%h_rot             = h_rot
-    cfg%target_charge     = target_charge
-    cfg%add_cd4           = add_cd4
-    cfg%add_cd6           = add_cd6
-    cfg%xs_zero_threshold = xs_zero_threshold
+    G%NMIN                  = nmin
+    G%NMAX                  = nmax
+    G%USE_KMAT              = use_kmat
+    G%USE_CB                = use_cb
+    G%SPIN_ISOMER_KIND      = spin_isomer_kind
+    G%FORBIDDEN_STATES_KIND = forbidden_states_kind
+    G%OUTPUT_DIRECTORY      = output_directory
+    G%ROTOR_KIND            = rotor_kind
+    G%ROTOR_ZAXIS           = rotor_zaxis
+    G%ROTOR_C2AXIS          = rotor_c2axis
+    G%ABC                   = abc(:)
+    G%B_ROT                 = b_rot
+    G%D_ROT                 = d_rot
+    G%H_ROT                 = h_rot
+    G%TARGCHARGE            = targcharge
+    G%ADD_CD4               = add_cd4
+    G%ADD_CD6               = add_cd6
+    G%XS_ZERO_THRESHOLD     = xs_zero_threshold
     if(add_cd4 .eqv. .true.) then
       dn      = dn     / au2invcm
       dnk     = dnk    / au2invcm
       dk      = dk     / au2invcm
       deltan  = deltan / au2invcm
       deltak  = deltak / au2invcm
-      cfg%cd4 = cd4_type(dn = dn, dnk = dnk, dk = dk, deltan = deltan, deltak = deltak)
+      G%CD4 = cd4_type(dn = dn, dnk = dnk, dk = dk, deltan = deltan, deltak = deltak)
     endif
     if(add_cd6 .eqv. .true.) then
       if(add_cd4 .eqv. .false.) call die("Don't add the sextic correction while omitting the quartic correction !")
@@ -904,7 +907,7 @@ contains
       etan  = etan  / au2invcm
       etank = etank / au2invcm
       etak  = etak  / au2invcm
-      cfg%cd6 = cd6_type(hn = hn, hnk = hnk, hkn = hkn, hk = hk, etan = etan, etank = etank, etak = etak)
+      G%CD6 = cd6_type(hn = hn, hnk = hnk, hkn = hkn, hk = hk, etan = etan, etank = etank, etak = etak)
     endif
 
     ! -- namelist: kmat
@@ -914,20 +917,20 @@ contains
       elseif(all(kmat_output_type .ne. [UKRMOLX, MQDTR2K])) then
         call die("Poorly specified KMAT_OUTPUT_TYPE. It should be one of "// UKRMOLX //" or "// MQDTR2K)
       endif
-      cfg%kmat_dir                      = kmat_dir
-      cfg%channels_dir                  = channels_dir
-      cfg%lmax_kmat                     = lmax_kmat
-      cfg%point_group                   = point_group
-      cfg%spinmults                     = spinmults(:)
-      cfg%num_egrid_segs                = num_egrid_segs
-      cfg%num_egrid                     = num_egrid(:)
-      cfg%egrid_segs                    = egrid_segs(:)
-      cfg%egrid_spacing                 = egrid_spacing
-      cfg%real_spherical_harmonics      = real_spherical_harmonics
-      cfg%kmat_energy_closest           = kmat_energy_closest / au2ev
-      cfg%kmat_output_type              = kmat_output_type
-      cfg%kmat_energy_units_override    = kmat_energy_units_override
-      cfg%channel_energy_units_override = channel_energy_units_override
+      G%KMAT_DIR                      = kmat_dir
+      G%CHANNELS_DIR                  = channels_dir
+      G%LMAX_KMAT                     = lmax_kmat
+      G%POINT_GROUP                   = point_group
+      G%SPINMULTS                     = spinmults(:)
+      G%NUM_EGRID_SEGS                = num_egrid_segs
+      G%NUM_EGRID                     = num_egrid(:)
+      G%EGRID_SEGS                    = egrid_segs(:)
+      G%EGRID_SPACING                 = egrid_spacing
+      G%REAL_SPHERICAL_HARMONICS      = real_spherical_harmonics
+      G%KMAT_ENERGY_CLOSEST           = kmat_energy_closest / au2ev
+      G%KMAT_OUTPUT_TYPE              = kmat_output_type
+      G%KMAT_ENERGY_UNITS_OVERRIDE    = kmat_energy_units_override
+      G%CHANNEL_ENERGY_UNITS_OVERRIDE = channel_energy_units_override
     endif
 
     ! -- namelist: coulomb
@@ -938,22 +941,22 @@ contains
       if(use_cdms_einsta .eqv. .true.) call die("User requested use of CDMS data, but the code is&
         & not compiled with that capability. Build with 'USE_CDMSREADER=1' to change this.")
 #endif
-      cfg%use_cdms_einsta              = use_cdms_einsta
-      cfg%analytic_total_cb            = analytic_total_cb(:)
-      cfg%eta_thresh                   = eta_thresh
-      cfg%ef                           = ef
-      cfg%ne                           = ne
-      cfg%ne_xtrap                     = ne_xtrap
-      cfg%ei_xtrap                     = ei_xtrap
-      cfg%do_xtrap                     = do_xtrap
-      cfg%do_dipole                    = do_dipole
-      cfg%do_quadrupole                = do_quadrupole
-      cfg%lmax_partial                 = lmax_partial
-      cfg%lmax_total                   = lmax_total
-      cfg%cartesian_dipole_moments     = cartesian_dipole_moments(:)     / au2deb
-      ! cfg%cartesian_quadrupole_moments = cartesian_quadrupole_moments(:) !/ au2deb
-      cfg%cdms_file                    = cdms_file
-      cfg%only_einsta                  = only_einsta
+      G%USE_CDMS_EINSTA              = use_cdms_einsta
+      G%ANALYTIC_TOTAL_CB            = analytic_total_cb(:)
+      G%ETA_THRESH                   = eta_thresh
+      G%EF                           = ef
+      G%NE                           = ne
+      G%NE_XTRAP                     = ne_xtrap
+      G%EI_XTRAP                     = ei_xtrap
+      G%DO_XTRAP                     = do_xtrap
+      G%DO_DIPOLE                    = do_dipole
+      G%DO_QUADRUPOLE                = do_quadrupole
+      G%LMAX_PARTIAL                 = lmax_partial
+      G%LMAX_TOTAL                   = lmax_total
+      G%CARTESIAN_DIPOLE_MOMENTS     = cartesian_dipole_moments(:)     / au2deb
+      ! G%cartesian_quadrupole_moments = cartesian_quadrupole_moments(:) !/ au2deb
+      G%CDMS_FILE                    = cdms_file
+      G%ONLY_EINSTA                  = only_einsta
     endif
 
   end subroutine read_namelists

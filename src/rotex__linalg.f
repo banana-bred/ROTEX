@@ -8,7 +8,7 @@ module rotex__linalg
   !                               , zgetrs => stdlib_zgetrs, zgetrf => stdlib_zgetrf
 ! #endif
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -22,7 +22,7 @@ module rotex__linalg
   interface
     subroutine zgesv(n, nrhs, a, lda, ipiv,b, ldb, info)
       import dp
-      implicit none
+      implicit none (type, external)
       integer,     intent(in)    :: lda, ldb, n, nrhs
       integer,     intent(out)   :: info,ipiv(*)
       complex(dp), intent(inout) :: a(lda,*),b(ldb,*)
@@ -31,7 +31,7 @@ module rotex__linalg
   interface
     subroutine dsyev(jobz, uplo, n, a, lda, w, work, lwork, info)
       import dp
-      implicit none
+      implicit none (type, external)
       character(1), intent(in)    :: jobz, uplo
       real(dp),     intent(inout) :: a(lda, n)
       integer,      intent(in)    :: lda, lwork, n
@@ -42,7 +42,7 @@ module rotex__linalg
   interface
     subroutine zgetrf(m, n, a, lda, ipiv, info)
       import dp
-      implicit none
+      implicit none (type, external)
       integer,     intent(in)    :: m, n, lda
       integer,     intent(out)   :: ipiv(*), info
       complex(dp), intent(inout) :: a(lda, *)
@@ -51,7 +51,7 @@ module rotex__linalg
   interface zgetrs
     subroutine zgetrs(trans, n, nrhs, a, lda, ipiv, b, ldb, info )
       import dp
-      implicit none
+      implicit none (type, external)
       character(1), intent(in)    :: trans
       integer,      intent(out)   :: info
       integer,      intent(in)    :: lda, ldb, n, nrhs, ipiv(*)
@@ -70,7 +70,7 @@ contains
     !! Returns X = AB⁻¹ without evaluating B⁻¹
     use rotex__system,     only: die
     use rotex__characters, only: i2c => int2char
-    implicit none
+    implicit none (type, external)
     complex(dp), intent(in) :: A(:,:), B(:,:)
     complex(dp) :: X(size(A, 1), size(A, 2))
     complex(dp), allocatable :: BT(:,:), AT(:,:)

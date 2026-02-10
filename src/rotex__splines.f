@@ -2,7 +2,7 @@
 module rotex__splines
   !! Wrapper routines for the spline fitting procedures
 
-  implicit none
+  implicit none (type, external)
 
   private
 
@@ -26,7 +26,7 @@ contains
     use rotex__arrays,  only: size_check
     use bspline_module, only: db1ink, db1val
 
-    implicit none
+    implicit none (type, external)
 
     real(dp), intent(in) :: xold(:)
       !! The grid of values on which our function has been evaluated
