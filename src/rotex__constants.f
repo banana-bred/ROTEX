@@ -3,7 +3,7 @@ module rotex__constants
   !! Contains most (but not all) defined constants used throughout the code.
 
   use iso_fortran_env, only: IOSTAT_END
-  use rotex__kinds,    only: dp
+  use rotex__kinds,    only: dp, qp
 
   implicit none
 
@@ -33,8 +33,6 @@ module rotex__constants
     !! 1/c, where c is the speed of light in atomic units. This is equal to the fine structure constant α.
   real(dp), parameter, public :: macheps_dp = epsilon(one)
   real(dp), parameter, public :: rho = 0.8_dp
-  real(dp), parameter, public :: euler_mascheroni = 0.57721566490153286060651209008240243104215933593992_dp
-    !! the Euler Mascheroni constant. The difference between the harmonic series and the natural logarithm
   real(dp), parameter, public :: au2ryd = 2._dp
     !! Hartree -> Rydberg
   real(dp), parameter, public :: au2ev = 27.2113834e0_dp
@@ -49,6 +47,11 @@ module rotex__constants
     !! multiplication factor to convert atomic units of time (hbar / hartree) to seconds
   real(dp), parameter, public :: au2deb = 2.5417462762781615_dp
     !! atomic units (electric dipole) -> Debye
+
+  real(qp), parameter, public :: pi_qp = atan(1._qp) * 4._qp
+    !! π
+  real(qp), parameter, public :: euler_mascheroni = 0.57721566490153286060651209008240243104215933593992_qp
+    !! the Euler Mascheroni constant. The difference between the harmonic series and the natural logarithm
 
   complex(dp), parameter, public :: im = (zero, one)
     !! the square root of -1

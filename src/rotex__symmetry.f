@@ -13,6 +13,7 @@ module rotex__symmetry
   public :: possible_spin_symmetries
   public :: is_spin_allowed
   public :: is_spin_forbidden
+  public :: symtop_rotstate_is_allowed
 
   interface is_spin_allowed
     module procedure :: is_spin_allowed_chan
@@ -216,46 +217,87 @@ contains
   end function possible_spin_symmetries
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure elemental module function spin_symmetry(n, ka, kc, kind, symaxis) result(res)
-    !! Returns the spin symmetry of the current N, Ka, Kc state
+  pure elemental module function spin_symmetry(n, ka, kc) result(res)
+    !! Returns the spin symmetry class of the current N, Ka, Kc state.
+    !!   Linear rotors: only N is used
+    !!   Asymmetric rotors: Ka, Kc, or Ka+Kc is used
+    !!   Symmetric rotors: Ka or Kc is used
+    !! GLOBAL_SPIN_ISOMER_KIND:
+    !!   0: no symmetry
+    !!   1: linear only, N parity
+    !!   2: Kz (mod 2) (should only be relevant for asymmetric tops)
+    !!   3: Kz (mod n) (should only be relevant for  symmetric tops)
+    !!     - These kinds of rotors typically have ortho/para splitting based on
+    !!       whether Kz (mod n) is nonzero, but this is a reduction based on what's
+    !!       spectroscopically observable. Kz can be -1 or 1 [Kz (mod 3) is 2 or 1],
+    !!       which are different and should be uncoupled in the frame transformation.
+
     use rotex__system, only: die
+    use rotex__globals, only: GLOBAL_ROTOR_ZAXIS, GLOBAL_ROTOR_KIND, GLOBAL_SPIN_ISOMER_KIND
+
     implicit none
-    integer,      intent(in) :: n, ka, kc, kind
-    character(1), intent(in) :: symaxis
+
+    integer,      intent(in) :: n, ka, kc
     integer :: ksym
     integer :: res
-    select case(kind)
+
+    if(any(GLOBAL_ROTOR_KIND .eq. ["s", "S"]) .AND. any(GLOBAL_ROTOR_ZAXIS .eq. ["b","B"])) then
+      call die("Symmetric top with rotor zaxis = B detected. Pick one of A or C")
+    endif
+
+    select case(GLOBAL_ROTOR_ZAXIS)
+    case("a", "A") ; Ksym = Ka
+    case("b", "B") ; Ksym = Ka+Kc
+    case("c", "C") ; Ksym = Kc
+    case default
+      call die("GLOBAL_ROTOR_ZAXIS must be one of A B C")
+    end select
+
+    select case(GLOBAL_SPIN_ISOMER_KIND)
     case(0)
+
       ! -- no restriction
       res = 0
+
     case(1)
-      ! -- linear: N-parity
-      res = iand(n, 1)
-    case(2)
-      ! -- Ka+Kc parity
-      !    Ortho: Ka+Kc odd
-      !    Para:  Ka+Kc even
-      res = iand(Ka+Kc, 1)
-    case(3)
-      ! -- must preserve Ks partity (mod 3) (s=a,c)
-      !    Ortho: Ks (mod 3) = 0
-      !    Para:  Ks (mod 3) ≠ 0
-      select case (symaxis)
-      case("a", "A")
-        ksym = abs(ka)
-        call die("Symaxis is B for symmetry rule 3. Are you sure ?")
-      case("b", "B")
-        call die("Symaxis is B for symmetry rule 3. Are you sure ?")
-      case("c", "C")
-        ksym = abs(kc)
-      case default
-        call die("Undetermined SYMAXIS: "//symaxis)
+
+      select case(GLOBAL_ROTOR_KIND)
+      case("s","S","A","a")
+        call die("Rotor kind 1 is not meaningful for a nonlinear molecule")
       end select
-      res = merge(0, 1, mod(ksym, 3) .eq. 0)
+
+      ! -- linear: N-parity
+      res = modulo(n, 1)
+
+    case(2) ! K (mod 2)
+
+      ! -- water-like. asymtop, two identical nuclei. Ka and Kc are positive
+      !    exchange about C₂(Z): parity = |Kz| (mod 2)
+      select case(GLOBAL_ROTOR_KIND)
+      case("l","L") ; call die("Spin isomer kind 2 is not meaningful for linear rotors")
+      case("s","S") ; call die("Symmetric top with spin isomer kind 2 is probably not meaningful")
+      case("a","A") ; res = modulo(Ksym, 2)
+      case default
+        call die("Unexpected rotor kind: " // GLOBAL_ROTOR_KIND)
+      end select
+
+    case(3:) ! K (mod n)
+
+      select case(GLOBAL_ROTOR_KIND)
+        case("a", "A") ; call die("Asymmetric top with K (mod n) n>2 detected")
+        case("l", "L") ; call die("Linear rotor with K (mod n) rule is not meaningful")
+        case("s", "S") ; res = modulo(Ksym, 3) ! 0->0; 1->1; 2->2; 3->0; -1->2
+        ! case("s", "S") ; res = mod(Ksym, 3) ! 0->0; 1->1; 2->2; 3->0; -1->-1..
+        case default
+          call die("Unexpected rotor kind: " // GLOBAL_ROTOR_KIND)
+      end select
+
     case default
-      ! call die("Illegal symmetry rule. Must be 0,1,2,3.")
-      call die("Illegal symmetry rule. Must be 0,2.")
+
+      call die("Illegal symmetry rule. Must be 0,1,2..")
+
     end select
+
   end function spin_symmetry
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
@@ -266,7 +308,7 @@ contains
     integer,      intent(in) :: nlo, kalo, kclo, nup, kaup, kcup, kind
     character(1), intent(in) :: symaxis
     logical :: res
-    res = spin_symmetry(nlo, kalo, kclo, kind, symaxis) .eq. spin_symmetry(nup, kaup, kcup, kind, symaxis)
+    res = spin_symmetry(nlo, kalo, kclo) .eq. spin_symmetry(nup, kaup, kcup)
   end function is_spin_allowed_qnums
   ! ------------------------------------------------------------------------------------------------------------------------------- !
   pure elemental module function is_spin_allowed_chan(channel1, channel2) result(res)
@@ -301,6 +343,23 @@ contains
     if(channel1 % sym .ne. channel2 % sym) return
     res = .false.
   end function is_spin_forbidden_chan
+
+  ! ------------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function symtop_rotstate_is_allowed(N, K) result(res)
+    !! Test whether the rotational state (N,K) is allowed, check special cases
+    use rotex__globals,   only: GLOBAL_FORBIDDEN_STATES_KIND
+    use rotex__functions, only: isodd
+    use rotex__system,    only: die
+    implicit none
+    integer, intent(in) :: N, K
+    logical :: res
+    select case(GLOBAL_FORBIDDEN_STATES_KIND)
+    case(0) ; res = .true.
+    case(1) ; res = isodd(N) .OR. K .ne. 0
+    case default
+      call die("Unexpected GLOBAL_FORBIDDEN_STATES_KIND. Must be 0 or 1")
+    end select
+  end function symtop_rotstate_is_allowed
 
 ! ================================================================================================================================ !
 end module rotex__symmetry

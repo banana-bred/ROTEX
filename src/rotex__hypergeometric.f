@@ -47,46 +47,54 @@ contains
 
     use rotex__utils,     only: isint
     use rotex__system,    only: die
-    use rotex__functions, only: inv
+    use rotex__functions, only: inv, isinteger, arg
+    use rotex__constants, only: pi
     use rotex__polygamma, only: lgamma => log_gamma
 
     implicit none
     real(dp), intent(in) :: a, b, c, x
     real(dp) :: res
+
+    integer :: m
     real(dp) :: wx
 
     if(isint(c) .eqv. .true.) then
-      if(nint(c) .lt. 1) call die("Hypergeometric function not not defined for c = 0, -1, -2, ..")
-    elseif(isint(b-a) .OR. isint(c-a-b)) then
-      ! -- linear transformations are not valid for this
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      res = f21_ts_r(a, b, c, x)
-      return
-      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      res = f21_dispatch_r(a, b, c, x)
-      return
+      if(anint(c) .lt. 1._dp) call die("Hypergeometric function not not defined for c = 0, -1, -2, ..")
     endif
 
     ! -- transform closer to 0 for better convergence
     if(x .gt. 2.0_dp) then
       ! -- 2 < x < ∞
+      if(abs(arg(1-x)) .ge. pi) call die("The transformation for 2<x<∞ is not defined for |arg(1-x)| ≥ π")
       wx = 1._dp/x
-      res = (-x)**(-a) * exp(lgamma(c) + lgamma(b-a) - lgamma(b) - lgamma(c-a)) * f21(a,a-c+1,a-b+1,wx) &
-          + (-x)**(-b) * exp(lgamma(c) + lgamma(a-b) - lgamma(a) - lgamma(c-b)) * f21(b-c+1,b,b-a+1,wx)
+      res = (-x)**(-a) * gamma(c)*gamma(b-a)/gamma(b)/gamma(c-a) * f21(a,a-c+1,a-b+1,wx) &
+          + (-x)**(-b) * gamma(c)*gamma(a-b)/gamma(a)/gamma(c-b) * f21(b-c+1,b,b-a+1,wx)
       return
     elseif(x .gt. 1.0_dp) then
       ! -- 1 < x ≤ 2
+      if(abs(arg(1-x)) .ge. pi) call die("The transformation for 1<x≤2 is not defined for |arg(1-x)| ≥ π")
       wx = 1._dp - 1._dp/x
-      res = exp(-a*log(x)+lgamma(c)+lgamma(c-a-b)-lgamma(c-a)-lgamma(c-b))                 * f21_dispatch_r(a,a-c+1,a+b-c+1,wx) &
-          + exp((a-c)*log(x)+(c-a-b)*log(1-x)+lgamma(c)+lgamma(a+b-c)-lgamma(a)-lgamma(b)) * f21_dispatch_r(c-a,1-a,c-a-b+1,wx)
+      res = x**(-a)*gamma(c)*gamma(c-a-b)/gamma(c-a)/gamma(c-b)                 * f21_dispatch_r(a,a-c+1,a+b-c+1,wx) &
+          + x**(a-c)*(1._dp-x)**(c-a-b)*gamma(c)*gamma(a+b-c)/gamma(a)/gamma(b) * f21_dispatch_r(c-a,1-a,c-a-b+1,wx)
       return
     elseif(x .gt. 0.5_dp) then
       ! -- ½ < x ≤ 1
+      if(isinteger(c-a-b)) then
+        m = nint(c-a-b)
+        if(c-a-b .ge. 0) then
+          ! -- DLMF 15.8.10
+          res = gamma(c) * olver_2f1_dlmf_15_8_10(a, b, m, x)
+          return
+        else
+          res = gamma(c) * olver_2f1_dlmf_15_8_12(a, b, abs(m), x)
+          return
+        endif
+      endif
       wx = 1._dp - x
-      res = exp(                 lgamma(c)+lgamma(c-a-b)-lgamma(c-a)-lgamma(c-b)) * f21_dispatch_r(a,  b,  a+b-c+1,    wx) &
-          + exp((c-a-b)*log(1-x)+lgamma(c)+lgamma(a+b-c)-lgamma(a)  -lgamma(b))   * f21_dispatch_r(c-a,c-b,c-a-b+1._dp,wx)
+      res =                gamma(c)*gamma(c-a-b)/gamma(c-a)/gamma(c-b) * f21_dispatch_r(a,  b,  a+b-c+1,    wx) &
+          + (1-x)**(c-a-b)*gamma(c)*gamma(a+b-c)/gamma(a)/gamma(b)     * f21_dispatch_r(c-a,c-b,c-a-b+1._dp,wx)
       return
-    elseif(x .gt. 0.0_dp) then
+    elseif(x .ge. 0.0_dp) then
       ! -- 0 < x ≤ ½
       res = f21_dispatch_r(a, b, c, x)
       return
@@ -104,9 +112,9 @@ contains
     endif
 
     ! -- -∞ < x < -1
-    wx = inv(1-x)
-    res = exp(-a*log(1-x)+lgamma(c)+lgamma(b-a)-lgamma(b)-lgamma(c-a))*f21_dispatch_r(a,c-b,a-b+1,wx) &
-        + exp(-b*log(1-x)+lgamma(c)+lgamma(a-b)-lgamma(a)-lgamma(c-b))*f21_dispatch_r(b,c-a,b-a+1,wx)
+    wx = inv(1._dp-x)
+    res = wx**(a)*gamma(c)*gamma(b-a)/gamma(b)/gamma(c-a)*f21_dispatch_r(a,c-b,a-b+1,wx) &
+        + wx**(b)*gamma(c)*gamma(a-b)/gamma(a)/gamma(c-b)*f21_dispatch_r(b,c-a,b-a+1,wx)
 
   end function f21_r
 
@@ -141,19 +149,29 @@ contains
       if(nint(c%re) .lt. 1) call die("Hypergeometric function not not defined for c = 0, -1, -2, ..")
     endif
 
-    if(x .ge. 0) call die("Hypergeometric function got x > 0, which shouldn't happen when using complex parameters.&
-      & x>0 should only happen in e-neutral scattering.")
+    ! if(x .ge. 0) call die("Hypergeometric function got x > 0, which shouldn't happen when using complex parameters.&
+    !   & x>0 should only happen in e-neutral scattering.")
 
     zx = cmplx(x, kind = dp)
 
     ! -- transform closer to 0 for better convergence
-    if(x .gt. 0.5_dp) then
+    if(x .gt. 2._dp) then
+      wx = 1._dp / zx
+      res = exp((-a)*log(-zx)+lgamma(c)+lgamma(b-a)-lgamma(b)-lgamma(c-a)) * f21_dispatch_c(a,a-c+1,a-b+1,wx) &
+          + exp((-b)*log(-zx)+lgamma(c)+lgamma(a-b)-lgamma(a)-lgamma(c-b)) * f21_dispatch_c(b-c+1,b,b-a+1,wx)
+      return
+    elseif(x .gt. 1) then
+      wx = 1._dp - 1._dp/x
+      res = exp((-a)*log(zx)+lgamma(c)+lgamma(c-a-b)-lgamma(c-a)-lgamma(c-b)) * f21_dispatch_c(a,a-c+1,a+b-c+1,wx) &
+          + exp((a-c)*log(zx)+(c-a-b)*log(1-zx)+lgamma(c)+lgamma(a+b-c)-lgamma(a)-lgamma(b)) * f21_dispatch_c(c-a,1-a,c-a-b+1,wx)
+      return
+    elseif(x .gt. 0.5_dp) then
       wx = 1._dp - zx
       res = exp(lgamma(c) + lgamma(c-a-b) - lgamma(c-a) - lgamma(c-b))           * f21_dispatch_c(a,b,a+b-c+1, wx) &
           + exp((c-a-b)*log(1-x)+lgamma(c)+lgamma(a+b-c)-lgamma(a)-lgamma(b)) * f21_dispatch_c(c-a,c-b,c-a-b+1._dp,wx)
       return
     ! -- 0 < x ≤ ½
-    elseif(x .gt. 0.0_dp) then
+    elseif(x .ge. 0.0_dp) then
       ! res = michelf21(a, b, c, zx)
       res = f21_dispatch_c(a, b, c, zx)
       return
@@ -205,7 +223,7 @@ contains
       !! to be machine epsilon `macheps_dp` from the `hypergeometric__constants` module.
 
     ! -- argument in range
-    if(isin(x, 0._dp, 0.5_dp, lclosed=.false., rclosed=.true.) .eqv. .false.) then
+    if(isin(x, 0._dp, 0.5_dp, lclosed=.true., rclosed=.true.) .eqv. .false.) then
       write(stderr, '("Re(x): ", e20.10)') x
       call die("Re(x) must be between 0 and 1/2 in F21_DISPATCH")
     endif
@@ -261,7 +279,7 @@ contains
       call die("Z is nonreal in F21_DISPATCH !")
     endif
     x = z%re
-    if(isin(x, 0._dp, 0.5_dp, lclosed=.false., rclosed=.true.) .eqv. .false.) then
+    if(isin(x, 0._dp, 0.5_dp, lclosed=.true., rclosed=.true.) .eqv. .false.) then
       write(stderr, '("Re(Z): ", e20.10)') x
       call die("Re(Z) must be between 0 and 1/2 in F21_DISPATCH")
     endif
@@ -502,6 +520,126 @@ contains
     end do
     res = res + comp
   end function f21_finite_c
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  impure elemental function olver_2f1_dlmf_15_8_10(a, b, m, x, tol) result(res)
+    !! Returns Olver's hypergeometric function F(a,b;a+b+m;x)
+    !! for integral a+b+m,m > 0,0
+
+    use rotex__constants, only: macheps => macheps_dp
+    use rotex__polygamma, only: lgamma => log_gamma, digamma
+    use rotex__functions, only: logp1, factorial
+    use rotex__system,    only: stderr
+
+    implicit none
+
+    real(dp), intent(in) :: a, b
+    integer,  intent(in) :: m
+    real(dp), intent(in) :: x
+    real(dp), intent(in), optional :: tol
+    real(dp) :: res
+
+    integer, parameter :: KMAX = 20000
+
+    logical :: continueloop
+    integer :: k
+    real(dp) :: tol_
+    real(dp) :: Sk, rk, termk, termkm1, sumk, sumkm1
+
+    tol_ = macheps ; if(present(tol)) tol_ = tol
+    res = 0._dp
+
+    if(m .gt. 0) then
+      k = 0
+      Sk = factorial(m-k-1)
+      res = res + Sk
+
+      do k=1, m-1
+        Sk = Sk * (a+(k-1)) * (b+(k-1)) / (m-k) / k * (x-1)
+        res = res + Sk
+      enddo
+
+      ! -- multiplicative prefactor
+      if(res .ne. 0) res = res * exp(-lgamma(a+m) - lgamma(b+m))
+
+    endif
+
+    ! -- initial terms. The sum is calculated as Σk Sk*rk where Sk and rk
+    !    are defined recursively
+    k = 0
+    rk = logp1(-x) - digamma(k+1) - digamma(k+m+1) + digamma(a+k+m) + digamma(b+k+m)
+    Sk = 1._dp / factorial(k+m)
+    termk   = Sk*rk
+    termkm1 = termk
+    sumk    = termk
+    sumkm1  = termk
+
+    continueloop = .true.
+    do while(continueloop)
+      k = k+1
+
+      ! -- digamma recurrence
+      rk = rk                                 &
+         - 1._dp/real(k,         kind=dp)     &
+         - 1._dp/real(k+m,       kind=dp)     &
+         + 1._dp/( a+real((k-1)+m, kind=dp) ) &
+         + 1._dp/( b+real((k-1)+m, kind=dp) )
+      Sk = ( a+real(m+(k-1), kind=dp) ) &
+         * ( b+real(m+(k-1), kind=dp) ) &
+         / real(k*(k+m), kind=dp)       &
+         * (1._dp - x) * Sk
+
+      termk  = Sk*rk
+      sumkm1 = sumk
+      sumk   = sumk + termk
+
+      continueloop = k .lt. 2 &
+        .OR. (abs(termk)   .gt. tol_*max(abs(sumk),   1._dp)) &
+        .OR. (abs(termkm1) .gt. tol_*max(abs(sumkm1), 1._dp))
+
+      termkm1 = termk
+
+      ! -- loop bound
+      if(k .lt. KMAX) cycle
+
+      write(stderr, '("Max loop interation of ", I0, " achieved.")') KMAX
+      error stop
+
+    enddo
+
+    res = res - sumk * (x-1._dp)**m * exp(-lgamma(a) - lgamma(b))
+
+  end function olver_2f1_dlmf_15_8_10
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  impure elemental function olver_2f1_dlmf_15_8_12(a, b, m, x, tol) result(res)
+    !! Returns Olver's hypergeometric function F(a,b;a+b-m;x)
+    !! for integral a+b-m<0 ,m > 0
+
+    use rotex__functions, only: logp1
+    use rotex__constants, only: macheps => macheps_dp
+
+    implicit none
+
+    real(dp), intent(in) :: a, b
+    integer,  intent(in) :: m
+    real(dp), intent(in) :: x
+    real(dp), intent(in), optional :: tol
+    real(dp) :: res
+
+    integer :: mneg
+    real(dp) :: tol_
+    real(dp) :: aa, bb, mm
+
+    tol_ = macheps ; if(present(tol)) tol_ = tol
+
+    mm = real(m, kind=dp)
+    aa = a - mm
+    bb = b - mm
+
+    res = exp( -mm*logp1(-x) ) * olver_2f1_dlmf_15_8_10(aa, bb, m, x, tol_)
+
+  end function olver_2f1_dlmf_15_8_12
 
   ! ! ------------------------------------------------------------------------------------------------------------------------------ !
   ! pure subroutine f21_ode_rhs(x, y, a, b, c, dydx)

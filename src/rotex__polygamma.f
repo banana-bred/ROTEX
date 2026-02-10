@@ -12,6 +12,7 @@ module rotex__polygamma
 
   public :: gamma
   public :: log_gamma
+  public :: digamma
 
   real(dp), parameter :: tol_dp = epsilon(1.0_dp)
 
@@ -25,6 +26,110 @@ module rotex__polygamma
     module procedure :: l_gamma_rdp
     module procedure :: l_gamma_cdp
   end interface log_gamma
+
+  interface digamma
+    module procedure :: digamma_i
+    module procedure :: digamma_rdp
+    ! module procedure :: digamma_cdp
+  end interface digamma
+
+  interface horner
+    module procedure :: horner_rdp
+    module procedure :: horner_rqp
+    module procedure :: horner_cdp
+    module procedure :: horner_cqp
+  end interface horner
+
+  real(qp), parameter :: DIGAM_ASYMP_LIMIT_DP = 10._qp
+    !! The routines to calculate the digamma function will use recursion
+    !! to reach values of the argument that are larger than this value.
+    !! Then, the expansion over the Bernoulli numbers will be used in the
+    !! asymptotic expansion to determine the value of the digamma ψ(x)
+    !! at x > digam_asympt_limit
+
+  integer, parameter :: N_DIGAM_XPANSION = 22
+    !! The number of terms to include in the asymptotic expansion of the
+    !! digamma function over the Bernoulli numbers
+
+  real(qp), parameter :: OEIS_a001067(29) = &
+    !! Integer sequence A001067 from the [OEIS](https://oeis.org/) :
+    !! numerator of Bernoulli(2n)/(2n)
+                                          [ 1._qp                                  &
+                                          ,-1._qp                                  &
+                                          , 1._qp                                  &
+                                          ,-1._qp                                  &
+                                          , 1._qp                                  &
+                                          ,-691._qp                                &
+                                          , 1._qp                                  &
+                                          ,-3617._qp                               &
+                                          , 43867._qp                              &
+                                          ,-174611._qp                             &
+                                          , 77683._qp                              &
+                                          ,-236364091._qp                          &
+                                          , 657931._qp                             &
+                                          ,-3392780147._qp                         &
+                                          , 1723168255201._qp                      &
+                                          ,-7709321041217._qp                      &
+                                          , 151628697551._qp                       &
+                                          ,-26315271553053477373._qp               &
+                                          , 154210205991661._qp                    &
+                                          ,-261082718496449122051._qp              &
+                                          , 1520097643918070802691._qp             &
+                                          ,-2530297234481911294093._qp             &
+                                          , 25932657025822267968607._qp            &
+                                          ,-5609403368997817686249127547._qp       &
+                                          , 19802288209643185928499101._qp         &
+                                          ,-61628132164268458257532691681._qp      &
+                                          , 29149963634884862421418123812691._qp   &
+                                          ,-354198989901889536240773677094747._qp  &
+                                          , 2913228046513104891794716413587449._qp &
+                                          ]
+
+  real(qp), parameter :: OEIS_a006953(36) = &
+    !! Integer sequence A006953 from the [OEIS](https://oeis.org/) : denominator
+    !! of Bernoulli(2n)/(2n)
+                                          [ 12._qp          &
+                                          , 120._qp         &
+                                          , 252._qp         &
+                                          , 240._qp         &
+                                          , 132._qp         &
+                                          , 32760._qp       &
+                                          , 12._qp          &
+                                          , 8160._qp        &
+                                          , 14364._qp       &
+                                          , 6600._qp        &
+                                          , 276._qp         &
+                                          , 65520._qp       &
+                                          , 12._qp          &
+                                          , 3480._qp        &
+                                          , 85932._qp       &
+                                          , 16320._qp       &
+                                          , 12._qp          &
+                                          , 69090840._qp    &
+                                          , 12._qp          &
+                                          , 541200._qp      &
+                                          , 75852._qp       &
+                                          , 2760._qp        &
+                                          , 564._qp         &
+                                          , 2227680._qp     &
+                                          , 132._qp         &
+                                          , 6360._qp        &
+                                          , 43092._qp       &
+                                          , 6960._qp        &
+                                          , 708._qp         &
+                                          , 3407203800._qp  &
+                                          , 12._qp          &
+                                          , 32640._qp       &
+                                          , 388332._qp      &
+                                          , 120._qp         &
+                                          , 9372._qp        &
+                                          , 10087262640._qp &
+                                          ]
+
+
+  real(qp), parameter :: digam_xpansion(n_digam_xpansion) = OEIS_a001067(1:n_digam_xpansion) &
+                                                          / OEIS_a006953(1:n_digam_xpansion)
+    !! The expansion of the digamma function for large values of its argument
 
 ! ================================================================================================================================ !
 contains
@@ -245,6 +350,143 @@ contains
   end function l_gamma_cdp
 
 #endif
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental function digamma_i(n) result(res)
+    !! Returns the digamma function ψ(n) using a truncated Stirling / de Moivre series
+    !! for integral n
+    implicit none
+    integer, intent(in) :: n
+    real(dp) :: res
+    res = digamma_rdp(real(n, kind=dp))
+  end function digamma_i
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental function digamma_rdp(x) result(res)
+    !! Returns the digamma function ψ(x) using a truncated Stirling / de Moivre series
+    !! for real x
+
+    use rotex__utils,     only: downcast, upcast
+    use rotex__constants, only: pi => pi_qp, euler_mascheroni
+    use rotex__functions, only: cotpi, isinteger, iseven
+    use rotex__system,    only: die
+
+    implicit none
+
+    real(dp), intent(in) :: x
+    real(dp) :: res
+    real(qp) :: resqp
+
+    real(qp), parameter :: twolog2 = 2._qp*log(2._qp)
+
+    integer :: k, m, n
+    real(qp) :: x2, xr, xr2
+
+    if(isinteger(x) .AND. nint(x) .le. 0) call die("Digamma ψ(x) not defined for non-positive integers")
+
+    ! -- x = (2n+1)/2
+    halfint: if(isinteger(2*x)) then
+      m = nint(2*x)
+      if(m .lt. 1 .OR. iseven(m)) exit halfint
+      n = (m-1)/2
+      resqp = -euler_mascheroni - twolog2
+      do k=1, n
+        resqp = resqp + 2._qp / real(2*k-1, kind=qp)
+      enddo
+      call downcast(resqp, res)
+      return
+    endif halfint
+
+    call upcast(x, x2)
+
+    ! -- reflection ψ(1-x) - ψ(x) = π cot(πx) when x < 1/2 to stay away from 0
+    resqp = 0._qp
+    if(x2 .lt. 0.5_qp) then
+      resqp = -pi*cotpi(x2)
+      x2 = 1._qp - x2
+    endif
+
+    ! -- forward recurrence x -> x+1
+    do while(abs(x2) .le. DIGAM_ASYMP_LIMIT_DP)
+      resqp = resqp - 1._qp/x2
+      x2 = x2 + 1._qp
+    enddo
+
+    xr = 1._qp/x2
+    xr2 = xr*xr
+
+    ! -- truncated series
+    resqp = resqp + log(x2) - xr/2._qp - horner(digam_xpansion, xr2)
+
+
+    call downcast(resqp, res)
+
+  end function digamma_rdp
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function horner_rdp(coeffs, x) result(res)
+    !! Evaluate S(x) = c₁x + c₂x² + ... + cₙxⁿ using Horner's rule :
+    !! S(x) = y*(c₁ + y*( c₂ + y*( c₃ + ... ) ))
+    implicit none
+    real(dp), intent(in) :: coeffs(:)
+    real(dp), intent(in) :: x
+    real(dp) :: res
+    integer :: k, n
+    n = size(coeffs, 1)
+    res = coeffs(n)
+    do k = n-1, 1, -1
+      res = coeffs(k) + x*res
+    enddo
+    res = res * x
+  end function horner_rdp
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function horner_cdp(coeffs, z) result(res)
+    !! Evaluate S(z) = c₁z + c₂z² + ... + cₙzⁿ using Horner's rule :
+    !! S(z) = y*(c₁ + y*( c₂ + y*( c₃ + ... ) ))
+    implicit none
+    real(dp), intent(in) :: coeffs(:)
+    complex(dp), intent(in) :: z
+    complex(dp) :: res
+    integer :: k, n
+    n = size(coeffs, 1)
+    res = coeffs(n)
+    do k = n-1, 1, -1
+      res = coeffs(k) + z*res
+    enddo
+    res = res * z
+  end function horner_cdp
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function horner_rqp(coeffs, x) result(res)
+    !! Evaluate S(x) = c₁x + c₂x² + ... + cₙxⁿ using Horner's rule :
+    !! S(x) = y*(c₁ + y*( c₂ + y*( c₃ + ... ) ))
+    implicit none
+    real(qp), intent(in) :: coeffs(:)
+    real(qp), intent(in) :: x
+    real(qp) :: res
+    integer :: k, n
+    n = size(coeffs, 1)
+    res = coeffs(n)
+    do k = n-1, 1, -1
+      res = coeffs(k) + x*res
+    enddo
+    res = res * x
+  end function horner_rqp
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function horner_cqp(coeffs, z) result(res)
+    !! Evaluate S(z) = c₁z + c₂z² + ... + cₙzⁿ using Horner's rule :
+    !! S(z) = y*(c₁ + y*( c₂ + y*( c₃ + ... ) ))
+    implicit none
+    real(qp), intent(in) :: coeffs(:)
+    complex(qp), intent(in) :: z
+    complex(qp) :: res
+    integer :: k, n
+    n = size(coeffs, 1)
+    res = coeffs(n)
+    do k = n-1, 1, -1
+      res = coeffs(k) + z*res
+    enddo
+    res = res * z
+  end function horner_cqp
 
 ! ================================================================================================================================ !
 end module rotex__polygamma

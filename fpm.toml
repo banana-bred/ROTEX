@@ -22,6 +22,14 @@ wignerd         = { git = "https://github.com/banana-bred/wignerd",           br
 bspline-fortran = { git = "https://github.com/jacobwilliams/bspline-fortran", branch = "master" }
 openmp = "*"
 
+[dev-dependencies]
+test-drive.git = "https://github.com/fortran-lang/test-drive"
+
+[test]
+name="tests"
+source-dir="test"
+main="tester.f"
+
 [[executable]]
 main="rotex.f"
 source-dir="main"

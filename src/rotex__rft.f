@@ -137,6 +137,7 @@ contains
     use rotex__types,    only: n_states_type, elec_channel_type, asymtop_rot_channel_l_type
     use rotex__arrays,   only: append
     use rotex__symmetry, only: spin_symmetry
+    use rotex__system,   only: die
     implicit none
     type(N_states_type),            intent(in)               :: n_states(:)
     character(1),                   intent(in)               :: rotor_kind
@@ -145,15 +146,18 @@ contains
     type(elec_channel_type),        intent(in)               :: elec_channels(:)
     type(asymtop_rot_channel_l_type), intent(out), allocatable :: rot_channels(:)
     integer  :: i_N_state, i_tau, i_elec_channel
-    integer  :: n, ka, kc, nelec, iq, sym
+    integer  :: n, ka, kc, ksym, nelec, iq, sym
     integer  :: l, lprev
     real(dp) :: e, e_elec, e_rot
     type(asymtop_rot_channel_l_type) :: channel
     ka = 0; kc = 0
     ! -- build rotational channels from elec_channels and N_states
     do i_n_state = 1, size(n_states, 1)
+
       n  = n_states(i_n_state) % n
+
       do i_tau = 1, 2*n + 1
+
         select case(rotor_kind)
         case("a", "A")
           ka = n_states(i_n_state) % ka(i_tau)
@@ -161,10 +165,20 @@ contains
         case("s", "S")
           select case(symaxis)
           case("a", "A")
-            ka = n_states(i_n_state) % ka(i_tau)
+            ksym = n_states(i_n_state) % ka(i_tau)
+            ka = ksym
+            kc = 0
           case("c", "C")
-            kc = n_states(i_n_state) % kc(i_tau)
+            ksym = n_states(i_n_state) % kc(i_tau)
+            ka = 0
+            kc = ksym
+          case default
+            call die("Symtop rotational symaxis must be A or C")
           end select
+
+          ! ! -- skip forbidden channels
+          ! if(symtop_rotstate_is_allowed(N, Ksym) .eqv. .false.) cycle
+
         end select
         lprev = elec_channels(1) % l
         do i_elec_channel = 1, size(elec_channels, 1)
@@ -180,7 +194,7 @@ contains
           ! -- don't worry about the different projections of ml for the final channels
           if(l .eq. lprev .and. l .ne. 0) cycle
           lprev = l
-          sym = spin_symmetry(n, ka, kc, spin_isomer_kind, symaxis)
+          sym = spin_symmetry(n, ka, kc)
           channel = asymtop_rot_channel_l_type(nelec=nelec, l=l, iq=iq, n=n, ka=ka, kc=kc, e=e, sym=sym)
           call append(rot_channels, channel)
         enddo
@@ -714,7 +728,7 @@ contains
       !! Electronic S-matrix
     complex(dp),                      intent(out) :: smat_rot(:,:)
       !! Rotatinal S-matrix
-    complex(dp),                      intent(out) :: U(:,:)
+    complex(dp),                      intent(inout) :: U(:,:)
       !! Unitary transformation matrix
 
     integer :: irot
@@ -740,7 +754,6 @@ contains
       do irot = 1, nchans_rot
 
         call get_channel_qnums_rot(rot_channels, irot, neleci, ni, kai, kci, li, symchan)
-        print*, irot,neleci, ni, kai, kci, li, symchan
 
         ! if(sym .ne. symchan) call die("Channel symmetry does not match transformation symmetry !")
 
@@ -794,17 +807,22 @@ contains
       use rotex__utils,  only: printmat
       use rotex__system, only: warn
       use rotex__arrays, only: unitary_defect, eye, norm_frob
-      logical :: flag = .false.
+      logical :: symflag = .false.
+      logical :: unitaryflag = .false.
 
       if(is_symmetric(Smat_rot) .eqv. .false.) then
-        flag = .true.
+        ! -- not symmetric
+        symflag = .true.
         call warn("The S-matrix is not symmetric for symmetry " // i2c(sym) // " ❌")
       endif
 
       if(is_unitary(Smat_rot, 1e-7_dp)   .eqv. .true.) then
         write(stdout, '("S-matrix is unitary for J = ", I0, ", symmetry ", I0, " ✔️")') J, sym
-        if(flag .eqv. .false.) return
+        if(symflag .eqv. .false.) return
+      else
+        unitaryflag = .true.
       endif
+
 
       write(stderr, '("Symmetry: ", I0)') sym
       write(stderr, '("Channels: ", 6(A5,X), A20)') "i", "nelec", "N", "Ka", "Kc", "l", "Σ|S(i,:)|²"
@@ -819,7 +837,9 @@ contains
       write(stderr, '("This is symmetry ", I0, ", J = ", I0)') sym, J
       write(stderr, '(A30, F15.9)') "Unitary defect in UU⁺: ", unitary_defect(C)
       write(stderr, '(A30, F15.9)') "Unitary defect in USU⁺: ", unitary_defect(Smat_rot)
-      call die("The S-matrix is not unitary for symmetry " // i2c(sym) // " ❌")
+      if(unitaryflag) call warn("The S-matrix is not unitary for symmetry " // i2c(sym) // " ❌")
+      if(symflag) call warn("The S-matrix is not symmetric for symmetry " // i2c(sym) // " ❌")
+      if(unitaryflag .or. symflag) error stop
     end block error_checks
 
   end subroutine do_rft_this_sym

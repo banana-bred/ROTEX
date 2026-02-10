@@ -221,6 +221,11 @@ module rotex__types
       !! in the CB approx as well as from the S-matrix. This does not affect
       !! the RFT because higher J-blocks of the S-matrix are more affected
       !! by K-mixing (Ka and Kc are not exact quantum numbers)
+    integer :: forbidden_states_kind
+      !! Some molecules have rotatinonal levels that are forbidden in certain vibrational states, e.g., H₃⁺
+      !! In this case, do not construct certain levels:
+      !!   0: no restriction
+      !!   1: even N, K=0 states cannot exist symmetric top only
     integer :: nE
       !! The number of scattering energies to consider. This does not need to be very high; the CB
       !! cross sections are very smooth and can easily be interpolated.
@@ -303,7 +308,12 @@ module rotex__types
       !!  "s"ymmetric  top
     character(1) :: zaxis
       !! The molecular axis (a, b, or c) along which the z-axis is oriented
-      !! **This should also be the symmetry axis**
+      !! For asymmetric tops, this should be the main symmetry axis
+      !! For symmetric tops, this should be highest symmetry axis
+    character(1) :: c2axis
+      !! The C₂ symmetry axis. UKRMol+ calculations for certain point groups require z to be
+      !! along the C₂ axis, in which case we'll need to rotate our rotational eigenvectors.
+      !! Probably mostly relevant for symmetric tops
     character(1) :: channel_energy_units_override
       !! The units of the channel energies in the file that holds channels. Options are :
       !!  - "r" for Rydberg, "h" for hartree, "e" for eV

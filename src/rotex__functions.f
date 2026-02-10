@@ -2,7 +2,7 @@
 module rotex__functions
   !! Contains various small functions used in the code
 
-  use rotex__kinds,  only: dp
+  use rotex__kinds,  only: dp, qp
 
   private
 
@@ -11,7 +11,7 @@ module rotex__functions
   public :: log_factorial
   public :: are_approx_eq
   public :: expm1
-  ! public :: logp1
+  public :: logp1
   public :: isnatural
   public :: isinteger
   public :: arg
@@ -22,6 +22,9 @@ module rotex__functions
   public :: logrange
   public :: logb
   public :: neg
+  public :: sinpi
+  public :: cospi
+  public :: cotpi
 
   interface are_approx_eq
     !! Compare two a and b and see if the magnitude of their difference is smaller than a tolerance,
@@ -47,10 +50,10 @@ module rotex__functions
     module procedure :: expm1z
   end interface expm1
 
-  ! interface logp1
-  !   module procedure :: logp1r
-  !   module procedure :: logp1z
-  ! end interface logp1
+  interface logp1
+    module procedure :: logp1r
+    module procedure :: logp1z
+  end interface logp1
 
   interface logb
     module procedure :: logb_ii
@@ -108,6 +111,23 @@ module rotex__functions
     module procedure invr
     module procedure invz
   end interface inv
+
+  interface sinpi
+    module procedure :: sinpi_rdp
+    module procedure :: sinpi_rqp
+  end interface sinpi
+
+  interface cospi
+    module procedure :: cospi_rdp
+    module procedure :: cospi_rqp
+  end interface cospi
+
+  interface cotpi
+    module procedure :: cotpi_rdp
+    module procedure :: cotpi_rqp
+  end interface cotpi
+
+
 
 ! ================================================================================================================================ !
 contains
@@ -211,7 +231,7 @@ contains
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module function logp1r(x) result(res)
-    !! Returns \(\log(x+1)\) for real z. TODO, replace with a fast and accurate version
+    !! Returns \(\log(x+1)\) for real x. TODO, replace with a fast and accurate version
     !! coded natively in fortran !
     implicit none
     real(dp), intent(in) :: x
@@ -238,7 +258,7 @@ contains
     real(dp), intent(in) :: x
     logical :: res
     res = .false.
-    if(x .ne. nint(x)) return
+    if(x .ne. anint(x)) return
     res = .true.
   end function isintegerr
   ! ------------------------------------------------------------------------------------------------------------------------------ !
@@ -250,7 +270,7 @@ contains
     logical :: res
     res = .false.
     if(z%im .ne. zero) return
-    if(z%re .ne. nint(z%re)) return
+    if(z%re .ne. anint(z%re)) return
     res = .true.
   end function isintegerz
 
@@ -496,6 +516,117 @@ contains
     if(iand(i, 1) .eq. 0) return
     res = -1
   end function neg
+
+  ! -------------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function sinpi_rdp(x, tol) result(res)
+    use rotex__constants, only: pi
+    implicit none
+    real(dp), intent(in) :: x
+    real(dp), intent(in), optional :: tol
+    real(dp) :: res
+    integer :: sgn
+    real(dp) :: tol_, n, dx
+    tol_ = max(32*epsilon(1._dp), 32*spacing(1._dp)) ; if(present(tol)) tol_ = tol
+    n = anint(x)
+    dx = x-n
+    if(dx .eq. 0._dp) then
+      res = 0._dp
+      return
+    elseif(abs(dx) .le. tol_) then
+      sgn = merge(1, -1, abs(modulo(n, 2._dp)) .le. tol_)
+      res = sgn*pi*dx - (pi*dx)**3/6._dp
+      return
+    endif
+    res = sin(pi*x)
+  end function sinpi_rdp
+  ! -------------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function sinpi_rqp(x, tol) result(res)
+    use rotex__constants, only: pi => pi_qp
+    implicit none
+    real(qp), intent(in) :: x
+    real(qp), intent(in), optional :: tol
+    real(qp) :: res
+    integer :: sgn
+    real(qp) :: tol_, n, dx
+    tol_ = max(32*epsilon(1._qp), 32*spacing(1._qp)) ; if(present(tol)) tol_ = tol
+    n = anint(x)
+    dx = x-n
+    if(dx .eq. 0._qp) then
+      res = 0._qp
+      return
+    elseif(abs(dx) .le. tol_) then
+      sgn = merge(1, -1, abs(modulo(n, 2._qp)) .le. tol_)
+      res = sgn*pi*dx - (pi*dx)**3/6._qp
+      return
+    endif
+    res = sin(pi*x)
+  end function sinpi_rqp
+
+  ! -------------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function cospi_rdp(x, tol) result(res)
+    implicit none
+    real(dp), intent(in) :: x
+    real(dp), intent(in), optional :: tol
+    real(dp) :: res
+    real(dp) :: tol_
+    tol_ = max(32*epsilon(1._dp), 32*spacing(1._dp)) ; if(present(tol)) tol_ = tol
+    res = sinpi(0.5_dp - x, tol_)
+  end function cospi_rdp
+  ! -------------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function cospi_rqp(x, tol) result(res)
+    implicit none
+    real(qp), intent(in) :: x
+    real(qp), intent(in), optional :: tol
+    real(qp) :: res
+    real(qp) :: tol_
+    tol_ = max(32*epsilon(1._qp), 32*spacing(1._qp)) ; if(present(tol)) tol_ = tol
+    res = sinpi(0.5_qp - x, tol_)
+  end function cospi_rqp
+
+  ! -------------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function cotpi_rdp(x, tol) result(res)
+    use rotex__constants, only: pi
+    implicit none
+    real(dp), intent(in) :: x
+    real(dp), intent(in), optional :: tol
+    real(dp) :: res
+    real(dp) :: tol_, n, dx
+    tol_ = max(32*epsilon(1._dp), 32*spacing(1._dp)) ; if(present(tol)) tol_ = tol
+    n = anint(x)
+    dx = x-n
+    ! -- undefined for x=0
+    if(dx .eq. 0._dp) then
+      res = huge(1._dp)
+      return
+    endif
+    if(abs(dx) .le. tol_) then
+      res = 1._dp / (pi*dx) - (pi*dx)/3._dp
+      return
+    endif
+    res = cospi_rdp(x, tol_) / sinpi_rdp(x, tol_)
+  end function cotpi_rdp
+  ! -------------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function cotpi_rqp(x, tol) result(res)
+    use rotex__constants, only: pi => pi_qp
+    implicit none
+    real(qp), intent(in) :: x
+    real(qp), intent(in), optional :: tol
+    real(qp) :: res
+    real(qp) :: tol_, n, dx
+    tol_ = max(32*epsilon(1._qp), 32*spacing(1._qp)) ; if(present(tol)) tol_ = tol
+    n = anint(x)
+    dx = x-n
+    ! -- undefined for x=0
+    if(dx .eq. 0._qp) then
+      res = huge(1._qp)
+      return
+    endif
+    if(abs(dx) .le. tol_) then
+      res = 1._qp / (pi*dx) - (pi*dx)/3._qp
+      return
+    endif
+    res = cospi_rqp(x, tol_) / sinpi_rqp(x, tol_)
+  end function cotpi_rqp
 
 ! ================================================================================================================================ !
 end module rotex__functions

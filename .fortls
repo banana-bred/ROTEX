@@ -1,7 +1,16 @@
 {
   "excl_paths": [
+    "doc",
     "docs",
     "build",
     ".git"
+  ],
+  "source_dirs": [
+  "src/**",
+  "main/**",
+  "app/**",
+  "test/**",
+  "build/**",
+  "external/**",
   ]
 }

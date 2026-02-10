@@ -16,6 +16,7 @@ contains
   module subroutine get_smat_probs( &
         total_energy_grid           &
       , prob                        &
+      , rotor_kind                  &
       , transitions                 &
       , nmin                        &
       , nmax                        &
@@ -26,7 +27,7 @@ contains
       , channels_j                  &
       , channels_tot                &
       , spin_isomer_kind            &
-      , symaxis                     &
+      , rotor_symaxis               &
     )
     !! Given a rotationally resolved S-matrix, calculate rotational (de-)excitation
     !! cross section probabilities for the supplied transitions.
@@ -53,6 +54,8 @@ contains
       !! The total energy grid on which the S-matrix will be evaluated
     type(rvector_type), intent(out), allocatable :: prob(:)
       !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
+    character(1), intent(in) :: rotor_kind
+      !! The rotor kind: "a"symmetric top, "s"ymmetric top, or "l"inear rotor
     type(asymtop_rot_transition_type), intent(inout), allocatable :: transitions(:)
       !! Array of transitions that will be considered for (de-)excitation
     integer, intent(in) :: nmin, nmax
@@ -69,7 +72,7 @@ contains
       !! Contains the array of channels ∀ J
     integer, intent(in) :: spin_isomer_kind
       !! What kinda spin symmetry we need to respect
-    character(1), intent(in) :: symaxis
+    character(1), intent(in) :: rotor_symaxis
       !! The symmetry axis of the target
 
 #ifdef USE_FORBEAR

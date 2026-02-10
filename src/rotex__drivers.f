@@ -45,7 +45,7 @@ contains
 
     use rotex__kinds,      only: dp
     use rotex__arrays,     only: append
-    use rotex__symmetry,   only: is_spin_forbidden, spin_symmetry
+    use rotex__symmetry,   only: is_spin_forbidden, spin_symmetry, symtop_rotstate_is_allowed
     use rotex__system,     only: stdout, die
     use rotex__functions,  only: istriangle, logrange
     use rotex__types,      only: asymtop_rot_channel_type, asymtop_rot_transition_type, operator(.eq.) &
@@ -53,6 +53,7 @@ contains
     use rotex__writing,    only: write_CB_xs_to_file, write_lifetimes_to_file
     use rotex__cbxs,       only: get_cb_xs_asym, get_einsta_only, xtrapolate_cb_xs
     use rotex__characters, only: i2c => int2char
+    use rotex__globals, only: GLOBAL_ROTOR_ZAXIS, GLOBAL_ROTOR_KIND
 #ifdef USE_CDMSREADER
     use CDMSreader__types, only: asymtop_state_type      => asymtop_state_nohfs &
                                , asymtop_transition_type => asymtop_transition_nohfs
@@ -132,10 +133,10 @@ contains
       ! -- only consider 1 electronic state for now
       neleclo = 1
 
-      select case(cfg%rotor_kind)
+      select case(GLOBAL_ROTOR_KIND)
       case("l")      ; num_klo = 1
       case("a", "s") ; num_klo = 2*nlo+1
-      case default   ; call die("ROTOR_KIND ( "// cfg%rotor_kind //" )is neither 'l', 'a', or 's'")
+      case default   ; call die("ROTOR_KIND ( "// GLOBAL_ROTOR_KIND //" )is neither 'l', 'a', or 's'")
       end select
 
       ! -- only consider excitation pairs; de-excitation is handled symmetrically
@@ -154,37 +155,91 @@ contains
 
         write(stdout, '("N : ", I0, " —> ", I0)') nlo, nup
 
-        select case(cfg%rotor_kind)
+        select case(GLOBAL_ROTOR_KIND)
         case("l")      ; num_kup = 1
         case("a", "s") ; num_kup = 2*nup+1
         end select
 
         taulo_loop: do itaulo=1, num_klo
 
-          select case(cfg%rotor_kind)
+          select case(GLOBAL_ROTOR_KIND)
           case("l")
+
             kalo = 0
             kclo = nlo
-          case("a", "s")
+
+          case("a")
+
             kalo = n_states(inlo) % ka(itaulo)
             kclo = n_states(inlo) % kc(itaulo)
+
+          case("s")
+
+            select case(GLOBAL_ROTOR_ZAXIS)
+            case("A","a")
+
+              kalo = n_states(inlo) % ka(itaulo)
+              kclo = 0
+
+              ! -- skip forbidden state
+              if(symtop_rotstate_is_allowed(nlo, Kalo) .eqv. .false.) cycle taulo_loop
+
+            case("C", "c")
+
+              kalo = 0
+              kclo = n_states(inlo) % kc(itaulo)
+
+              ! -- skip forbidden state
+              if(symtop_rotstate_is_allowed(nlo, Kclo) .eqv. .false.) cycle taulo_loop
+
+            case default
+              call die("GLOBAL_ROTOR_ZAXIS must be A or C")
+            end select
+
           end select
           elo  = n_states(inlo) % eigenh % eigvals(itaulo)
-          sym  = spin_symmetry(nlo, kalo, kclo, cfg%spin_isomer_kind, cfg%zaxis)
+          sym  = spin_symmetry(nlo, kalo, kclo)
           lo = asymtop_rot_channel_type(nelec= neleclo, n=nlo, ka=kalo, kc=kclo, e=elo, sym=sym)
 
           tauup_loop: do itauup=1, num_kup
 
-            select case(cfg%rotor_kind)
+            select case(GLOBAL_ROTOR_KIND)
             case("l")
+
               kaup = 0
               kcup = nup
-            case("a", "s")
+
+            case("a")
+
               kaup = n_states(inup) % ka(itauup)
               kcup = n_states(inup) % kc(itauup)
+
+            case("s")
+
+              select case(GLOBAL_ROTOR_ZAXIS)
+              case("A","a")
+
+                kaup = n_states(inup) % ka(itauup)
+                kcup = 0
+
+                ! -- skip forbidden state
+                if(symtop_rotstate_is_allowed(nup, Kcup) .eqv. .false.) cycle tauup_loop
+
+              case("C", "c")
+
+                kaup = 0
+                kcup = n_states(inup) % kc(itauup)
+
+                ! -- skip forbidden state
+                if(symtop_rotstate_is_allowed(nup, Kcup) .eqv. .false.) cycle tauup_loop
+
+              case default
+                call die("GLOBAL_ROTOR_ZAXIS must be A or C")
+              end select
             end select
+
             eup  = n_states(inup) % eigenh % eigvals(itauup)
-            sym  = spin_symmetry(nup, kaup, kcup, cfg%spin_isomer_kind, cfg%zaxis)
+            sym  = spin_symmetry(nup, kaup, kcup)
             up = asymtop_rot_channel_type(nelec= nelecup, n=nup, ka=kaup, kc=kcup, e=eup, sym=sym)
 
             ! -- ignore elastic collisions and de-excitation pairs
@@ -221,6 +276,7 @@ contains
             Eel = logrange(estart, eend, cfg%ne)
 
             einsta = 0
+
 #ifdef USE_CDMSREADER
             ! -- get CDMS Einstein A coefficients
             if(cfg%use_cdms_einsta .eqv. .true.) then
@@ -539,6 +595,7 @@ contains
       call get_smat_probs(         &
           egrid_tot_smat           &
         , prob_smat                &
+        , cfg%rotor_kind           &
         , transitions_this_spin    &
         , cfg%nmin                 &
         , cfg%nmax                 &
@@ -883,10 +940,11 @@ contains
   module subroutine diagonalize_rotational_hamiltonian(cfg, num_n, n_values, n_states)
     !! Build the rigid-rotor hamiltonian for each N and diagonalize it. Keep eigenenergies and
     !! eigenvectors, stored in the eigenH type of n_states
-    use rotex__types,    only: dp, n_states_type, eigenh_type, config_type
-    use rotex__system,   only: die
-    use rotex__arrays,   only: size_check
-    use rotex__hamilton, only: h_asym, assign_projections, rotate_eigvecs
+    use rotex__types,      only: dp, n_states_type, eigenh_type, config_type
+    use rotex__system,     only: die
+    use rotex__arrays,     only: size_check
+    use rotex__hamilton,   only: h_asym, assign_projections, rotate_eigvecs
+    use rotex__characters, only: lower
     implicit none
     type(config_type),   intent(in)  :: cfg
     integer,             intent(in)  :: num_n, n_values(:)
@@ -941,7 +999,10 @@ contains
       !!!!!!!!!!!!!!!!!!!!!!!! symmetric rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       case("s", "S")
+
         allocate(n_states(i_n) % einsta(2*n+1), source=0.0_dp)
+
+        ! -- appropriate energies whether z is aligned with A or C
         associate(a=>cfg%abc(1), c=>cfg%abc(3))
           select case(cfg%zaxis)
           case("a", "A")
@@ -954,6 +1015,12 @@ contains
             call die("ZAXIS must be 'a' or 'c' for symmetric tops. Got "//cfg%zaxis)
           end select
         end associate
+
+        ! -- if C₂ axis is the z-axis of the scattering calculations and is different than
+        !    the rotational z-axis, rotate eigenvectors so that the z-axis lines up with the C₂ axis
+        if(lower(cfg%c2axis) .eq. lower(cfg%zaxis)) cycle
+        current_axis = cfg%zaxis
+        call rotate_eigvecs(N, current_axis, cfg%c2axis, N_states(i_N)%eigenH%eigvecs)
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!! linear rotors !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

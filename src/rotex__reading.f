@@ -323,6 +323,7 @@ contains
     ! -- Count the number of energies/K-matrices
     open(newunit = funit, file = kmat_filename)
     ne = 0
+    print*, funit, kmat_filename
     call read_blank(funit, 3)
     read(funit, *) i, i, i, nchans_max, nskip_header
     call read_blank(funit, nskip_header)
@@ -606,9 +607,10 @@ contains
     logical :: use_kmat
     logical :: use_CB
     integer :: spin_isomer_kind = 0
+    integer :: forbidden_states_kind = 0
     character(:), allocatable :: output_directory
     character(1) :: rotor_kind = DEFAULT_CHAR1
-    character(1) :: zaxis
+    character(1) :: zaxis = DEFAULT_CHAR1, c2axis = DEFAULT_CHAR1
     real(dp) :: abc(3) = 0.0_dp
     real(dp) :: B_rot = 0.0_dp, H_rot = 0.0_dp, D_rot = 0.0_dp
     integer :: target_charge = DEFAULT_INT
@@ -668,11 +670,13 @@ contains
       !! Contains parameters and values that are necessary to run the program
                          output_directory         &
                        , spin_isomer_kind         &
+                       , forbidden_states_kind    &
                        , nmin                     &
                        , nmax                     &
                        , use_kmat                 &
                        , use_cb                   &
                        , zaxis                    &
+                       , c2axis                   &
                        , rotor_kind               &
                        , target_charge            &
                        , abc                      &
@@ -732,6 +736,7 @@ contains
     if(rotor_kind    .eq. DEFAULT_CHAR1) call die("Must specify ROTOR_KIND in CONTROL_NAMELIST")
     if(target_charge .eq. DEFAULT_INT)   call die("Must specify TARGET_CHARGE in CONTROL_NAMELIST")
     if(ZAXIS         .eq. DEFAULT_CHAR1) call die("Must specify ZAXIS in CONTROL_NAMELIST")
+    if(C2AXIS        .eq. DEFAULT_CHAR1) call die("Must specify C2AXIS in CONTROL_NAMELIST")
     if(lower(rotor_kind) .eq. "l") then
       if(B_rot .le. 0.0_dp) call die("Must have a positive rotational constant B_rot for a linear molecule")
     else
@@ -816,6 +821,7 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     call to_lower(zaxis)
+    call to_lower(c2axis)
 
     ! -- convert to atomic units
     Ef                = Ef                / au2ev
@@ -868,9 +874,11 @@ contains
     cfg%use_kmat          = use_kmat
     cfg%use_cb            = use_cb
     cfg%spin_isomer_kind  = spin_isomer_kind
+    cfg%forbidden_states_kind  = forbidden_states_kind
     cfg%output_directory  = output_directory
     cfg%rotor_kind        = rotor_kind
     cfg%zaxis             = zaxis
+    cfg%c2axis            = c2axis
     cfg%abc               = abc(:)
     cfg%b_rot             = b_rot
     cfg%d_rot             = d_rot

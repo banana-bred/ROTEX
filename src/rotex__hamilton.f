@@ -25,7 +25,8 @@ contains
     !! diagonal centrifugal distortion (CD) terms
     !!   E(N,K) = Bperp*N*(N+1) + (Bpara-Bperp)*K² + centrifugal distortion terms
 
-    use rotex__types, only: cd4_type, cd6_type
+    use rotex__types,    only: cd4_type, cd6_type
+    use rotex__symmetry, only: symtop_rotstate_is_allowed
 
     implicit none
 
@@ -53,13 +54,14 @@ contains
     allocate(eigenH%eigvals(numK))
     allocate(eigenH%eigvecs(numK,numK), source=(0.0_dp, 0.0_dp))
 
-    ! -- diagonal eigvecs for symmetric top
-    do iK=1, numK
-      eigenH%eigvecs(iK, iK) = (1.0_dp, 0.0_dp)
-    enddo
-
     do K=-N,N
+
       iK = K+N+1
+
+      ! -- diagonal eigvecs for symmetric top
+      eigenH%eigvecs(iK, iK) = (1.0_dp, 0.0_dp)
+      ! eigenH%eigvecs(iK, iK) = merge(1, 0, symtop_rotstate_is_allowed(N, K))
+
       KK = real(K*K, kind=dp)
       E = Bperp*NNp1 + (Bpara-Bperp)*KK
       cd: if(present(cd4)) then
@@ -394,7 +396,8 @@ contains
       case default
         call die("Unacceptable TO_AXIS (" // to_axis //") provided")
       end select
-    case("C", "C")
+    case("c", "C")
+      select case(to_axis)
       case("a", "A") ; a = pi/2 ; b = pi/2 ; g = 0
       case("b", "B") ; a = pi   ; b = pi/2 ; g = pi/2
       case default

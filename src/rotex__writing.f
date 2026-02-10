@@ -465,10 +465,13 @@ contains
     do in=1, size(n_states, 1)
       n  = n_states(in) % n
       do itau=1, 2*n+1
-        ka = n_states(in) % ka(itau)
-        kc = n_states(in) % kc(itau)
+
+        ! -- for symmsteric tops, one of these is not allocated. for now, just print 0
+        ka = 0 ; if(allocated(n_states(in) % ka)) ka = n_states(in) % ka(itau)
+        kc = 0 ; if(allocated(n_states(in) % kc)) kc = n_states(in) % kc(itau)
+
         e  = n_states(in) % eigenh % eigvals(itau)
-        sym = spin_symmetry(n, ka, kc, spin_isomer_kind, symaxis)
+        sym = spin_symmetry(n, ka, kc)
         channel_without_l = asymtop_rot_channel_type(nelec=1, e=e, n=n, ka=ka, kc=kc, sym=sym)
         ! -- which l values are inlcuded ?
         lvals = channels_l % l

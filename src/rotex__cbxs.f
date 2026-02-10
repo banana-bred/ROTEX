@@ -593,11 +593,12 @@ contains
     complex(dp) :: M2(0:lmax-lambda)
 
     abstract interface
-      function Mint(lambda, ltarg, ki, kf, Z) result(res)
+      function Mint(lambda, ltarg, ki, kf, Z, swapl) result(res)
         import dp
         implicit none
         integer,  intent(in) :: lambda, ltarg, Z
         real(dp), intent(in) :: ki, kf
+        logical,  intent(in), optional :: swapl
         complex(dp) :: res(0:ltarg)
       end function Mint
     end interface
@@ -637,8 +638,8 @@ contains
       !      - M_{l+λ,l}(k',k)
       !    and then just take the sum over these arrays with their 3j weights
       weights = [( (2*l+1) * (2*(l+lambda)+1) * wigner3j(2*l, 2*(lambda+l), 2*lambda, 0, 0, 0)**2, l=0, lmax-lambda )]
-      M1      = Mints(lambda, lmax-lambda, kp, k , Z) ! l'=l-λ
-      M2      = Mints(lambda, lmax-lambda, k , kp, Z) ! l'=l+λ
+      M1      = Mints(lambda, lmax-lambda, k, kp, Z, swapl = .false.) ! l'=l+λ
+      M2      = Mints(lambda, lmax-lambda, k, kp, Z, swapl = .true.)  ! l'=l-λ
 
       if(any(abs(M1%im) .gt. CB_MINT_IMAG_THRESH) .OR. any(abs(M2%im) .gt. CB_MINT_IMAG_THRESH)) then
         write(stderr, *)
@@ -716,7 +717,7 @@ contains
   end function Mcoul
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  function Mborn_array(lambda, ltarg, ki, kf, Z) result(res)
+  function Mborn_array(lambda, ltarg, ki, kf, Z, swapl) result(res)
     !! Calculate the integral \(M^\eta_{ll_0}(k_vk_0)\) (13c) in Feldt+Morrison2008
     !!   doi: 10.1103/PhysRevA.77.012726
     !! in the first Born approximation for scattering of a target that whose potential is
@@ -739,12 +740,16 @@ contains
     real(dp), intent(in) :: ki, kf
     integer, intent(in) :: Z
       !! Target charge (should be 0)
+    logical, intent(in), optional :: swapl
     complex(dp) :: res(0:ltarg)
 
+    logical :: swapl_
     integer :: eta
       !! η = λ+1 means something very different here than in the Coulomb case
-    integer :: li, lf
+    integer :: li, lf, li_, lf_
     real(dp) :: a, b, c, x
+
+    swapl_ = .false. ; if(present(swapl)) swapl_ = swapl
 
     if(Z .ne. 0) call die("Called Mborn with a nonzero target charge")
 
@@ -754,20 +759,31 @@ contains
 
     ! -- For the dipole case, we only want li = lf ± λ
     do li=0,ltarg
+
       lf = li + lambda
-      a = real(li+lf-eta+3, kind=dp)/2.0_dp
-      b = real(li-lf+eta,   kind=dp)/2.0_dp
-      c = real(lf,          kind=dp) + 3.0_dp/2.0_dp
+
+      ! -- because we want M_{ll'}(k,k') and M_{l'l}(k,k'). We cannot just
+      !    swap ki and kf for this integral
+      li_ = merge(lf, li, swapl)
+      lf_ = merge(li, lf, swapl)
+
+      a = real(li_+lf_-eta+3, kind=dp)/2.0_dp
+      b = real(li_-lf_+eta,   kind=dp)/2.0_dp
+      c = real(lf_,          kind=dp) + 3.0_dp/2.0_dp
       x = (kf/ki)**2
       res(li)%re = pi/real(2**eta, kind=dp) * kf**lf / ki**(lf-eta+3) &
-                 * exp( lgamma(a) - lgamma(1-b) - lgamma(c))          &
+                 * gamma(a)/gamma(1._dp-b)/gamma(c)          &
                  * f21(a, b, c, x)
+      ! print*, li_
+      ! print*, a, b, c, x, res(li_)%re
+      ! print*, "c", f21(cmplx(a,kind=dp), cmplx(b,kind=dp), cmplx(c,kind=dp), x)
+      ! print*, "r", f21(a, b, c, x)
     enddo
 
   end function Mborn_array
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  function Mcoul_array(lambda, ltarg, ki, kf, Z) result(res)
+  function Mcoul_array(lambda, ltarg, ki, kf, Z, swapl) result(res)
     !! Calculate all integrals \(M^\lambda_{λ,0}\) to (M^\lambda_{l_text[targ]+λ,l_\text{targ}}) via recursion formula
     !!   "Study of Nuclear Structure by Electromagnetic Excitation with Accelerated Ions" by K. Alder, A. Bohr, T. Huus,
     !!   B. Mottelson, and A. Winther, equation II B.70–71 on page 453 for the λ=1 case.
@@ -783,24 +799,36 @@ contains
     real(dp), intent(in) :: ki, kf
     integer, intent(in) :: Z
       !! Target charge
+    logical, intent(in), optional :: swapl
     complex(dp) :: res(0:ltarg)
     complex(dp) :: M0, M1
     complex(qp) :: resqp(0:ltarg)
 
-    integer  :: l
+    logical :: swapl_
+    integer :: l
+    real(dp) :: kf_, ki_
     real(qp) :: etai, etaf
 
-    etai = real(-Z/ki, kind = qp)
-    etaf = real(-Z/kf, kind = qp)
+    ! -- because we want to calcualte M_{ll'}(k,k') and M_{l'l}(k,k').
+    !    We can just swap ki and kf for this integral.
+    ki_ = merge(kf, ki, swapl)
+    kf_ = merge(ki, kf, swapl)
+
+    etai = real(-Z/ki_, kind = qp)
+    etaf = real(-Z/kf_, kind = qp)
 
     if(ltarg .lt. 2) then
-      res = [( Mcoul(l, kf, ki, Z), l=0, ltarg )]
+      if(swapl) then
+        res = [( Mcoul(l, ki_, kf_, Z), l=0, ltarg )]
+      else
+        res = [( Mcoul(l, kf_, ki_, Z), l=0, ltarg )]
+      endif
       block
         use ieee_arithmetic, only: isnan => ieee_is_nan
         if(any(isnan(abs(res)))) then
           write(stderr, *)
           write(stderr, '(6(A15))') "λ", "l", "kf", "ki", "ηf", "ηi"
-          write(stderr, '(2I15, 4e15.6)') lambda, ltarg, kf, ki, etaf, etai
+          write(stderr, '(2I15, 4e15.6)') lambda, ltarg, kf_, ki_, etaf, etai
           write(stderr, *) res
           call die("NaNs detected")
         endif
@@ -809,8 +837,8 @@ contains
     endif
 
     ! -- starting values
-    M0 = Mcoul(0, kf, ki, Z)
-    M1 = Mcoul(1, kf, ki, Z)
+    M0 = Mcoul(0, kf_, ki_, Z)
+    M1 = Mcoul(1, kf_, ki_, Z)
     resqp(0) = cmplx(M0%re, M0%im, kind = qp)
     resqp(1) = cmplx(M1%re, M1%im, kind = qp)
 

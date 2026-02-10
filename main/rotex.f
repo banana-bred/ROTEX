@@ -2,11 +2,12 @@
 program rotex
   !! The main program
 
+  use rotex__globals, only: copy2globals
   use rotex__drivers,    only: make_grid, diagonalize_rotational_hamiltonian &
-    , make_output_directories, do_coulomb_born_approx, do_kmat_xs, combine_cb_smat_xs
+                             , make_output_directories, do_coulomb_born_approx, do_kmat_xs, combine_cb_smat_xs
   use rotex__reading,    only: read_namelists
   use rotex__types,      only: dp, eigenh_type, n_states_type, config_type, asymtop_rot_channel_l_type &
-    , asymtop_rot_channel_l_vector_type, cmatrix_type, rvector_type, asymtop_rot_transition_type
+                             , asymtop_rot_channel_l_vector_type, cmatrix_type, rvector_type, asymtop_rot_transition_type
   use rotex__rft,        only: rft_nonlinear
   use rotex__system,     only: mkdir, die, stdout
   use rotex__hamilton,   only: h_asym, assign_projections
@@ -46,6 +47,13 @@ program rotex
 
   call print_header()
   call read_namelists(cfg)
+  call copy2globals(                                    &
+      rotor_kind            = cfg%rotor_kind            &
+    , rotor_zaxis           = cfg%zaxis                 &
+    , c2axis                = cfg%c2axis                &
+    , spin_isomer_kind      = cfg%spin_isomer_kind      &
+    , forbidden_states_kind = cfg%forbidden_states_kind &
+  )
   call make_output_directories( cfg%output_directory, cfg%use_CB, cfg%spinmults, cfg%use_kmat &
                               , pcb_output_directory, tcb_output_directory, smat_output_directory)
 
@@ -112,7 +120,7 @@ program rotex
 
   ! -- do this only AFTER we have called DO_COULOMB_BORN_APPROX because it may use
   !    CDMS energies which will change the energies of our rotational levels (but not the eigenvectors)
-  call print_rot_targ_states(cfg%rotor_kind, n_states)
+  call print_rot_targ_states(cfg%rotor_kind, n_states, cfg%zaxis)
 
   usingkmat: if(cfg%use_kmat) then
 
@@ -215,7 +223,7 @@ contains
   end subroutine print_footer
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine print_rot_targ_states(rotor_kind, n_states)
+  subroutine print_rot_targ_states(rotor_kind, n_states, zaxis)
     use rotex__types,      only: N_states_type
     use rotex__system,     only: stdout
     use rotex__characters, only: lower
@@ -223,13 +231,39 @@ contains
     implicit none
     character(1), intent(in) :: rotor_kind
     type(N_states_type), intent(in) :: n_states(:)
-    integer  :: i,j,n,ka,kc
+    character(1), intent(in) :: zaxis
+    integer  :: i,j,n,ka,kc,k,jstart
     real(dp) :: e
     character(:), allocatable :: fmt
     write(stdout,*)
     write(stdout, '(A)') "Rotational target states"
     write(stdout, '(A)') "⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻"
     select case(lower(rotor_kind))
+    case("s")
+      write(stdout, '(4X, 2A5, A14)') "N", "K", "E (meV)"
+      do i=1, size(N_states, 1)
+        n = n_states(i)%n
+        do j=1,2*n+1
+          select case(zaxis)
+          case("a", "A")
+            k = n_states(i)%ka(j)
+          case("c", "C")
+            k = n_states(i)%kc(j)
+          case default
+            call die("Unacceptable ZAXIS in print_rot_targ_states")
+          end select
+          ! -- print |K| only
+          if(k.lt.0) cycle
+          e  = n_states(i)%eigenh%eigvals(j)*au2ev*1000
+          ! sym = n_states(i)%eigenh%sym(j)
+          if(abs(e) .lt. 0.001_dp) then
+            fmt =  '(4X, 2I5, E14.5)'
+          else
+            fmt =  '(4X, 2I5, F14.5)'
+          endif
+          write(stdout, fmt) n, k, e
+        enddo
+      enddo
     case("a")
       write(stdout, '(4X, 3A5, A14)') "N", "Ka", "Kc", "E (meV)"
       do i=1, size(N_states, 1)

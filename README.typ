@@ -88,6 +88,10 @@ or if you built with `make`
 
 `./bin/rotex < example/example.mqdtr2k.H2O+.namelist`
 
+=== Testing
+To run some unit tests, just run fpm test. OMP parallelization can be disabled for testing, e.g.,
+'export OMP_NUM_THREADS=1 fpm test'. Just don't forget to leave it enabled or re-enable it for the actual code.
+
 === Compatibility with different operating systems
 This has only been tested on Linux-based systems for now.
 In principle, it should work on others but that is not a guarantee.
