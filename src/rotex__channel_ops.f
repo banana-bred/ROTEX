@@ -22,7 +22,6 @@ module rotex__channel_ops
   public :: sort_channels_by_energy
   public :: trim_channel_l
   public :: get_channel_index
-  public :: reduce_symtop_ksign
 
   interface operator(.eq.)
     module procedure :: channel_iseq
@@ -49,6 +48,11 @@ module rotex__channel_ops
   interface permsort_channels
     module procedure :: permsort_elec_channels
   end interface permsort_channels
+
+  interface findloc_transitions
+    module procedure :: findloc_transitions_scl
+    module procedure :: findloc_transitions_arr
+  end interface findloc_transitions
 
 ! ================================================================================================================================ !
 contains
@@ -219,7 +223,25 @@ contains
   end function channel_isne
 
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure module function findloc_transitions(targs, search) result(idxtarg)
+  pure module function findloc_transitions_scl(targ, search) result(idxtarg)
+    !! Find the first index for targs that map to the elements in search.
+    !! Return 0 if there is no such mapping.
+    implicit none (type, external)
+    type(asymtop_rot_transition_type), intent(in) :: targ, search(:)
+    integer :: idxtarg
+      !! TARG -> SEARCH mapping
+    integer, parameter :: IDX_NOT_FOUND = 0
+    integer :: isearch, itarg, nsearch
+    integer, allocatable :: idxsearch(:)
+    logical, allocatable :: mask(:)
+    nsearch = size(search, 1)
+    idxtarg = IDX_NOT_FOUND
+    mask = search .eq. targ
+    idxsearch = pack([(isearch, isearch=1, nsearch)], mask)
+    idxtarg = idxsearch(1) ! take first match
+  end function findloc_transitions_scl
+  ! ------------------------------------------------------------------------------------------------------------------------------- !
+  pure module function findloc_transitions_arr(targs, search) result(idxtarg)
     !! Find the indices for each element in targs that map to the elements in search.
     !! Return 0 if there is no such mapping.
     implicit none (type, external)
@@ -239,7 +261,7 @@ contains
       idxsearch = pack([(isearch, isearch=1, nsearch)], mask)
       idxtarg(itarg) = idxsearch(1) ! take first match
     enddo
-  end function findloc_transitions
+  end function findloc_transitions_arr
 
   ! ------------------------------------------------------------------------------------------------------------------------------- !
   pure module function get_channel_index(channels, channel, reverse) result(i)
@@ -400,52 +422,6 @@ contains
     channels(jchan) = tmp
     deallocate(tmp)
   end subroutine swap_channels
-
-  pure module subroutine reduce_symtop_ksign(transitions, xs_xcite, xs_dxcite)
-    !! Given arrays of transitions between states, excitation cross sections, and de-excitation cross sections,
-    !! average over the different ±K for each state, .e.g,
-    !!  (N,K)
-    !!    (1-1) -> (2-1)    +> (1 1) -> (2 1)
-    !!    (1-1) -> (2 1)   /
-    !!    (1 1) -> (2-1)  /
-    !!    (1 1) -> (2 1) /
-
-    use rotex__types,  only: asymtop_rot_transition_type, rvector_type
-    use rotex__arrays, only: size_check
-
-    implicit none (type, external)
-
-    type(asymtop_rot_transitions_type), intent(inout), allocatable :: transitions(:)
-      !! Array of state transitions
-    type(rvector_type), intent(inout), allocatable :: xs_xcite(:), xs_dxcite(:)
-      !! Excitation and de-excitation cross section arrays
-
-    integer :: n
-    logical, allocatable :: mask(:)
-
-    n = size(transitions, 1)
-    call size_check(xs_xcite,  n, "XS_XCITE")
-    call size_check(xs_dxcite, n, "XS_DXCITE")
-
-    allocate(mask(n), source = .false.)
-
-    ! if we have a transition, figure out Ksign and the search for that transition and store it there ?
-    ! have a new transition array ? do it in place ?
-    ! index map ? how do we even add them anyway ? K=1 + K=-1 ? average them ? theyre the same so isnt it basically just
-    ! multby2 ?
-
-    ! initial degen: 1 if K=0, 2 if K ≠ 0. Divide by initial degen factor
-    ! degen is based on the initial state:
-    !   excitation: Klo
-    !   dexcitation: Kup
-    @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-    ! maybe have an integer array where we figure out where to add array to and a mask for whether to
-    ! remove that value ?
-
-
-  end subroutine reduce_symtop_ksign
-
 
 ! ================================================================================================================================ !
 end module rotex__channel_ops

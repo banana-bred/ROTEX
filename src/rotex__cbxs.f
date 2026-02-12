@@ -749,17 +749,15 @@ contains
       li_ = merge(lf, li, swapl)
       lf_ = merge(li, lf, swapl)
 
-      a = real(li_+lf_-eta+3, kind=dp)/2.0_dp
-      b = real(li_-lf_+eta,   kind=dp)/2.0_dp
-      c = real(lf_,          kind=dp) + 3.0_dp/2.0_dp
+      a = real(li_+lf_-eta+3,kind=dp)/2.0_dp
+      b = real(lf_-li_-eta+2,kind=dp)/2.0_dp
+      c = real(lf_,kind=dp) + 3.0_dp/2.0_dp
       x = (kf/ki)**2
-      res(li)%re = pi/real(2**eta, kind=dp) * kf**lf / ki**(lf-eta+3) &
-                 * gamma(a)/gamma(1._dp-b)/gamma(c)          &
+
+      res(li)%re = pi/(2.0_dp**eta) * kf**lf / ki**(lf-eta+3) &
+                 * gamma(a)/gamma(1._dp-b)/gamma(c)           &
                  * f21(a, b, c, x)
-      ! print*, li_
-      ! print*, a, b, c, x, res(li_)%re
-      ! print*, "c", f21(cmplx(a,kind=dp), cmplx(b,kind=dp), cmplx(c,kind=dp), x)
-      ! print*, "r", f21(a, b, c, x)
+
     enddo
 
   end function Mborn_array

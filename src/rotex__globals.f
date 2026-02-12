@@ -62,6 +62,13 @@ module rotex__globals
       !! In this case, do not construct certain levels:
       !!   0: no restriction
       !!   1: even N, K=0 states cannot exist symmetric top only
+    logical :: symtop_reduce_projection
+      !! The code internally calculates states for symmetric tops with ±K. If this is
+      !! .true., ruce all of these to |K|. For example, the four transitions ±1 -> ±3 will
+      !! be reduced to the single transition 1 -> 3
+    logical :: edft
+      !! Use an energy dependent frame transformation for the K/S-matrices ? This will read all available
+      !! energies provided between kmat_Ei and kmat_Ef
     integer :: nE
       !! The number of scattering energies to consider. This does not need to be very high; the CB
       !! cross sections are very smooth and can easily be interpolated.
@@ -109,6 +116,11 @@ module rotex__globals
       !! (most likely the case unless I add energy dependence in the future) The K-matrix that is
       !! selected will be the FIRST ONE whose evaluation energy is CLOSEST to this energy in (eV).
       !! NOTE: UKRMOL+ outputs K-matrix energies in the .kmat files in Rydberg.
+      !! If an energy dependent calculation is selected, this is ignored
+    real(dp) :: kmat_ei
+      !! The lowest K-matrix energy to consider for reading in case of EDFT
+    real(dp) :: kmat_ef
+      !! The highest K-matrix energy to consider for reading in case of EDFT
     real(dp) :: abc(3)
       !! Array of reals of length 3
       !! The rotational constants A, B, and C of the target molecule (cm⁻¹).

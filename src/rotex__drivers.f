@@ -70,7 +70,7 @@ contains
     character(*),        intent(in) :: pcb_output_directory
     character(*),        intent(in) :: tcb_output_directory
 
-    integer :: ipair, inlo, inup, itaulo, itauup
+    integer :: ipair, inlo, inup, itaulo, itauup, itrans
     integer :: nlo, nup, kalo, kaup, kclo, kcup, neleclo, nelecup
     integer :: num_klo, num_kup
     integer :: num_n
@@ -378,54 +378,6 @@ contains
             call append(xs_xcite_pcb, sigma_pcb)
             call append(xs_xcite_tcb, sigma_tcb)
 
-            ! -- write this excitation to disk
-            call write_CB_xs_to_file(    &
-                "PCB"                 &
-              , pcb_output_directory  &
-              , Eel                   &
-              , sigma_pcb             &
-              , transition%lo         &
-              , transition%up         &
-              , i2c(G%LMAX_PARTIAL) &
-            )
-            call write_CB_xs_to_file(    &
-                "TCB"                 &
-              , tcb_output_directory  &
-              , Eel                   &
-              , sigma_tcb             &
-              , transition%lo         &
-              , transition%up         &
-              , i2c(G%LMAX_PARTIAL) &
-            )
-
-            ! -- get corresponding de-excitation cross section
-            call convert_xcite2dxcite(Eel, sigma_pcb, transition)
-            call convert_xcite2dxcite(Eel, sigma_tcb, transition)
-
-            ! -- storing de-excitation cross sections is redundant, especially if
-            !    we'll be interpolating theses later, so just write them to file now
-            !    and don't worry about storing them
-
-            ! -- write this de-excitation to disk
-            call write_CB_xs_to_file( &
-                "PCB"                 &
-              , pcb_output_directory  &
-              , Eel - dE              &
-              , sigma_pcb             &
-              , transition%up         &
-              , transition%lo         &
-              , i2c(G%LMAX_PARTIAL) &
-            )
-            call write_CB_xs_to_file( &
-                "TCB"                 &
-              , tcb_output_directory  &
-              , Eel - dE              &
-              , sigma_tcb             &
-              , transition%up         &
-              , transition%lo         &
-              , i2c(G%LMAX_PARTIAL) &
-            )
-
             write(stdout, "(A)") "done !"
 
           enddo tauup_loop
@@ -437,6 +389,69 @@ contains
     enddo Nlo_loop
 
     call write_lifetimes_to_file(n_states)
+
+    ! -- exit if we don't have to write cross sections
+    if(G%ONLY_EINSTA) return
+
+    ! -- reduce the resolution on all states to just have |K|
+    if(G%symtop_reduce_projection .AND. G%rotor_kind .eq. "s") &
+      call reduce_symtop_ksign(transitions_CB, xs_xcite_pcb, xs_xcite_tcb)
+
+    ! -- write the cross (potentially reduced) cross sections to disk
+    do itrans = 1, size(transitions_CB)
+
+        transition = transitions_CB(itrans)
+        sigma_pcb  = xs_xcite_pcb(itrans)%vec(:)
+        sigma_tcb  = xs_xcite_tcb(itrans)%vec(:)
+        Eel        = egrid_elec_cb(itrans)%vec(:)
+
+        ! -- write this excitation to disk
+        call write_CB_xs_to_file(    &
+            "PCB"                 &
+          , pcb_output_directory  &
+          , Eel                   &
+          , sigma_pcb             &
+          , transition%lo         &
+          , transition%up         &
+          , i2c(G%LMAX_PARTIAL) &
+        )
+        call write_CB_xs_to_file(    &
+            "TCB"                 &
+          , tcb_output_directory  &
+          , Eel                   &
+          , sigma_tcb             &
+          , transition%lo         &
+          , transition%up         &
+          , i2c(G%LMAX_PARTIAL) &
+        )
+
+        ! -- get corresponding de-excitation cross section
+        call convert_xcite2dxcite(Eel, sigma_pcb, transition)
+        call convert_xcite2dxcite(Eel, sigma_tcb, transition)
+
+        dE = transition % up % E - transition % lo % E
+
+        ! -- write this de-excitation to disk
+        call write_CB_xs_to_file( &
+            "PCB"                 &
+          , pcb_output_directory  &
+          , Eel - dE              &
+          , sigma_pcb             &
+          , transition%up         &
+          , transition%lo         &
+          , i2c(G%LMAX_PARTIAL) &
+        )
+        call write_CB_xs_to_file( &
+            "TCB"                 &
+          , tcb_output_directory  &
+          , Eel - dE              &
+          , sigma_tcb             &
+          , transition%up         &
+          , transition%lo         &
+          , i2c(G%LMAX_PARTIAL) &
+        )
+
+    enddo
 
   end subroutine do_coulomb_born_approx
 
@@ -519,18 +534,12 @@ contains
         call die("KMAT_OUTPUT_TYPE ("//G%KMAT_OUTPUT_TYPE//") must be one of "//UKRMOLX//" or "//MQDTR2K)
       end select
 
-      call read_kmats(                                &
-          kmat_dir          = G%KMAT_DIR            &
-        , channels_dir      = G%CHANNELS_DIR         &
-        , point_group       = G%POINT_GROUP         &
-        , spinmult          = G%SPINMULTS(ISPIN)    &
-        , kmat_lmax         = G%LMAX_KMAT &
-        , kmat              = kmat                    &
-        , elec_channels     = elec_channels           &
-        , channel_e_units   = channel_e_units         &
-        , kmat_eval_E_units = kmat_eval_e_units       &
-        , kmat_output_type  = G%KMAT_OUTPUT_TYPE    &
-        , kmat_e_closest    = G%KMAT_ENERGY_CLOSEST &
+      call read_kmats(                          &
+          kmat              = kmat              &
+        , spinmult = G%SPINMULTS(ispin) &
+        , elec_channels     = elec_channels     &
+        , channel_e_units   = channel_e_units   &
+        , kmat_eval_E_units = kmat_eval_e_units &
         )
 
       if(maxval(elec_channels % l) .gt. G%LMAX_KMAT) call die("K-matrix has at least one channel with&
@@ -1134,7 +1143,6 @@ contains
     use rotex__arrays,      only: size_check
     use rotex__symmetry,    only: rotstate_is_allowed
     use rotex__constants,   only: pi
-    use rotex__channel_ops, only: reduce_symtop_ksign
 
     implicit none (type, external)
 
@@ -1211,13 +1219,8 @@ contains
 
     if(G%ROTOR_KIND .ne. "s") return
 
-    ! -- symmetric top extra reduction
-    !    Reduce, e.g., four transitions to one
-    !    (1-1) -> (2-1)    +> (11) -> (21)
-    !    (1-1) -> (2 1)   /
-    !    (1 1) -> (2-1)  /
-    !    (1 1) -> (2 1) /
-    call reduce_symtop_ksign(transitions, xs_xcite, xs_dxcite)
+    ! -- reduce the resolution on all states to just have |K|
+    if(G%symtop_reduce_projection) call reduce_symtop_ksign(transitions, xs_xcite, xs_dxcite)
 
   end subroutine get_xs_from_smat
 
@@ -1536,6 +1539,106 @@ contains
       & energy grid has values that are below threshold, which is not expected behavior !")
     xs = xs * Eel_xcite / Eel_dxcite * real(2*nlo+1, kind=dp) / real(2*nup+1, kind=dp)
   end subroutine convert_xcite2dxcite
+
+  ! ------------------------------------------------------------------------------------------------------------------------------- !
+  pure subroutine reduce_symtop_ksign(transitions, xs_xcite, xs_dxcite)
+    !! Given arrays of transitions between states, excitation cross sections, and de-excitation cross sections,
+    !! average over the different ±K for each state, .e.g,
+    !!  (N,K)
+    !!    (1-1) -> (2-1)    +> (1 1) -> (2 1)
+    !!    (1-1) -> (2 1)   /
+    !!    (1 1) -> (2-1)  /
+    !!    (1 1) -> (2 1) /
+
+    use rotex__types,  only: asymtop_rot_transition_type, rvector_type, asymtop_rot_channel_type
+    use rotex__arrays, only: size_check
+    use rotex__channel_ops, only: findloc_transitions, operator(.ne.)
+
+    implicit none (type, external)
+
+    type(asymtop_rot_transition_type), intent(inout), allocatable :: transitions(:)
+      !! Array of state transitions
+    type(rvector_type), intent(inout), allocatable :: xs_xcite(:), xs_dxcite(:)
+      !! Excitation and de-excitation cross section arrays
+
+    integer :: n, itrans
+    integer :: kalo, kclo
+    integer :: kaup, kcup
+    integer, allocatable :: idx(:)
+    logical, allocatable :: mask(:)
+    type(asymtop_rot_transition_type) :: transabs
+    type(asymtop_rot_channel_type) :: lo, up, loabs, upabs
+
+    n = size(transitions, 1)
+    call size_check(xs_xcite,  n, "XS_XCITE")
+    call size_check(xs_dxcite, n, "XS_DXCITE")
+
+    allocate(mask(n), source = .true.)
+    idx = [(itrans, itrans=1, n)]
+
+    ! -- initial marking
+    do itrans=1,n
+
+      ! -- N, Ka, Kc
+      up   = transitions(itrans)%up
+      Kaup = up % Ka
+      Kcup = up % Kc
+      lo   = transitions(itrans)%lo
+      Kalo = lo % Ka
+      Kclo = lo % Kc
+
+      ! -- N, |Ka|, |Kc|
+      upabs = up
+      upabs%Ka = abs(upabs%Ka)
+      upabs%Kc = abs(upabs%Kc)
+      loabs = lo
+      loabs%Ka = abs(loabs%Ka)
+      loabs%Kc = abs(loabs%Kc)
+
+      transabs%lo = loabs
+      transabs%up = upabs
+
+      xs_xcite(itrans)%vec  = xs_xcite(itrans)%vec  / symtop_degen(Kalo, Kclo)
+      xs_dxcite(itrans)%vec = xs_dxcite(itrans)%vec / symtop_degen(Kaup, Kcup)
+
+      ! -- is NKaKc -> N'Ka'Kc' = N|Ka||Kc| -> N|Ka'||Kc'| ?
+      idx(itrans) = findloc_transitions(transabs, transitions)
+      if(idx(itrans) .eq. itrans) cycle
+
+      ! -- if not, remove it and add its contribution to the corresponding transition
+      mask(itrans) = .false.
+
+      xs_xcite(idx(itrans))%vec  = xs_xcite(idx(itrans))%vec  + xs_xcite(itrans)%vec
+      xs_dxcite(idx(itrans))%vec = xs_dxcite(idx(itrans))%vec + xs_dxcite(itrans)%vec
+
+    enddo
+
+    ! -- filter out transitions with K<0
+    transitions = pack(transitions, mask)
+    xs_xcite    = pack(xs_xcite, mask)
+    xs_dxcite   = pack(xs_dxcite, mask)
+
+  ! ------------------------------------------------------------------------------------------------------------------------------- !
+  contains
+  ! ------------------------------------------------------------------------------------------------------------------------------- !
+
+    pure elemental function symtop_degen(ka, kc) result(res)
+      !! Returns the degeneracy of a transition:
+      !! K=0: 1
+      !! K≠0: 2
+      use rotex__globals, only: G
+      use rotex__system, only: die
+      implicit none (type, external)
+      integer, intent(in) :: Ka, Kc
+      integer :: res
+      integer :: Ksym
+      if(G%ROTOR_KIND .ne. "s") call die("SYMTOP_DEGEN found a non-symtop rotor")
+      if(all(G%ROTOR_ZAXIS .ne. ["a", "c"])) call die("SYMTOP_DEGEN needs ROTOR_ZAXIS to be A or C")
+      Ksym = merge(Ka, Kc, G%ROTOR_ZAXIS .eq. "a")
+      res = merge(1, 2, Ksym .eq. 0)
+    end function symtop_degen
+
+  end subroutine reduce_symtop_ksign
 
 ! ================================================================================================================================ !
 end module rotex__drivers

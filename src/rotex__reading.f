@@ -1,6 +1,7 @@
 ! ================================================================================================================================ !
 module rotex__reading
   !! Contains procedures used in reading data (K-matrices and namelist data)
+  use rotex__globals, only: G
   use rotex__constants, only: UKRMOLX, MQDTR2K
 
   implicit none (type, external)
@@ -16,17 +17,13 @@ contains
 
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine read_kmats( kmat_dir          &
-                              , channels_dir      &
-                              , point_group       &
+  module subroutine read_kmats(                   &
+                                Kmat              &
                               , spinmult          &
-                              , kmat_lmax         &
-                              , Kmat              &
                               , elec_channels     &
                               , channel_E_units   &
                               , kmat_eval_E_units &
-                              , kmat_output_type  &
-                              , kmat_e_closest    )
+    )
     !! Reads in a K-matrix from a file with a very particular file format given by kmat_output_type
 
     use rotex__kinds,      only: dp
@@ -41,18 +38,10 @@ contains
 
     implicit none (type, external)
 
-    character(*), intent(in) :: kmat_dir
-      !! Directory in which the files containing the K-matrices
-    character(*), intent(in) :: channels_dir
-      !! Directory in which the channel data are located
-    character(*), intent(in) :: point_group
-      !! The point group of the calculations
-    integer, intent(in) :: spinmult
-      !! The spin multiplicity (2S+1) of the system (target + e⁻)
-    integer, intent(in) :: kmat_lmax
-      !! The max value of l in the electronic partial wave basis
     real(dp), intent(out), allocatable :: Kmat(:,:)
       !! K(i, j)
+    integer, intent(in) :: spinmult
+      !! The current spin multiplicity
     type(elec_channel_type), intent(out), allocatable :: elec_channels(:)
       !! The channel basis of the K-matrix: \(n,l,λ\) (the code calls λ \(m_l\))
     character(1), intent(in) :: channel_E_units
@@ -63,10 +52,6 @@ contains
       !!  - "h" for hartree
       !!  - "e" for eV
       !!  - "r" for Rydberg
-    real(dp), intent(in) :: kmat_e_closest
-      !! Evaluate the K-matrix that is closest to this energy
-    character(*), intent(in) :: kmat_output_type
-      !! The kind of K-matrix output to read
 
     logical :: skip_this_irrep
     integer :: i, j, ichan, iflat, i1, i2
@@ -82,7 +67,7 @@ contains
     type(ivector_type), allocatable :: index_map(:)
     type(rvector_type), allocatable :: kmat_flat(:)
 
-    nirreps = group_size(point_group)
+    nirreps = group_size(G%POINT_GROUP)
     allocate(nchans_irrep(nirreps))
 
     write(stdout, '(A)')     "----------------------------------------"
@@ -112,18 +97,18 @@ contains
 
     nchans_total = 0
 
-    write(stdout, '("Point group: ", A)') point_group
+    write(stdout, '("Point group: ", A)') G%POINT_GROUP
     ! -- read the K-matrices and electronic channels
     irrep_loop_kmats: do irrep = 1, nirreps
-      irrepname = irrep_name(irrep, point_group)
+      irrepname = irrep_name(irrep, G%POINT_GROUP)
       write(stdout, '(2X, "Irrep: ", A)') irrepname
-      filename = kmat_dir // int2char(spinmult) // irrepname // ".kmat"
+      filename = G%KMAT_DIR // int2char(spinmult) // irrepname // ".kmat"
 
-      select case(kmat_output_type)
+      select case(G%KMAT_OUTPUT_TYPE)
       case(UKRMOLX)
 
-        channels_filename = channels_dir // "channels.geom1." // spinmult_names(spinmult) // "." // irrepname
-        kmat_filename     = kmat_dir     // "K-matrix.geom1." // spinmult_names(spinmult) // "." // irrepname
+        channels_filename = G%CHANNELS_DIR // "channels.geom1." // spinmult_names(spinmult) // "." // irrepname
+        kmat_filename     = G%KMAT_DIR     // "K-matrix.geom1." // spinmult_names(spinmult) // "." // irrepname
 
         call get_flat_kmat_and_channels_ukrmolx( &
             channels_filename                    &
@@ -131,7 +116,6 @@ contains
           , kmat_flat(irrep)%vec                 &
           , channel_E_convert                    &
           , kmat_e_convert                       &
-          , kmat_e_closest                       &
           , elec_channels_this_irrep             &
           , nchans_irrep(irrep)                  &
           , skip_this_irrep)
@@ -139,14 +123,13 @@ contains
       case(MQDTR2K)
 
         ! -- the kmat file is expected to have the channels
-        kmat_filename = kmat_dir // int2char(spinmult) // irrep_name(irrep, point_group) // ".kmat"
+        kmat_filename = G%KMAT_DIR // int2char(spinmult) // irrep_name(irrep, G%POINT_GROUP) // ".kmat"
 
         call get_flat_kmat_and_channels_mqdtr2k(   &
             kmat_filename                          &
           , kmat_flat(irrep)%vec                   &
           , channel_E_convert                      &
           , kmat_e_convert                         &
-          , kmat_e_closest                         &
           , elec_channels_this_irrep               &
           , nchans_irrep(irrep)                    &
           , skip_this_irrep&
@@ -157,7 +140,7 @@ contains
       end select
 
       ! -- if we need to focus on channel parity
-      if(point_group .eq. "cs") call fill_parity_array_this_irrep_cs(kmat_lmax, elec_channels_this_irrep, irrep, point_group)
+      if(G%POINT_GROUP .eq. "cs") call fill_parity_array_this_irrep_cs(G%LMAX_KMAT, elec_channels_this_irrep, irrep, G%POINT_GROUP)
 
       call append(elec_channels, elec_channels_this_irrep)
 
@@ -273,13 +256,11 @@ contains
       , kmat_flat                                &
       , channel_e_convert                        &
       , kmat_e_convert                           &
-      , kmat_e_closest                           &
       , elec_channels_this_irrep                 &
       , nchans_this_irrep                        &
       , skip_this_irrep)
     !! Return the flattened (1D) K-matrix that is closest to the desired evaluation energy
-    !! given by kmat_e_closest
-
+    !! given by G%KMAT_ENERGY_CLOSEST
     use rotex__constants, only: IOSTAT_END, IOSTAT_OK, au2ev
     use rotex__kinds,     only: dp
     use rotex__arrays,    only: realloc, size_check, append
@@ -294,7 +275,6 @@ contains
     real(dp), intent(inout), allocatable :: kmat_flat(:)
     real(dp), intent(in) :: channel_e_convert
     real(dp), intent(in) :: kmat_e_convert
-    real(dp), intent(in) :: kmat_e_closest
     type(elec_channel_type), intent(out), allocatable :: elec_channels_this_irrep(:)
     integer, intent(out) :: nchans_this_irrep
     logical, intent(out) :: skip_this_irrep
@@ -356,9 +336,9 @@ contains
     enddo
 
     ! -- find the lowest energy
-    ie_closest = minloc(abs(kmat_energies - kmat_e_closest), 1)
+    ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
     if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
-    write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') kmat_e_closest            * au2ev
+    write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST          * au2ev
     write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev
 
     ! -- Now, actually go and read that K-matrix
@@ -370,7 +350,7 @@ contains
       if(iostat .eq. IOSTAT_END) then
         call die("Reach end of ")
         write(stderr, '("Number of K-matrices/energies: ", I0)') ne
-        write(stderr, '("Target K-matrix energy: ", E20.10)') kmat_e_closest * au2ev
+        write(stderr, '("Target K-matrix energy: ", E20.10)') G%KMAT_ENERGY_CLOSEST * au2ev
         write(stderr, '("Closest available K-matrix is number ", I0)') ie_closest
         call die("Could not find the K-matrix that is closest to the given target energy before EOF")
       endif
@@ -447,12 +427,11 @@ contains
       , kmat_flat                                &
       , channel_e_convert                        &
       , kmat_e_convert                           &
-      , kmat_e_closest                           &
       , elec_channels_this_irrep                 &
       , nchans_this_irrep                        &
       , skip_this_irrep)
     !! Return the flattened (1D) K-matrix that is closest to the desired evaluation energy
-    !! given by kmat_e_closest, where the K-matrix channels format is that of MQDTR2K
+    !! given by G%KMAT_ENERGY_CLOSEST where the K-matrix channels format is that of MQDTR2K
 
     use rotex__constants, only: IOSTAT_END, IOSTAT_OK, au2ev
     use rotex__kinds,     only: dp
@@ -467,7 +446,6 @@ contains
     real(dp), intent(inout), allocatable :: kmat_flat(:)
     real(dp), intent(in) :: channel_e_convert
     real(dp), intent(in) :: kmat_e_convert
-    real(dp), intent(in) :: kmat_e_closest
     type(elec_channel_type), intent(out), allocatable :: elec_channels_this_irrep(:)
     integer, intent(out) :: nchans_this_irrep
     logical, intent(out) :: skip_this_irrep
@@ -513,10 +491,10 @@ contains
     enddo
 
     ! -- find the lowest energy
-    ie_closest = minloc(abs(kmat_energies - kmat_e_closest), 1)
+    ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
     if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
     ne_skip = ie_closest - 1
-    write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') kmat_e_closest            * au2ev
+    write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST            * au2ev
     write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev
 
     ! -- skip header, read channels for this irrep
@@ -593,7 +571,7 @@ contains
     !! Reads user parameters and puts them into the config derived type
     use rotex__kinds,      only: dp
     use rotex__types,      only: cd4_type, cd6_type
-    use rotex__globals,    only: G, config_type
+    use rotex__globals,    only: G
     use rotex__arrays,     only: append, remove_value
     use rotex__system,     only: stdin, stdout, ds => directory_separator, die
     use rotex__constants,  only: au2invcm, au2ev, macheps => macheps_dp, au2cm, au2deb, DEFAULT_CHAR1&
@@ -609,6 +587,7 @@ contains
     integer :: Nmax
     logical :: use_kmat
     logical :: use_CB
+    logical :: symtop_reduce_projection = .true.
     integer :: spin_isomer_kind = 0
     integer :: forbidden_states_kind = 0
     character(:), allocatable :: output_directory
@@ -636,11 +615,13 @@ contains
 
     ! -- namelist: kmat
     logical :: real_spherical_harmonics = .true.
+    logical :: edft
     integer :: lmax_kmat = DEFAULT_INT
     integer :: num_egrid_segs
     integer, allocatable :: num_egrid(:)
     integer, allocatable :: spinmults(:)
     real(dp), allocatable :: egrid_segs(:)
+    real(dp), allocatable :: kmat_Ei, kmat_Ef
     character(1) :: channel_energy_units_override = DEFAULT_CHAR1
     character(1) :: kmat_energy_units_override    = DEFAULT_CHAR1
     character(3) :: egrid_spacing
@@ -674,6 +655,7 @@ contains
                          output_directory                    &
                        , spin_isomer_kind                    &
                        , forbidden_states_kind               &
+                       , symtop_reduce_projection            &
                        , nmin                                &
                        , nmax                                &
                        , use_kmat                            &
@@ -681,7 +663,7 @@ contains
                        , rotor_zaxis                         &
                        , rotor_c2axis                        &
                        , rotor_kind                          &
-                       , targcharge                       &
+                       , targcharge                          &
                        , abc                                 &
                        , B_rot                               &
                        , D_rot                               &
@@ -701,6 +683,9 @@ contains
                     , num_egrid_segs                &
                     , num_egrid                     &
                     , egrid_segs                    &
+                    , edft                          &
+                    , kmat_ei                       &
+                    , kmat_ef                       &
                     , egrid_spacing                 &
                     , spinmults                     &
                     , kmat_output_type              &
@@ -709,24 +694,24 @@ contains
                     , channel_energy_units_override &
                     , kmat_energy_units_override
 
-    namelist / coulomb_namelist /                     &
+    namelist / coulomb_namelist /                 &
       !! Parameters regarding the Coulomb-Born approximation
       !! used for (de-)excitation
-                         use_CDMS_einstA              &
-                       , only_einsta                  &
-                       , cdms_file                    &
-                       , eta_thresh                   &
-                       , ef                           &
-                       , ne                           &
-                       , ne_xtrap                     &
-                       , do_xtrap                     &
-                       , ei_xtrap                     &
-                       , cartesian_dipole_moments     &
+                         use_CDMS_einstA          &
+                       , only_einsta              &
+                       , cdms_file                &
+                       , eta_thresh               &
+                       , ef                       &
+                       , ne                       &
+                       , ne_xtrap                 &
+                       , do_xtrap                 &
+                       , ei_xtrap                 &
+                       , cartesian_dipole_moments &
                        ! , cartesian_quadrupole_moments &
-                       , do_dipole                    &
-                       , do_quadrupole                &
-                       , analytic_total_cb            &
-                       , lmax_partial                 &
+                       , do_dipole                &
+                       , do_quadrupole            &
+                       , analytic_total_cb        &
+                       , lmax_partial             &
                        , lmax_total
 
     !!!!!!!!!!!!!!!!!!!!!! CONTROL_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -878,6 +863,7 @@ contains
     G%USE_CB                = use_cb
     G%SPIN_ISOMER_KIND      = spin_isomer_kind
     G%FORBIDDEN_STATES_KIND = forbidden_states_kind
+    G%SYMTOP_REDUCE_PROJECTION = symtop_reduce_projection
     G%OUTPUT_DIRECTORY      = output_directory
     G%ROTOR_KIND            = rotor_kind
     G%ROTOR_ZAXIS           = rotor_zaxis
