@@ -30,7 +30,7 @@ contains
     use rotex__types,      only: elec_channel_type, rvector_type, ivector_type
     use rotex__channel_ops, only: permsort_channels
     use rotex__utils,      only: read_blank
-    use rotex__arrays,     only: append, is_symmetric, realloc
+    use rotex__arrays,     only: append, is_symmetric, realloc, packmat
     use rotex__system,     only: die, stdout, stderr
     use rotex__symmetry,   only: group_size, irrep_name
     use rotex__constants,  only: au2ev, IOSTAT_END, IOSTAT_OK, spinmult_names, DEFAULT_INT
@@ -98,6 +98,7 @@ contains
     nchans_total = 0
 
     write(stdout, '("Point group: ", A)') G%POINT_GROUP
+
     ! -- read the K-matrices and electronic channels
     irrep_loop_kmats: do irrep = 1, nirreps
       irrepname = irrep_name(irrep, G%POINT_GROUP)
@@ -185,10 +186,14 @@ contains
     Kmat = Kmat(idx, idx)
     call print_channels(elec_channels, stdout)
 
-    if(is_symmetric(Kmat) .eqv. .true.) return
+    if(is_symmetric(Kmat) .eqv. .false.) then
+      write(stderr, '("maxval(abs(Kmat - transpose(Kmat))): ", E20.10)') maxval(abs(Kmat - transpose(Kmat)))
+      call die("The K-matrix is not symmeric !")
+    endif
 
-    write(stderr, '("maxval(abs(Kmat - transpose(Kmat))): ", E20.10)') maxval(abs(Kmat - transpose(Kmat)))
-    call die("The K-matrix is not symmeric !")
+    !!!!!!!!!!!!@@@@@@@@@@@@@@@@@@@
+    ! -- re-flatten the full K-matrix
+    ! call packmat(Kmat, Kpack)
 
   end subroutine read_kmats
 
@@ -621,7 +626,7 @@ contains
     integer, allocatable :: num_egrid(:)
     integer, allocatable :: spinmults(:)
     real(dp), allocatable :: egrid_segs(:)
-    real(dp), allocatable :: kmat_Ei, kmat_Ef
+    real(dp) :: kmat_Ei = 0._dp, kmat_Ef = 0._dp
     character(1) :: channel_energy_units_override = DEFAULT_CHAR1
     character(1) :: kmat_energy_units_override    = DEFAULT_CHAR1
     character(3) :: egrid_spacing

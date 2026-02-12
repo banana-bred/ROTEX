@@ -20,7 +20,19 @@ module rotex__arrays
   public :: realloc
   public :: unitary_defect
   public :: sort_index
+  public :: packmat
+  public :: unpackmat
   ! public :: vec2diag
+
+  interface unpackmat
+    module procedure :: unpackmat_r
+    module procedure :: unpackmat_c
+  end interface unpackmat
+
+  interface packmat
+    module procedure :: packmat_r
+    module procedure :: packmat_c
+  end interface packmat
 
   interface append_uniq
     module procedure :: append_uniq_i
@@ -590,6 +602,114 @@ contains
       idx(j+1) = key
     enddo
   end subroutine sort_index
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine unpackmat_r(flatmat, mat)
+    !! Unpack the triangular matrix in flatmat to the full matrix mat
+    implicit none
+    real(dp), intent(in) :: flatmat(:)
+    real(dp), intent(out) :: mat(:,:)
+    integer :: n, i, j, k
+    n = size(mat, 1)
+    call size_check_1d(flatmat, (n*(n+1)/2), "FLATMAT")
+    call size_check_2d(mat, [n, n], "MAT")
+    k=0
+    do j = 1, n
+      do i = 1, j
+        k = k + 1
+        mat(i, j) = flatmat(k)
+        mat(j, i) = flatmat(k)
+      enddo
+    enddo
+  end subroutine unpackmat_r
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine unpackmat_c(flatmat, mat)
+    !! Unpack the triangular matrix in flatmat to the full matrix mat
+    implicit none
+    complex(dp), intent(in) :: flatmat(:)
+    complex(dp), intent(out) :: mat(:,:)
+    integer :: n, i, j, k
+    n = size(mat, 1)
+    call size_check_1d(flatmat, (n*(n+1)/2), "FLATMAT")
+    call size_check_2d(mat, [n, n], "MAT")
+    k=0
+    do j = 1, n
+      do i = 1, j
+        k = k + 1
+        mat(i, j) = flatmat(k)
+        mat(j, i) = flatmat(k)
+      enddo
+    enddo
+  end subroutine unpackmat_c
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine packmat_r(mat, flatmat, UL)
+    !! Pack the symmetric matrix mat's upper or lower triangle into flatmat.
+    use rotex__system, only: die
+    implicit none
+    real(dp),     intent(in)  :: mat(:,:)
+    real(dp),     intent(out) :: flatmat(:)
+    character(1), intent(in)  :: UL
+      !! U: store upper triangle
+      !! L: store lower triangle
+    integer :: i, j, n, k
+    n = size(mat, 1)
+    call size_check_2d(mat, [n, n], "MAT")
+    call size_check_1d(flatmat, (n*(n+1))/2, "FLATMAT")
+    k=0
+    select case(UL)
+    case('L')
+      do i = 1, n
+        do j = 1, i
+          k = k + 1
+          flatmat(k) = mat(i, j)
+        enddo
+      enddo
+    case('U')
+      do j = 1, n
+        do i = 1, j
+          k = k + 1
+          flatmat(k) = mat(i, j)
+        enddo
+      enddo
+    case default
+      call die("UL must be either U or L in PACKMAT")
+    end select
+  end subroutine packmat_r
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine packmat_c(mat, flatmat, UL)
+    !! Pack the symmetric matrix mat's upper or lower triangle into flatmat
+    use rotex__system, only: die
+    implicit none
+    complex(dp),  intent(in)  :: mat(:,:)
+    complex(dp),  intent(out) :: flatmat(:)
+    character(1), intent(in)  :: UL
+      !! U: store upper triangle
+      !! L: store lower triangle
+    integer :: i, j, n, k
+    n = size(mat, 1)
+    call size_check_2d(mat, [n, n], "MAT")
+    call size_check_1d(flatmat, (n*(n+1))/2, "FLATMAT")
+    k=0
+    select case(UL)
+    case('L')
+      do i = 1, n
+        do j = 1, i
+          k = k + 1
+          flatmat(k) = mat(i, j)
+        enddo
+      enddo
+    case('U')
+      do j = 1, n
+        do i = 1, j
+          k = k + 1
+          flatmat(k) = mat(i, j)
+        enddo
+      enddo
+    case default
+      call die("UL must be either U or L in PACKMAT")
+    end select
+  end subroutine packmat_c
 
 ! ================================================================================================================================ !
 end module rotex__arrays
