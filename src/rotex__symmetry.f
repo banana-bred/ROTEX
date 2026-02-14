@@ -27,7 +27,7 @@ module rotex__symmetry
     module procedure :: is_spin_forbidden_qnums
   end interface is_spin_forbidden
 
-  integer, allocatable, public, save :: m_parity(:)
+  ! integer, allocatable, public, save :: m_parity(:)
     !! Array containing the parity (even or /odd) of an electronic channel
     !! based on its label m. This array is indexed by m directly. This is only
     !! for calculation in the Cs point group

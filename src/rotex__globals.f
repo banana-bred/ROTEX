@@ -118,11 +118,11 @@ module rotex__globals
       !! NOTE: UKRMOL+ outputs K-matrix energies in the .kmat files in Rydberg.
       !! If an energy dependent calculation is selected, this is ignored
     real(dp) :: kmat_ei
-      !! The lowest K-matrix energy to consider for reading in case of EDFT. If 0.0, start at lowest
-      !! available energy
+      !! The lowest K-matrix energy to consider for reading in case of EDFT. (eV)
+      !! If 0.0, start at lowest available energy.
     real(dp) :: kmat_ef
-      !! The highest K-matrix energy to consider for reading in case of EDFT. If 0.0, go to highest
-      !! available energy
+      !! The highest K-matrix energy to consider for reading in case of EDFT. (eV)
+      !! If 0.0, go to highest available energy
     real(dp) :: abc(3)
       !! Array of reals of length 3
       !! The rotational constants A, B, and C of the target molecule (cm⁻¹).

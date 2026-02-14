@@ -503,7 +503,10 @@ contains
     integer :: ispin, nspins, jmin, jmax, itrans, ntrans, ne
     integer, allocatable :: idxmap(:)
 
-    real(dp), allocatable :: kmat(:,:)
+    real(dp), allocatable :: kmat_flat(:,:)
+      !! Flattened K-matrix. nchan(nchan+1)/2 x ne dimemsional matrix
+    real(dp), allocatable :: kmat_eval_energies(:)
+      !! Evaluation energies of the K-matrix
 
     character(1) :: kmat_eval_E_units, channel_e_units
     character(:), allocatable :: smat_output_directory_this_spin, smat_output_directory_all_spins
@@ -534,12 +537,13 @@ contains
         call die("KMAT_OUTPUT_TYPE ("//G%KMAT_OUTPUT_TYPE//") must be one of "//UKRMOLX//" or "//MQDTR2K)
       end select
 
-      call read_kmats(                          &
-          kmat              = kmat              &
-        , spinmult = G%SPINMULTS(ispin) &
-        , elec_channels     = elec_channels     &
-        , channel_e_units   = channel_e_units   &
-        , kmat_eval_E_units = kmat_eval_e_units &
+      call read_kmats(                            &
+          kmat_flat         = kmat_flat           &
+        , kmat_eval_energies = kmat_eval_energies &
+        , spinmult = G%SPINMULTS(ispin)           &
+        , elec_channels     = elec_channels       &
+        , channel_e_units   = channel_e_units     &
+        , kmat_eval_E_units = kmat_eval_e_units   &
         )
 
       if(maxval(elec_channels % l) .gt. G%LMAX_KMAT) call die("K-matrix has at least one channel with&
@@ -563,7 +567,7 @@ contains
       jmax = abs(G%NMAX + G%LMAX_KMAT)
       allocate(smat_j(jmin:jmax))
       allocate(asymtop_rot_channels_l_j(jmin:jmax))
-      call rft_nonlinear( kmat                     &
+      call rft_nonlinear( kmat_flat                &
                         , jmin, jmax               &
                         , smat_j(jmin:jmax)        &
                         , elec_channels            &

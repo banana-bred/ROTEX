@@ -22,6 +22,8 @@ module rotex__arrays
   public :: sort_index
   public :: packmat
   public :: unpackmat
+  public :: ij2k
+  public :: nflat2n
   ! public :: vec2diag
 
   interface unpackmat
@@ -604,42 +606,122 @@ contains
   end subroutine sort_index
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine unpackmat_r(flatmat, mat)
+  pure module subroutine unpackmat_r(flatmat, mat, UL)
     !! Unpack the triangular matrix in flatmat to the full matrix mat
     implicit none
     real(dp), intent(in) :: flatmat(:)
     real(dp), intent(out) :: mat(:,:)
-    integer :: n, i, j, k
-    n = size(mat, 1)
+    character(1), intent(in), optional :: UL
+      !! Whether to unpack the 'U'pper triangle, the 'L' ower triangle, or 'B'oth.
+      !! If not supplied, do both
+    character(1) :: UL_
+    UL_ = 'B' ; if(present(UL)) UL_ = UL
     call size_check_1d(flatmat, (n*(n+1)/2), "FLATMAT")
     call size_check_2d(mat, [n, n], "MAT")
-    k=0
-    do j = 1, n
-      do i = 1, j
-        k = k + 1
+    select case(UL_)
+      case('U') ; call unpackmat_ru(flatmat, mat)
+      case('L') ; call unpackmat_rl(flatmat, mat)
+      case('B') ; call unpackmat_rb(flatmat, mat)
+    end select
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  contains
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+    pure subroutine unpackmat_ru(flatmat, mat)
+      implicit none (type, external)
+      real(dp), intent(in) :: flatmat(:)
+      real(dp), intent(out) :: mat(:,:)
+      integer :: n, i, j, k
+      n = size(mat, 1)
+      k=0
+      do j=1,n ; do i=1,j
+        k = k+1
+        mat(i, j) = flatmat(k)
+      enddo ; enddo
+    end subroutine unpackmat_ru
+    pure subroutine unpackmat_rl(flatmat, mat)
+      implicit none (type, external)
+      real(dp), intent(in) :: flatmat(:)
+      real(dp), intent(out) :: mat(:,:)
+      integer :: n, i, j, k
+      n = size(mat, 1)
+      k=0
+      do j=1,n ; do i=1,j
+        k = k+1
+        mat(j, i) = flatmat(k)
+      enddo ; enddo
+    end subroutine unpackmat_rl
+    pure subroutine unpackmat_rb(flatmat, mat)
+      implicit none (type, external)
+      real(dp), intent(in) :: flatmat(:)
+      real(dp), intent(out) :: mat(:,:)
+      integer :: n, i, j, k
+      n = size(mat, 1)
+      k=0
+      do j=1,n ; do i=1,j
+        k = k+1
         mat(i, j) = flatmat(k)
         mat(j, i) = flatmat(k)
-      enddo
-    enddo
+      enddo ; enddo
+    end subroutine unpackmat_rb
   end subroutine unpackmat_r
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine unpackmat_c(flatmat, mat)
+  pure module subroutine unpackmat_c(flatmat, mat, UL)
     !! Unpack the triangular matrix in flatmat to the full matrix mat
     implicit none
     complex(dp), intent(in) :: flatmat(:)
     complex(dp), intent(out) :: mat(:,:)
-    integer :: n, i, j, k
-    n = size(mat, 1)
+    character(1), intent(in), optional :: UL
+      !! Whether to unpack the 'U'pper triangle, the 'L' ower triangle, or 'B'oth.
+      !! If not supplied, do both
+    character(1) :: UL_
+    UL_ = 'B' ; if(present(UL)) UL_ = UL
     call size_check_1d(flatmat, (n*(n+1)/2), "FLATMAT")
     call size_check_2d(mat, [n, n], "MAT")
-    k=0
-    do j = 1, n
-      do i = 1, j
-        k = k + 1
+    select case(UL_)
+      case('U') ; call unpackmat_cu(flatmat, mat)
+      case('L') ; call unpackmat_cl(flatmat, mat)
+      case('B') ; call unpackmat_cb(flatmat, mat)
+    end select
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  contains
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+    pure subroutine unpackmat_cu(flatmat, mat)
+      implicit none (type, external)
+      complex(dp), intent(in) :: flatmat(:)
+      complex(dp), intent(out) :: mat(:,:)
+      integer :: n, i, j, k
+      n = size(mat, 1)
+      k=0
+      do j=1,n ; do i=1,j
+        k = k+1
+        mat(i, j) = flatmat(k)
+      enddo ; enddo
+    end subroutine unpackmat_cu
+    pure subroutine unpackmat_cl(flatmat, mat)
+      implicit none (type, external)
+      complex(dp), intent(in) :: flatmat(:)
+      complex(dp), intent(out) :: mat(:,:)
+      integer :: n, i, j, k
+      n = size(mat, 1)
+      k=0
+      do j=1,n ; do i=1,j
+        k = k+1
+        mat(j, i) = flatmat(k)
+      enddo ; enddo
+    end subroutine unpackmat_cl
+    pure subroutine unpackmat_cb(flatmat, mat)
+      implicit none (type, external)
+      complex(dp), intent(in) :: flatmat(:)
+      complex(dp), intent(out) :: mat(:,:)
+      integer :: n, i, j, k
+      n = size(mat, 1)
+      k=0
+      do j=1,n ; do i=1,j
+        k = k+1
         mat(i, j) = flatmat(k)
         mat(j, i) = flatmat(k)
-      enddo
-    enddo
+      enddo ; enddo
+    end subroutine unpackmat_cb
   end subroutine unpackmat_c
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
@@ -710,6 +792,29 @@ contains
       call die("UL must be either U or L in PACKMAT")
     end select
   end subroutine packmat_c
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function ij2k(i, j) result(k)
+    !! Given a row i and column j of a symmetric matrix, return
+    !! the flattened index k
+    implicit none (type, external)
+    integer, intent(in) :: i, j
+    integer :: k
+    integer :: ii, jj
+    ii = min(i,j)
+    jj = max(i,j)
+    k = jj*(jj-1)/2 + ii
+  end function ij2k
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental function nflat2n(nflat) result(n)
+    !! Given a number of flattened array elements nflat=n(n+1)/2,
+    !! determine the number of array elements n
+    implicit none (type, external)
+    integer, intent(in) : nflat
+    integer :: n
+    n = nint(( sqrt(real(8*nflat+1, kind=dp)) - 1 ) / 2)
+  end function nflat2n
 
 ! ================================================================================================================================ !
 end module rotex__arrays

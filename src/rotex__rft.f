@@ -2,6 +2,7 @@
 module rotex__RFT
   !! Procedures used to carry out the rotational frame transformation
   use rotex__globals, only: G
+  use rotex__kinds, only: dp
 
   implicit none (type, external)
 
@@ -20,7 +21,7 @@ contains
 ! ================================================================================================================================ !
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine RFT_nonlinear( Kmat                     &
+  module subroutine RFT_nonlinear( Kmat_flat                &
                                  , Jmin, Jmax               &
                                  , Smat_J                   &
                                  , elec_channels            &
@@ -41,8 +42,8 @@ contains
 
     implicit none (type, external)
 
-    real(dp),                       intent(inout), allocatable :: Kmat(:,:)
-      !! The K-matrix, needed as input for the RFT
+    real(dp),                       intent(inout), allocatable :: Kmat_flat(:,:)
+      !! The flattened K-matrix, needed as input for the RFT. nchans(nchans+1)/2 × nE
     integer, intent(in) :: Jmin
       !!  The lowest value of J = N + l
     integer, intent(in) :: Jmax
@@ -79,7 +80,15 @@ contains
     allocate(smat_elec(nchans_elec, nchans_elec))
     smat_elec = 0
     ! call K2S(Kmat, smat_elec, elec_channels, real_spherical_harmonics, point_group)
-    call K2S_cayley(Kmat, smat_elec, elec_channels)
+
+    if(G%EDFT) then
+      ! -- correct for branch cuts to get a smooth S-matrix
+      @@@@@
+      call K2S_smooth(kmat_flat, smat_elec_flat, elec_channels)
+    else
+      ! -- just do the Cayley transform
+      call K2S_cayley(kmat_flat, smat_elec_flat, elec_channels)
+    endif
 
     write(stdout, '(A)') "Channel-by-channel unitarity of the electronic S-matrix:"
     write(stdout, '(8X, 4A4, A15)') "i", "n", "l", "ml", "||S(:,i)||₂"
@@ -180,43 +189,122 @@ contains
   end subroutine build_rotational_channels
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine K2S_cayley(Kmat, Smat, elec_channels)
+  subroutine K2S_smooth(kmat_flat, smat_flat, elec_channels)
+    !! Take a flattened K-matrix that is defined for several energies, and
+    !! transform it into the S-matrix. Along the way, eigenphases will be put in the same branch
+    !! so as to avoid jumps in S-matrix elements as a function of evaluation energy
+
+    use rotex__types,  only: elec_channel_type
+    use rotex__linalg, only: dsyev
+    use rotex__arrays, only: nflat2n
+    use rotex__characters, only: i2c => int2char
+
+    implicit none (type, external)
+
+    real(dp),                intent(in)  :: kmat_flat(:,:)
+    complex(dp),             intent(out) :: smat_flat(:,:)
+    type(elec_channel_type), intent(in)  :: elec_channels(:)
+
+    integer :: ne, nflat, n
+    real(dp), allocatable :: U(:,:,:)
+
+    ! -- lapack variables
+    integer :: info, lwork
+    real(dp), allocatable :: w(:), work(:)
+    character(1), parameter :: UPLO = 'U'
+
+    nflat = size(kmat_flat, 1)
+    ne = size(kmat_flat, 2)
+
+    n = nflat2n(nchans_flat)
+
+    allocate(U(n,n,ne), source=0._dp)
+    lwork = 3*n+1
+    allocate(w(n))
+    allocate(work(lwork))
+
+    ! -- 1) diagonalize K, get eigenphases, print eigenphases as functin of energy
+    do concurrent(ie=1, ne)
+
+      call unpackmat(kmat_flat, U(:,:,ie), UPLO)
+
+      call dsyev('V', UPLO, n, U, n, w, work, lwork, info)
+      if(info .ne. 0) call die("DSYEV exited with nonzero INFO = " // i2c(info))
+
+      ! -- δ <- tan(δ)
+      w = atan(w)
+
+      @@@@@
+      !now do the drip thing. compare inner products, etc etc, permute columns, etc etc,
+      ! maybe make some array helpers for that
+
+    enddo
+
+
+    ! -- 2)  identify eigenvalues by inner product of eigenvectors to permute columns of
+    !        the matrix U at each geometry
+
+    ! -- 3) now that we can identify eigenphases across energies, fix their continuity
+    !      between branches by jumps of  +/- π
+
+    ! -- 4) maybe print some stuff
+
+  end subroutine K2S_smooth
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine K2S_cayley(kmat_flat, smat_flat, elec_channels)
     !! electronic Kmat -> electronic Smat via Cayley transform. Also ensures that the
     !! S-matrix is in the basis of complex-valued spherical harmonics
-    use rotex__kinds,      only: dp
+
     use rotex__types,      only: elec_channel_type
-    use rotex__arrays,     only: adjoint, eye, size_check
+    use rotex__arrays,     only: adjoint, eye, size_check, unpackmat, packmat
     use rotex__constants,  only: im
     use rotex__system,     only: die
     use rotex__characters, only: i2c => int2char
     use rotex__linalg,     only: dsyev, zgesv
+
     implicit none (type, external)
-    real(dp),    intent(in)  :: Kmat(:,:)
-    complex(dp), intent(out) :: Smat(:,:)
+
+    real(dp),    intent(in)  :: kmat_flat(:,:)
+    complex(dp), intent(out) :: smat_flat(:,:)
     type(elec_channel_type), intent(in) :: elec_channels(:)
+
     character(1), parameter :: jobz = "V"
     character(1), parameter :: uplo = "U"
-    integer :: n, info
+    integer :: n, info, ne
     integer, allocatable :: ipiv(:)
     real(dp),    allocatable :: I(:,:)
+    real(dp),    allocatable :: kmat(:,:)
     complex(dp), allocatable :: A(:,:)
 
     ! -- array sizes
     n = size(elec_channels,1)
-    call size_check(Kmat, [n,n], "KMAT")
-    call size_check(Smat, [n,n], "SMAT")
+    ne = size(kmat_flat, 2)
+    call size_check(Kmat_flat, [n,ne], "KMAT_FLAT")
+    call size_check(Smat_flat, [n,ne], "SMAT_FLAT")
 
     ! -- S = (I + iK) / (I - iK)
     allocate(ipiv(n))
     I    = real(eye(n), kind=dp)
-    A    = cmplx(I(:,:), -Kmat(:,:), kind=dp)
-    smat = cmplx(I(:,:),  Kmat(:,:), kind=dp)
-    call zgesv(n, n, A, n, ipiv, smat, n, info)
 
-    ! -- transform real-valued Xlm basis to complex-valued Ylm if desired
-    if(G%REAL_SPHERICAL_HARMONICS .eqv. .false.) return
+    do concurrent(ie=1:ne)
 
-    call real2complex_ylm(smat, elec_channels)
+      ! -- unpack kmat_flat -> Kmat
+      call unpackmat(kmat_flat, Kmat)
+
+      A    = cmplx(I(:,:), -Kmat(:,:), kind=dp)
+      smat = cmplx(I(:,:),  Kmat(:,:), kind=dp)
+      call zgesv(n, n, A, n, ipiv, smat, n, info)
+
+      ! -- transform real-valued Xlm basis to complex-valued Ylm if desired
+      if(G%REAL_SPHERICAL_HARMONICS .eqv. .false.) return
+
+      call real2complex_ylm(smat, elec_channels)
+
+      ! -- pack the Smat -> Smat_flat
+      call packmat(Smat, smat_flat)
+
+    enddo
 
   end subroutine K2S_cayley
 

@@ -1,7 +1,7 @@
 ! ================================================================================================================================ !
 module rotex__reading
   !! Contains procedures used in reading data (K-matrices and namelist data)
-  use rotex__globals, only: G
+  use rotex__globals,   only: G
   use rotex__constants, only: UKRMOLX, MQDTR2K
 
   implicit none (type, external)
@@ -17,17 +17,18 @@ contains
 
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine read_kmats(                   &
-                                Kmat              &
-                              , spinmult          &
-                              , elec_channels     &
-                              , channel_E_units   &
-                              , kmat_eval_E_units &
+  module subroutine read_kmats(                    &
+                                kmat_flat          &
+                              , kmat_eval_energies &
+                              , spinmult           &
+                              , elec_channels      &
+                              , channel_E_units    &
+                              , kmat_eval_E_units  &
     )
     !! Reads in a K-matrix from a file with a very particular file format given by kmat_output_type
 
     use rotex__kinds,      only: dp
-    use rotex__types,      only: elec_channel_type, rvector_type, ivector_type
+    use rotex__types,      only: elec_channel_type, rmatrix_type, ivector_type
     use rotex__channel_ops, only: permsort_channels
     use rotex__utils,      only: read_blank
     use rotex__arrays,     only: append, is_symmetric, realloc, packmat
@@ -38,8 +39,10 @@ contains
 
     implicit none (type, external)
 
-    real(dp), intent(out), allocatable :: Kmat(:,:)
-      !! K(i, j)
+    real(dp), intent(out), allocatable :: Kmat_flat(:,:)
+      !! Flattened K-matrix: nchan(nchan+1)/2 × ne
+    real(dp), intent(out), allocatable :: kmat_eval_energies(:)
+      !! Evaluation energies of the K-matrix
     integer, intent(in) :: spinmult
       !! The current spin multiplicity
     type(elec_channel_type), intent(out), allocatable :: elec_channels(:)
@@ -61,11 +64,12 @@ contains
     integer, allocatable :: nchans_irrep(:), idx(:)
     character(:), allocatable :: kmat_filename, channels_filename, filename, irrepname
 
-    real(dp), allocatable :: channel_e_convert, kmat_e_convert
+    real(dp) :: channel_e_convert, kmat_e_convert
+    real(dp), allocatable :: kmat_eval_energies_local(:)
 
     type(elec_channel_type), allocatable :: elec_channels_this_irrep(:)
     type(ivector_type), allocatable :: index_map(:)
-    type(rvector_type), allocatable :: kmat_flat(:)
+    type(rmatrix_type), allocatable :: kmat_flat_per_irrep(:)
 
     nirreps = group_size(G%POINT_GROUP)
     allocate(nchans_irrep(nirreps))
@@ -93,7 +97,7 @@ contains
     end select
 
     allocate(index_map(nirreps))
-    allocate(kmat_flat(nirreps))
+    allocate(kmat_flat_per_irrep(nirreps))
 
     nchans_total = 0
 
@@ -114,7 +118,8 @@ contains
         call get_flat_kmat_and_channels_ukrmolx( &
             channels_filename                    &
           , kmat_filename                        &
-          , kmat_flat(irrep)%vec                 &
+          , kmat_flat_per_irrep(irrep)%mtrx      &
+          , kmat_eval_energies_local             &
           , channel_E_convert                    &
           , kmat_e_convert                       &
           , elec_channels_this_irrep             &
@@ -126,22 +131,23 @@ contains
         ! -- the kmat file is expected to have the channels
         kmat_filename = G%KMAT_DIR // int2char(spinmult) // irrep_name(irrep, G%POINT_GROUP) // ".kmat"
 
-        call get_flat_kmat_and_channels_mqdtr2k(   &
-            kmat_filename                          &
-          , kmat_flat(irrep)%vec                   &
-          , channel_E_convert                      &
-          , kmat_e_convert                         &
-          , elec_channels_this_irrep               &
-          , nchans_irrep(irrep)                    &
-          , skip_this_irrep&
+        call get_flat_kmat_and_channels_mqdtr2k( &
+            kmat_filename                        &
+          , kmat_flat_per_irrep(irrep)%mtrx      &
+          , kmat_eval_energies_local             &
+          , channel_E_convert                    &
+          , kmat_e_convert                       &
+          , elec_channels_this_irrep             &
+          , nchans_irrep(irrep)                  &
+          , skip_this_irrep                      &
         )
 
       case default
         call die("KMAT_OUTPUT_TYPE must be "//UKRMOLX//" or "//MQDTR2K)
       end select
 
-      ! -- if we need to focus on channel parity
-      if(G%POINT_GROUP .eq. "cs") call fill_parity_array_this_irrep_cs(G%LMAX_KMAT, elec_channels_this_irrep, irrep, G%POINT_GROUP)
+      ! ! -- if we need to focus on channel parity
+      ! if(G%POINT_GROUP .eq. "cs") call fill_parity_array_this_irrep_cs(G%LMAX_KMAT, elec_channels_this_irrep, irrep, G%POINT_GROUP)
 
       call append(elec_channels, elec_channels_this_irrep)
 
@@ -149,6 +155,7 @@ contains
 
       ! -- total number of channels across all irreps
       nchans_total = nchans_total + nchans_irrep(irrep)
+      ne = size(kmat_flat_per_irrep%mtrx, 2)
 
       ! -- index map: this irrep → full basis of channels
       allocate(index_map(irrep)%vec(nchans_irrep(irrep)))
@@ -158,107 +165,131 @@ contains
 
     enddo irrep_loop_kmats
 
+    call move_alloc(kmat_eval_energies_local, kmat_eval_energies)
+
     deallocate(elec_channels_this_irrep)
 
-    allocate(Kmat(nchans_total, nchans_total))
-    Kmat = 0
+    ! -- flattened K-mats per irrep -> total flattened K-mat
+    ! @@@@@
 
-    ! -- flattened K-matrices -> K-matrix for all irreps
-    do irrep = 1, nirreps
-      ! -- flattened K-matrix for this irrep -> full symmetric K-matrix for all irreps
-      iflat = 0
-      do i = 1, nchans_irrep(irrep)
-        i1 = index_map(irrep)%vec(i)
-        do j = i, nchans_irrep(irrep)
-          iflat = iflat + 1
-          i2 = index_map(irrep)%vec(j)
-          Kmat(i1, i2) = kmat_flat(irrep)%vec(iflat)
-          Kmat(i2, i1) = kmat_flat(irrep)%vec(iflat)
-        enddo
-      enddo
-    enddo
+    call fill_total_kmat(kmat_flat_per_irrep, index_map, nchans_irrep, nchans_total, ne, kmat_flat)
 
-    deallocate(index_map, kmat_flat)
-
-    ! -- at this point the K-matrix is block-diagonal w.r.t. irrep, as it should be.
-    !    Sort the channels by quantum number, and permute the elements of K accordingly
-    call permsort_channels(elec_channels, idx)
-    Kmat = Kmat(idx, idx)
-    call print_channels(elec_channels, stdout)
-
-    if(is_symmetric(Kmat) .eqv. .false.) then
-      write(stderr, '("maxval(abs(Kmat - transpose(Kmat))): ", E20.10)') maxval(abs(Kmat - transpose(Kmat)))
-      call die("The K-matrix is not symmeric !")
-    endif
-
-    !!!!!!!!!!!!@@@@@@@@@@@@@@@@@@@
-    ! -- re-flatten the full K-matrix
-    ! call packmat(Kmat, Kpack)
+    deallocate(kmat_flat_per_irrep)
+    deallocate(index_map)
 
   end subroutine read_kmats
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine fill_parity_array_this_irrep_cs(lmax_kmat, elec_channels, irrep, point_group)
-    !! Fill the array M_PARITY, stored in the module ROTEX__SYMMETRY, that will later be accessed
-    !! by the rotational frame transformation to determine which values of m from -lmax_kmat to lmax_kmat
-    !! correspond to even and odd combinations of partial waves. The irrep corresponds to total irrep,
-    !! so we need to factor out the irrep of the electronic state. This routine
-    !! is only expected to be called for Cs symmetry
-    use rotex__types,      only: elec_channel_type
-    use rotex__system,     only: die
-    use rotex__symmetry,   only: Ap, App, m_parity, even, odd, elecstate_parity_set, elecstate_parity
-    use rotex__characters, only: i2c => int2char
+  pure subroutine fill_total_kmat( &
+        kmat_flat_per_irrep        &
+      , index_map                  &
+      , nchans_irrep               &
+      , nchans_total               &
+      , ne                         &
+      , kmat_flat                  &
+    )
+    !! Using index_map, put the elements of kmat_flat_per_irrep into the full flattened kmat
+    use rotex__kinds,    only: dp
+    use rotex__types,    only: rmatrix_type, ivector_type
+    use rotex__arrays,   only: ij2k
+    use rotex__symmetry, only: group_size
     implicit none (type, external)
-    integer, intent(in) :: lmax_kmat
-      !! Max value of l for the electronic channels
-    type(elec_channel_type), intent(in) :: elec_channels(:)
-      !! The electronic channels for the current irrep
-    integer, intent(in) :: irrep
-      !! The current irrep index
-    character(*), intent(in) :: point_group
-      !! The point group for the scattering calculations
-    integer :: ichan, m
-    integer :: gs_parity
-      !! Parity of the ground state
-    if(point_group .ne. "cs") call die("Attempting to fill m_parity array for a point group&
-      & other than Cs: " // point_group)
-    if(allocated(m_parity) .eqv. .false.) allocate(m_parity(-lmax_kmat:lmax_kmat), source = 0)
-    ! -- determine the parity of the electronic state
-    if(elecstate_parity_set .eqv. .false.) then
-      if(any(elec_channels%ml .eq. 0) .eqv. .true.) then
-        ! -- m=0 behaves as A' (even) and therefore the parity of the electronic state
-        !    will be the parity of the total channel if m=0 is included:
-        !    Γtot = Γelec × Γm = Γelec × A' = Γelec
-        elecstate_parity = merge(even, odd, irrep .eq. Ap)
-        elecstate_parity_set = .true.
-      else
-        ! -- having no m=0 (A') channels means that this electronic state has
-        !    the opposite parity of total channel:
-        !      Γtot = Γelec × Γm = Γelec × A''
-        !    If Γtot is A' (even), Γelec is A'' (odd) and vice versa
-        elecstate_parity = merge(odd, even, irrep .eq. Ap)
-        elecstate_parity_set = .true.
-      endif
-    endif
-    do ichan=1, size(elec_channels, 1)
-      m = elec_channels(ichan) % ml
-      if(m_parity(m) .ne. 0) cycle ! skip if set, but this probably should not happen
-      select case(irrep)
-      case(Ap)
-        m_parity(m) = even
-      case(App)
-        m_parity(m) = odd
-      case default
-        call die("Somehow, irrep ("//i2c(irrep)//") is not one of the valid values for the point group " // point_group)
-      end select
+    type(rmatrix_type), intent(in)               :: kmat_flat_per_irrep(:)
+      !! Array of flattened K-matrices for each irrep
+    type(ivector_type), intent(in)               :: index_map(:)
+      !! Irrep channel -> total channel index map
+    integer,            intent(in)               :: nchans_irrep(:)
+      !! Number of channels per irrep
+    integer,            intent(in)               :: nchans_total
+      !! Number of channels across all irreps
+    integer,            intent(in)               :: ne
+      !! Number of K-matrix evaluation energies
+    real(dp),           intent(out), allocatable :: kmat_flat(:,:)
+      !! The flattened K-matrices for all energies. nchan(nchan+1)/2 × nE
+    integer :: iloc, jloc, kloc, itot, jtot, ktot, irrep, nirreps, ie
+    integer :: nchans_total_flat
+    nchans_total_flat = (nchans_total*(nchans_total+1)) / 2
+    allocate(kmat_flat(nchans_total_flat, ne), source=0._dp)
+    nirreps = group_size(G%POINT_GROUP)
+    do irrep=1,nirreps
+      kloc = 0
+      do jloc=1,nchans_irrep(irrep)
+        jtot = index_map(irrep)%vec(jloc)
+        do iloc=1,jloc
+          itot = index_map(irrep)%vec(iloc)
+          kloc = kloc + 1
+          ktot = ij2k(itot, jtot)
+          do concurrent (ie=1:ne)
+            kmat_flat(ktot, ie) = kmat_flat_per_irrep(irrep)%mtrx(kloc, ie)
+          enddo
+        enddo
+      enddo
     enddo
-  end subroutine fill_parity_array_this_irrep_cs
+  end subroutine fill_total_kmat
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  ! subroutine fill_parity_array_this_irrep_cs(lmax_kmat, elec_channels, irrep, point_group)
+  !   !! Fill the array M_PARITY, stored in the module ROTEX__SYMMETRY, that will later be accessed
+  !   !! by the rotational frame transformation to determine which values of m from -lmax_kmat to lmax_kmat
+  !   !! correspond to even and odd combinations of partial waves. The irrep corresponds to total irrep,
+  !   !! so we need to factor out the irrep of the electronic state. This routine
+  !   !! is only expected to be called for Cs symmetry
+  !   use rotex__types,      only: elec_channel_type
+  !   use rotex__system,     only: die
+  !   use rotex__symmetry,   only: Ap, App, m_parity, even, odd, elecstate_parity_set, elecstate_parity
+  !   use rotex__characters, only: i2c => int2char
+  !   implicit none (type, external)
+  !   integer, intent(in) :: lmax_kmat
+  !     !! Max value of l for the electronic channels
+  !   type(elec_channel_type), intent(in) :: elec_channels(:)
+  !     !! The electronic channels for the current irrep
+  !   integer, intent(in) :: irrep
+  !     !! The current irrep index
+  !   character(*), intent(in) :: point_group
+  !     !! The point group for the scattering calculations
+  !   integer :: ichan, m
+  !   integer :: gs_parity
+  !     !! Parity of the ground state
+  !   if(point_group .ne. "cs") call die("Attempting to fill m_parity array for a point group&
+  !     & other than Cs: " // point_group)
+  !   if(allocated(m_parity) .eqv. .false.) allocate(m_parity(-lmax_kmat:lmax_kmat), source = 0)
+  !   ! -- determine the parity of the electronic state
+  !   if(elecstate_parity_set .eqv. .false.) then
+  !     if(any(elec_channels%ml .eq. 0) .eqv. .true.) then
+  !       ! -- m=0 behaves as A' (even) and therefore the parity of the electronic state
+  !       !    will be the parity of the total channel if m=0 is included:
+  !       !    Γtot = Γelec × Γm = Γelec × A' = Γelec
+  !       elecstate_parity = merge(even, odd, irrep .eq. Ap)
+  !       elecstate_parity_set = .true.
+  !     else
+  !       ! -- having no m=0 (A') channels means that this electronic state has
+  !       !    the opposite parity of total channel:
+  !       !      Γtot = Γelec × Γm = Γelec × A''
+  !       !    If Γtot is A' (even), Γelec is A'' (odd) and vice versa
+  !       elecstate_parity = merge(odd, even, irrep .eq. Ap)
+  !       elecstate_parity_set = .true.
+  !     endif
+  !   endif
+  !   do ichan=1, size(elec_channels, 1)
+  !     m = elec_channels(ichan) % ml
+  !     if(m_parity(m) .ne. 0) cycle ! skip if set, but this probably should not happen
+  !     select case(irrep)
+  !     case(Ap)
+  !       m_parity(m) = even
+  !     case(App)
+  !       m_parity(m) = odd
+  !     case default
+  !       call die("Somehow, irrep ("//i2c(irrep)//") is not one of the valid values for the point group " // point_group)
+  !     end select
+  !   enddo
+  ! end subroutine fill_parity_array_this_irrep_cs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine get_flat_kmat_and_channels_ukrmolx( &
         channels_filename                        &
       , kmat_filename                            &
       , kmat_flat                                &
+      , kmat_energies                            &
       , channel_e_convert                        &
       , kmat_e_convert                           &
       , elec_channels_this_irrep                 &
@@ -276,21 +307,31 @@ contains
     implicit none (type, external)
 
     character(*), intent(in) :: channels_filename
+      !! Where to read channels
     character(*), intent(in) :: kmat_filename
-    real(dp), intent(inout), allocatable :: kmat_flat(:)
+      !! Where to read K-matrices
+    real(dp), intent(inout), allocatable :: kmat_flat(:,:)
+      !! Flattened K-matrix for each energy: nchan(nchan+1)/2 × nE
+    real(dp), allocatable, intent(inout) :: kmat_energies(:)
+      !! Array of K-matrix evaluation energies that we want
     real(dp), intent(in) :: channel_e_convert
+      !! Energy type of channel energy. Should be replaced by a global
     real(dp), intent(in) :: kmat_e_convert
+      !! Energy type of K-matrix evaluation energy. Should be replaced by a global
     type(elec_channel_type), intent(out), allocatable :: elec_channels_this_irrep(:)
+      !! Channels for this irrep
     integer, intent(out) :: nchans_this_irrep
+      !! Number of channels for this irrep
     logical, intent(out) :: skip_this_irrep
+      !! Whether to skip this irrep (e.g., no channels)
 
     integer,      parameter :: UKRMOL_KMAT_ELEMENTS_PER_LINE = 4
     character(8), parameter :: UKRMOL_KMAT_ELEMENTS_FMT = '(D20.13)'
 
-    integer  :: iostat, ne, i, ichan, ie, ie_closest, l, ml, nelec, nchans, iflat
+    integer  :: iostat, ne, ne_inlcude, i, ichan, ie, ie_closest, l, ml, nelec, nchans, iflat
+    integer  :: ie_include, ne_include, iemin, iemax
     integer  :: funit, nchans_max, nskip, nskip_header, iline, icol, nlines, nchans_flat
     real(dp) :: E
-    real(dp), allocatable :: kmat_energies(:)
     type(elec_channel_type) :: chan
 
     skip_this_irrep = .false.
@@ -309,85 +350,175 @@ contains
     !    of channels and obviously the size of the resulting K-matrix.
     ! -- Count the number of energies/K-matrices
     open(newunit = funit, file = kmat_filename)
+
+    ! -- total number of evaluation energies in file
     ne = 0
-    print*, funit, kmat_filename
+
+    ! -- initial number of evaluation energies to retain for the K-matrix
+    !    0: count up for EDFT
+    !    1: does not change for non-EDFT
+    ne_include = merge(0, 1, G%EDFT)
+
     call read_blank(funit, 3)
     read(funit, *) i, i, i, nchans_max, nskip_header
     call read_blank(funit, nskip_header)
     nskip_header = nskip_header + 4 ! for the next re-reads
+
+    ! -- count number of energies and the number of energies that we want to include if EDFT
     do
       read(funit, *, iostat = iostat) nchans, i, nchans_flat, E
       if(iostat .eq. IOSTAT_END) exit
+      E = E*kmat_e_convert ! store in au
       ne = ne + 1
       nskip = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind = dp))
       call read_blank(funit, nskip)
+      ! -- don't worry about ne_include if we just want one
+      if(G%EDFT .eqv. .false.) cycle
+      if(E .lt. G%KMAT_EI .OR. (E .gt. G%KMAT_EF .AND. G%KMAT_EF .ne. 0._dp)) cycle
+      ne_include = ne_include + 1
     enddo
 
-    call realloc(kmat_flat, nchans_flat)
+    call realloc(kmat_flat, nchans_flat, ne_include)
     kmat_flat = 0._dp
 
-    ! -- read in the K-matrix energies
+    ! -- read in the K-matrix energies (including those we won't use)
     rewind(funit)
     call realloc(kmat_energies, ne)
     call read_blank(funit, nskip_header)
     ie = 0
+    nchans_this_irrep = 0
     do
       read(funit, *, iostat = iostat) nchans, i, nchans_flat, E
       if(iostat .eq. IOSTAT_END) exit
       ie = ie + 1
-      kmat_energies(ie) = E * kmat_e_convert
+      E = E*kmat_e_convert ! store in au
+      kmat_energies(ie) = E
       nskip = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
       call read_blank(funit, nskip)
+      ! -- take the smallest valid K-matrix and set its number of channels as the number of channels
+      if(nchans_this_irrep .ne. 0) cycle
+      ! -- take first matrix satisfying E > KMAT_EI if EDFT
+      if(G%EDFT) then
+        if(E .lt. G%KMAT_EI) cycle
+      endif
+      ! -- just take the first matrix otherwise
+      nchans_this_irrep = nchans
     enddo
 
-    ! -- find the lowest energy
-    ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
-    if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
-    write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST          * au2ev
-    write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev
+    ! -- inform user of energy selection
+    if(G%EDFT) then
+      ! -- minimum and maximum evaluation energies to consider for EDFT
+      iemin = findloc(kmat_energies .ge. G%KMAT_EI, .true., 1)
+      iemax = merge(ne, findloc(kmat_energies .le. G%KMAT_EF, .true., 1), G%KMAT_EF .eq. 0._dp)
+      write(stdout, '(4x, "user requested k-matrix energies between ", e20.10, "and ", e20.10, " ev")') &
+        kmat_energies(iemin)*au2ev, kmat_energies(iemax)*au2ev
+    else
+      ! -- find the lowest energy if energy independent
+      iemin = 1
+      iemax = ne
+      ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
+      if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
+      write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST          * au2ev
+      write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev
+    endif
 
-    ! -- Now, actually go and read that K-matrix
+    ! -- Now, actually go and read that (those) K-matrix (K-matrices)
     rewind(funit)
     call read_blank(funit, nskip_header)
     ie = 0
-    kmat_read_loop: do
-      read(funit, *, iostat = iostat) nchans, i, nchans_flat, E
-      if(iostat .eq. IOSTAT_END) then
-        call die("Reach end of ")
-        write(stderr, '("Number of K-matrices/energies: ", I0)') ne
-        write(stderr, '("Target K-matrix energy: ", E20.10)') G%KMAT_ENERGY_CLOSEST * au2ev
-        write(stderr, '("Closest available K-matrix is number ", I0)') ie_closest
-        call die("Could not find the K-matrix that is closest to the given target energy before EOF")
-      endif
-      ie = ie + 1
-      if(ie .ne. ie_closest) then
-        nskip = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
-        call read_blank(funit, nskip)
-      else
-        nlines = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
-        iflat = 0
+    ie_include = 0
+
+    kmat_read: if(G%EDFT) then
+
+      ! -- energy dependent read
+      do
+
+        read(funit, *, iostat = iostat) nchans, i, nchans_flat, E
+        if(iostat .eq. IOSTAT_END) exit kmat_read
+
+        ie = ie + 1
+        ! -- skip this K-matrix if it's too low in E
+        if(ie .lt. iemin) then
+          nskip = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
+          call read_blank(funit, nskip)
+          cycle
+        endif
+        ! -- skip the remaining K-matrices if we've reached our max energy
+        if(ie .gt. iemax) exit kmat_read
+
+        ! -- at this point, we have found a K-matrix that we want to add.
+        ie_include = ie_include + 1
         ! -- iterate through the lines and columns of the flattened K-matrix
         !    in the file
+        iflat = 0
+        nlines = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
         do iline = 1, nlines
           do icol = 1, UKRMOL_KMAT_ELEMENTS_PER_LINE
             iflat = iflat + 1
-            read(funit, UKRMOL_KMAT_ELEMENTS_FMT, advance = 'no') kmat_flat(iflat)
-            if(iflat .eq. nchans_flat) exit kmat_read_loop
+
+            ! -- ignore the rest of the elements if the number of channels has increased
+            if(iflat .gt. size(kmat_flat, 1)) cycle
+
+            read(funit, UKRMOL_KMAT_ELEMENTS_FMT, advance = 'no') kmat_flat(iflat, ie_include)
+            if(iflat .eq. nchans_flat) cycle
           enddo
           read(funit, *)
         enddo
-        write(stderr, '("NLINES: ", I0)') nlines
-        write(stderr, '("UKRMOL_KMAT_ELEMENTS_PER_LINE: ", I0)') UKRMOL_KMAT_ELEMENTS_PER_LINE
-        write(stderr, '("NCHANS: ", I0)') nchans
-        write(stderr, '("NCHANS_FLAT: ", I0)') nchans_flat
-        call die("Improper K-matrix read loop exit. ")
-      endif
-    enddo kmat_read_loop
+
+      enddo
+
+    else
+
+      ! -- energy independent read
+      do
+
+        read(funit, *, iostat = iostat) nchans, i, nchans_flat, E
+        if(iostat .eq. IOSTAT_END) then
+          write(stderr, '("Number of K-matrices/energies: ", I0)') ne
+          write(stderr, '("Target K-matrix energy: ", E20.10)') G%KMAT_ENERGY_CLOSEST * au2ev
+          write(stderr, '("Closest available K-matrix is number ", I0)') ie_closest
+          call die("Could not find the K-matrix that is closest to the given target energy before EOF")
+        endif
+
+        ie = ie + 1
+
+        ! -- find the corresponding K-matrix
+        if(ie .ne. ie_closest) then
+          ! -- skip
+          nskip = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
+          call read_blank(funit, nskip)
+        else
+          ! -- found it
+          nlines = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
+          iflat = 0
+          ! -- iterate through the lines and columns of the flattened K-matrix
+          !    in the file
+          do iline = 1, nlines
+            do icol = 1, UKRMOL_KMAT_ELEMENTS_PER_LINE
+              iflat = iflat + 1
+              read(funit, UKRMOL_KMAT_ELEMENTS_FMT, advance = 'no') kmat_flat(iflat, 1)
+              if(iflat .eq. nchans_flat) exit kmat_read
+            enddo
+            read(funit, *)
+          enddo
+
+          write(stderr, '("NLINES: ", I0)') nlines
+          write(stderr, '("UKRMOL_KMAT_ELEMENTS_PER_LINE: ", I0)') UKRMOL_KMAT_ELEMENTS_PER_LINE
+          write(stderr, '("NCHANS: ", I0)') nchans
+          write(stderr, '("NCHANS_FLAT: ", I0)') nchans_flat
+
+          call die("Improper K-matrix read loop exit. ")
+
+        endif
+      enddo
+    endif kmat_read
 
     close(funit)
 
-    nchans_this_irrep = nchans
-    if(nchans .lt. 1) then
+    ! -- filter K-matrix energies to keep only those that we want to include
+    kmat_energies = kmat_energies(iemin:iemax)
+
+    if(nchans_this_irrep .lt. 1) then
       write(stderr, '("NCHANS: ", I0)') nchans
       call die("The K-matrix cannot have less than one channel !")
     endif
@@ -430,6 +561,7 @@ contains
   subroutine get_flat_kmat_and_channels_mqdtr2k( &
         kmat_filename                            &
       , kmat_flat                                &
+      , kmat_eval_energies                       &
       , channel_e_convert                        &
       , kmat_e_convert                           &
       , elec_channels_this_irrep                 &
@@ -448,14 +580,24 @@ contains
     implicit none (type, external)
 
     character(*), intent(in) :: kmat_filename
-    real(dp), intent(inout), allocatable :: kmat_flat(:)
+      !! Where to read the channels and K-matrices
+    real(dp), intent(inout), allocatable :: kmat_flat(:, :)
+      !! Flattened K-matrices: nchan(nchan+1)/2 × ne
+    real(dp), intent(out), allocatable :: kmat_eval_energies(:)
+      !! Array of K-matrix evaluation energies to include
     real(dp), intent(in) :: channel_e_convert
+      !! Channel energy conversion units. Should be replaced by a global maybe
     real(dp), intent(in) :: kmat_e_convert
+      !! K-matrix evaluation energy conversion units. Should be replaced by a global maybe
     type(elec_channel_type), intent(out), allocatable :: elec_channels_this_irrep(:)
+      !! Array of electronic channels for this irrep
     integer, intent(out) :: nchans_this_irrep
+      !! Number of electronic channels this irrep
     logical, intent(out) :: skip_this_irrep
+      !! Whether to skip this irrep (e.g., no channels for this irrep)
 
     integer  :: iostat, ne, funit, ne_skip, i, ichan, ie, ie_closest, l, ml, iq, nelec
+    integer  :: ie_include, ne_include, iemin, iemax
     integer  :: nchans_irrep_flat
     real(dp) :: E
     real(dp), allocatable :: kmat_energies(:)
@@ -472,6 +614,7 @@ contains
 
     ! -- get number of channels, skip to K-matrices, determine number of energies/K-matrices to read
     ne = 0
+    ne_include = 0
     call read_blank(funit)
     read(funit, *) nchans_this_irrep
     nchans_irrep_flat = nchans_this_irrep * (nchans_this_irrep+1) / 2
@@ -481,7 +624,14 @@ contains
       read(funit, *, iostat = iostat) E
       if(iostat .eq. IOSTAT_END) exit
       ne = ne + 1
+      if(G%EDFT .eqv. .false.) cycle
+      ! -- if EDFT, keep track of number of energies to include
+      E = E*kmat_e_convert
+      if(E .lt. G%KMAT_EI) cycle
+      if(E .gt. G%KMAT_EF .AND. G%KMAT_EF .gt. 0._dp) cycle
+      ne_include = ne_include + 1
     enddo
+
     rewind(funit)
     ! -- skip header and channels; read K-matrix evaluation energies
     call realloc(kmat_energies, ne)
@@ -495,12 +645,23 @@ contains
       kmat_energies(ie) = E * kmat_e_convert
     enddo
 
-    ! -- find the lowest energy
-    ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
-    if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
-    ne_skip = ie_closest - 1
-    write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST            * au2ev
-    write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev
+    ! -- min and max energies to consider, inform user of energy selection
+    if(G%EDFT) then
+      iemin = findloc(kmat_energies .ge. G%KMAT_EI, .true., 1)
+      iemax = merge(ne, findloc(kmat_energies .le. G%KMAT_EF, .true., 1), G%KMAT_EF .eq. 0._dp)
+      write(stdout, '(4x, "user requested k-matrix energies between ", e20.10, "and ", e20.10, " ev")') &
+        kmat_energies(iemin)*au2ev, kmat_energies(iemax)*au2ev
+      ne_skip = iemin - 1
+    else
+      iemin = 1
+      iemax = ne
+      ! -- find the closest energy
+      ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
+      if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
+      ne_skip = ie_closest - 1
+      write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST            * au2ev
+      write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev
+    endif
 
     ! -- skip header, read channels for this irrep
     rewind(funit)
@@ -518,9 +679,17 @@ contains
 
     ! -- read the evaluation energy and the flattened K-matrix. We're only interested in the
     !    K-matrix now that we've identified the evaluation energy
-    call realloc(kmat_flat, nchans_irrep_flat)
+    call realloc(kmat_flat, nchans_irrep_flat, ne_include)
     kmat_flat = 0.0_dp
-    read(funit, *) E, (kmat_flat(i), i=1, nchans_irrep_flat)
+
+    ! -- read the K-matrix/K-matrices
+    if(G%EDFT) then
+      do ie_include = 1, ne_include
+        read(funit, *) E, (kmat_flat(i, ie_include), i=1, nchans_irrep_flat)
+      enddo
+    else
+      read(funit, *) E, (kmat_flat(i, 1), i=1, nchans_irrep_flat)
+    endif
 
     close(funit)
 
@@ -823,6 +992,8 @@ contains
     B_rot             = B_rot             / au2invcm
     D_rot             = D_rot             / au2invcm
     H_rot             = H_rot             / au2invcm
+    kmat_ei           = kmat_ei           / au2ev
+    kmat_ef           = kmat_ef           / au2ev
     xs_zero_threshold = xs_zero_threshold / (au2cm*au2cm)
 
     ! -- convert to lower case
@@ -917,6 +1088,8 @@ contains
       G%NUM_EGRID                     = num_egrid(:)
       G%EGRID_SEGS                    = egrid_segs(:)
       G%EGRID_SPACING                 = egrid_spacing
+      G%KMAT_EI                       = kmat_ei
+      G%KMAT_Ef                       = kmat_ef
       G%REAL_SPHERICAL_HARMONICS      = real_spherical_harmonics
       G%KMAT_ENERGY_CLOSEST           = kmat_energy_closest / au2ev
       G%KMAT_OUTPUT_TYPE              = kmat_output_type
