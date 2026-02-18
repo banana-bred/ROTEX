@@ -312,6 +312,7 @@ contains
     use rotex__kinds,  only: dp
     use rotex__system, only: die
     use rotex__wigner, only: wigner3j
+    use rotex__functions, only: neg
 
     implicit none (type, external)
 
@@ -371,10 +372,18 @@ contains
 
             tmpz =       multipole_moments(ilambda1)  &
                  * conjg(multipole_moments(ilambda2)) &
-                 * eigvecp(i_K1p)        * conjg(eigvec(i_K1))  &
-                 * conjg(eigvecp(i_K2p)) * eigvec(i_K2)       &
+                 ! * eigvecp(i_K1p)        * conjg(eigvec(i_K1))  &
+                 * neg(K1+K2) &
+                 * eigvec(i_K1)   * conjg(eigvecp(i_K1p)) &
+                 * eigvecp(i_K2p) * conjg(eigvec(i_K2))       &
                  * wigner3j(2*N, 2*Np, 2*lambda, -2*K1,  2*K1p, -2*mu1)   &
                  * wigner3j(2*N, 2*Np, 2*lambda, -2*K2,  2*K2p, -2*mu2)
+            ! tmpz =       multipole_moments(ilambda1)  &
+            !      * conjg(multipole_moments(ilambda2)) &
+            !      * eigvecp(i_K1p)        * conjg(eigvec(i_K1))  &
+            !      * conjg(eigvecp(i_K2p)) * eigvec(i_K2)       &
+            !      * wigner3j(2*N, 2*Np, 2*lambda, -2*K1,  2*K1p, -2*mu1)   &
+            !      * wigner3j(2*N, 2*Np, 2*lambda, -2*K2,  2*K2p, -2*mu2)
                  ! * wigner3j(2*N, 2*Np, 2*lambda,  2*K1, -2*K1p,  2*mu1)   &
                  ! * wigner3j(2*N, 2*Np, 2*lambda,  2*K2, -2*K2p,  2*mu2)
             zummation = zummation + tmpz
