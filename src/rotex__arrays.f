@@ -614,9 +614,12 @@ contains
     character(1), intent(in), optional :: UL
       !! Whether to unpack the 'U'pper triangle, the 'L' ower triangle, or 'B'oth.
       !! If not supplied, do both
+    integer :: n, nflat
     character(1) :: UL_
     UL_ = 'B' ; if(present(UL)) UL_ = UL
-    call size_check_1d(flatmat, (n*(n+1)/2), "FLATMAT")
+    n = size(mat, 1)
+    nflat = (n*(n+1))/2
+    call size_check_1d(flatmat, nflat, "FLATMAT")
     call size_check_2d(mat, [n, n], "MAT")
     select case(UL_)
       case('U') ; call unpackmat_ru(flatmat, mat)
@@ -674,8 +677,11 @@ contains
       !! Whether to unpack the 'U'pper triangle, the 'L' ower triangle, or 'B'oth.
       !! If not supplied, do both
     character(1) :: UL_
+    integer :: n, nflat
     UL_ = 'B' ; if(present(UL)) UL_ = UL
-    call size_check_1d(flatmat, (n*(n+1)/2), "FLATMAT")
+    n = size(mat, 1)
+    nflat = (n*(n+1))/2
+    call size_check_1d(flatmat, nflat, "FLATMAT")
     call size_check_2d(mat, [n, n], "MAT")
     select case(UL_)
       case('U') ; call unpackmat_cu(flatmat, mat)
@@ -811,7 +817,7 @@ contains
     !! Given a number of flattened array elements nflat=n(n+1)/2,
     !! determine the number of array elements n
     implicit none (type, external)
-    integer, intent(in) : nflat
+    integer, intent(in) :: nflat
     integer :: n
     n = nint(( sqrt(real(8*nflat+1, kind=dp)) - 1 ) / 2)
   end function nflat2n

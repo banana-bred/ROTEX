@@ -178,6 +178,16 @@ module rotex__globals
       !! be forcibly overridden with this
     character(3) :: egrid_spacing
       !! The kind of spacing for the energy grid segments. "lin" for linear and "log" for logarithmic
+    character(1) :: egrid_xtrap_pre
+      !! What kind of extrapolation to perform for the K-matrix evaluation energy grid for scattering energies
+      !! that are below the evaluation energy grid that we read.
+      !! "l"inear
+      !! "c"onstant
+    character(1) :: egrid_xtrap_post
+      !! What kind of extrapolation to perform for the K-matrix evaluation energy grid for scattering energies
+      !! that are above the evaluation energy grid that we read.
+      !! "l"inear
+      !! "c"onstant
     character(:), allocatable :: point_group
       !! The point group in which the K-matrices were calculated
     character(:), allocatable :: kmat_dir

@@ -822,6 +822,7 @@ contains
     ! real(dp) :: cartesian_quadrupole_moments(6)
     real(dp) :: xs_zero_threshold = 0.0_dp   ! include all cross sections by default
     real(dp) :: kmat_energy_closest = 0.0_dp ! just take the first one
+    character(1) :: egrid_xtrap_pre, egrid_xtrap_post
     character(:), allocatable :: CDMS_file
 
     namelist / control_namelist /                            &
@@ -856,6 +857,8 @@ contains
                     , point_group                   &
                     , num_egrid_segs                &
                     , num_egrid                     &
+                    , egrid_xtrap_pre               &
+                    , egrid_xtrap_post              &
                     , egrid_segs                    &
                     , edft                          &
                     , kmat_ei                       &
@@ -1090,6 +1093,8 @@ contains
       G%EGRID_SPACING                 = egrid_spacing
       G%KMAT_EI                       = kmat_ei
       G%KMAT_Ef                       = kmat_ef
+      G%EGRID_XTRAP_PRE               = lower(egrid_xtrap_pre)
+      G%EGRID_XTRAP_POST              = lower(egrid_xtrap_post)
       G%REAL_SPHERICAL_HARMONICS      = real_spherical_harmonics
       G%KMAT_ENERGY_CLOSEST           = kmat_energy_closest / au2ev
       G%KMAT_OUTPUT_TYPE              = kmat_output_type

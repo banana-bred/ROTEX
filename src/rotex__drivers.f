@@ -546,6 +546,8 @@ contains
         , kmat_eval_E_units = kmat_eval_e_units   &
         )
 
+      ne = size(kmat_flat, 2)
+
       if(maxval(elec_channels % l) .gt. G%LMAX_KMAT) call die("K-matrix has at least one channel with&
         & l > LMAX_KMAT: " // i2c(maxval(elec_channels % l)) // " > " // i2c(G%LMAX_KMAT))
 
@@ -565,18 +567,20 @@ contains
       ! -- min and max values of total J
       jmin = max(0, G%NMIN - G%LMAX_KMAT)
       jmax = abs(G%NMAX + G%LMAX_KMAT)
-      allocate(smat_j(jmin:jmax))
+      allocate(smat_j(jmin:jmax, ne), source=0._dp)
       allocate(asymtop_rot_channels_l_j(jmin:jmax))
-      call rft_nonlinear( kmat_flat                &
-                        , jmin, jmax               &
-                        , smat_j(jmin:jmax)        &
-                        , elec_channels            &
-                        , n_states                 &
-                        , asymtop_rot_channels_l   &
+      call rft_nonlinear( kmat_flat                           &
+                        , kmat_eval_energies                  &
+                        , G%SPINMULTS(ispin)                  &
+                        , jmin, jmax                          &
+                        , smat_j                              &
+                        , elec_channels                       &
+                        , n_states                            &
+                        , asymtop_rot_channels_l              &
                         , asymtop_rot_channels_l_j(jmin:jmax) &
       )
       deallocate(elec_channels)
-
+      !@@@
 
       channels_file_this_spin = G%OUTPUT_DIRECTORY // SPINMULT_NAMES(G%SPINMULTS(ispin)) // ".channels"
 
