@@ -3,6 +3,8 @@ module rotex__MQDTXS
   !! Routines to calculate cross sections with MQDT + S-matrix
 
   use rotex__globals, only: G
+  use rotex__kinds, only: dp
+  use rotex__system, only: stdout, stderr, die
 
   implicit none (type, external)
 
@@ -19,7 +21,9 @@ contains
         total_energy_grid           &
       , prob                        &
       , transitions                 &
-      , smat_j                      &
+      , ne_smat                     &
+      , smat_j_flat                 &
+      , smat_eval_energies          &
       , jmin                        &
       , jmax                        &
       , channels_j                  &
@@ -28,14 +32,11 @@ contains
     !! Given a rotationally resolved S-matrix, calculate rotational (de-)excitation
     !! cross section probabilities for the supplied transitions.
 
-    use rotex__kinds,      only: dp
     use rotex__types,      only: rvector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
-                               , asymtop_rot_channel_type, cmatrix_type, n_states_type, asymtop_rot_transition_type
+                               , asymtop_rot_channel_type, cvector_type, n_states_type, asymtop_rot_transition_type
     use rotex__channel_ops, only: operator(.ne.), operator(.eq.), operator(.isin.), trim_channel_l, get_channel_index
-    use rotex__arrays,     only: append, size_check, realloc
+    use rotex__arrays,     only: append, size_check, realloc, idx_binsearch, unpackmat, linear_interpolation
     use rotex__symmetry,   only: is_spin_forbidden
-    use rotex__system,     only: die, stdout, stderr
-    use rotex__constants,  only: pi
     use rotex__characters, only: i2c => int2char
 #ifdef USE_FORBEAR
     use rotex__progress,   only: progressbar_type
@@ -52,8 +53,12 @@ contains
       !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
     type(asymtop_rot_transition_type), intent(inout), allocatable :: transitions(:)
       !! Array of transitions that will be considered for (de-)excitation
-    type(cmatrix_type), intent(in) :: smat_j(jmin:jmax)
-      !! Array of S-matrix sub-blocks for each J
+    integer, intent(in) :: ne_smat
+      !! The number of S-matrix evaluation energies
+    type(cvector_type), intent(in) :: smat_j_flat(jmin:jmax, ne_smat)
+      !! Array of S-matrix sub-blocks (flattened) for each J and each energy
+    real(dp), intent(in) :: smat_eval_energies(:)
+      !! Array of evaluation energies of the S-matrix
     integer, intent(in) :: jmin, jmax
       !! Min/max values of J to consider for the S-matrix subblocks
     type(asymtop_rot_channel_l_vector_type), intent(in) :: channels_j(jmin:jmax)
@@ -62,8 +67,6 @@ contains
       !! Contains the array of channels ∀ J
 
 #ifdef USE_FORBEAR
-    integer, parameter :: NDOTS2PRINT = 5
-      !! Progress bar update percentage
     integer  :: iprogress, iprogress_last
     real(dp) :: rprogress, rprogress_inc
     type(progressbar_type) progressbar
@@ -75,13 +78,14 @@ contains
     integer  :: neleclo, nlo, kalo, kclo
     integer  :: nelecup, nup, kaup, kcup
     integer  :: ichan, fchan, itrans
-    integer  :: ie, ne, nchans_j, nchans_tot, nopen, nclosed
-    real(dp) :: etot, elo, eup
+    integer  :: ie, ne_tot, nchans_j, nchans_tot, nopen, nclosed
+    integer :: ie_smat(2)
+    real(dp) :: etot, elo, eup, E1, E2
     real(dp) :: sum_ll
     real(dp) :: prob_term
     real(dp),    allocatable :: beta(:)
     integer, allocatable :: indices_lo(:), indices_up(:)
-    complex(dp), allocatable :: s(:,:)
+    complex(dp), allocatable :: s(:,:), S1(:,:), S2(:,:)
     complex(dp), allocatable :: q(:)
     complex(dp), allocatable :: sphys(:,:)
     character(22) :: prefix_string
@@ -125,12 +129,12 @@ contains
 
     call size_check(channels_J, Jmax - Jmin + 1, "CHANNELS_J")
 
-    ne = size(total_energy_grid, 1)
+    ne_tot = size(total_energy_grid, 1)
 
     ! -- allocate and initialize the probabilities arrays for each transition
     allocate(prob(size(transitions, 1)))
     do itrans = 1, size(transitions, 1)
-      allocate(prob(itrans) % vec(ne))
+      allocate(prob(itrans) % vec(ne_tot))
       prob(itrans) % vec(:) = 0
     enddo
 
@@ -161,41 +165,64 @@ contains
       ! -- get the channels, S-matrix, and f/g normalization coefficients for this J
       channels_this_J = channels_J(J) % channels
 
-      S = smat_J(J) % mtrx
+      call realloc(S, nchans_J, nchans_J)
+      if(ne_smat .gt. 1) then
+        ! -- these will be used if we're evaluating the S-matrix at >1 energies
+        call realloc(S1, nchans_J, nchans_J)
+        call realloc(S2, nchans_J, nchans_J)
+      endif
       nchans_J = size(channels_this_J, 1)
 
-      call size_check(S, [nchans_J, nchans_J], "S")
+      ! call size_check(S, [nchans_J, nchans_J], "S")
 
 #ifdef USE_FORBEAR
       rprogress    = 0.0_dp
       iprogress_last = 0
-      rprogress_inc = 1.0_dp / real(ne, kind = dp)
+      rprogress_inc = 1.0_dp / real(ne_tot, kind = dp)
 #endif
 
       ! -- loop over the total enrgy grid
       !$omp parallel default(none) &
-      !$omp& shared(ne, channels_this_J, S, prob, transitions, J, nchans_J, G, total_energy_grid&
+      !$omp& shared(ne_tot, channels_this_J, S, prob, transitions, J, nchans_J, G, total_energy_grid&
 #ifdef USE_FORBEAR
-      !$omp&   , progressbar, rprogress, rprogress_inc, iprogress, iprogress_last)&
+      !$omp&   , progressbar, rprogress, rprogress_inc, iprogress, iprogress_last, smat_eval_energies, smat_j_flat)&
 #else
       !$omp&   )&
 #endif
       !$omp& private(ie, Etot, Sphys, beta, nopen, nclosed, lo, up, indices_lo, indices_up, itrans&
       !$omp&   , q,  neleclo, nelecup, Nlo, Nup, Kalo, Kaup, Kclo, Kcup, Elo, Eup, prob_term &
-      !$omp&   , sum_ll, ithread)
+      !$omp&   , sum_ll, ithread, S1, S2, E1, E2, ie_smat)
 #ifdef USE_OPENMP
       ithread = omp_get_thread_num()
 #else
       ithread = 0
 #endif
       !$omp do schedule(static)
-      do ie=1,ne
+      do ie=1,ne_tot
       ! do concurrent (ie=1:ne)
 
         call realloc(q, nchans_J)
 
         Etot = total_energy_grid(ie)
         q    = fg_norm_coeff_q(channels_this_J, Etot)
+
+        ie_smat = idx_binsearch(Etot, Smat_eval_energies)
+        if(any(ie_smat .eq. 0)) call die("Energy grid not covered by S-matrix grid")
+
+        ! -- S(E) evaluation
+        if(ie_smat(1) .eq. ie_smat(2)) then
+          ! -- exact match (or only one energy), just take the S-matrix
+          call unpackmat(smat_j_flat(J, ie_smat(1))%vec, S)
+        else
+          ! -- linear interpolation of S-matrix. OMP will use local copies of the matrices
+          call unpackmat(smat_j_flat(J, ie_smat(1))%vec, S1)
+          call unpackmat(smat_j_flat(J, ie_smat(2))%vec, S2)
+          E1 = smat_eval_energies(ie_smat(1))
+          E2 = smat_eval_energies(ie_smat(2))
+          call linear_interpolation(E1, E2, S1, S2, Etot, S)
+        endif
+
+        ! call upackmat(smat_J(J, ie) % vec, S)
 
         nclosed = count(channels_this_J % E .gt. Etot)
         nopen   = count(channels_this_J % E .le. Etot)
@@ -294,7 +321,6 @@ contains
     ! ---------------------------------------------------------------------------------------------------------------------------- !
     pure function fg_norm_coeff_q(channels, Etot) result(res)
       !! Given an array of channels, determine the factor B for each channel at a particular total energy E
-      use rotex__system,    only: die
       use rotex__constants, only: pi
       implicit none (type, external)
       type(asymtop_rot_channel_l_type), intent(in) :: channels(:)
@@ -339,9 +365,7 @@ contains
     !! Given the S-matrix, its basis of channels, the total energy E, and the number of open/closed channels,
     !! carry out the MQDT Closed-Channel Elimination Procedure to obtain the nopen x nopen physical S matrix
 
-    use rotex__kinds,      only: dp
     use rotex__types,      only: asymtop_rot_channel_l_type
-    use rotex__system,     only: die
     use rotex__linalg,     only: zgesv, right_divide
     use rotex__arrays,     only: size_check
     use rotex__constants,  only: im, pi

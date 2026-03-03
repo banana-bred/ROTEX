@@ -470,7 +470,7 @@ contains
 
     use rotex__kinds,     only: dp
     use rotex__channel_ops, only: findloc_transitions
-    use rotex__types,     only: n_states_type, cmatrix_type, elec_channel_type &
+    use rotex__types,     only: n_states_type, cvector_type, elec_channel_type &
                            , asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
                            , asymtop_rot_transition_type, rvector_type
     use rotex__system,    only: die, DS => DIRECTORY_SEPARATOR, stdout
@@ -512,7 +512,7 @@ contains
     character(:), allocatable :: smat_output_directory_this_spin, smat_output_directory_all_spins
     character(:), allocatable :: channels_file_this_spin
 
-    type(cmatrix_type),                      allocatable :: smat_j(:)
+    type(cvector_type),                      allocatable :: smat_j(:,:)
     type(elec_channel_type),                 allocatable :: elec_channels(:)
     type(rvector_type),                      allocatable :: prob_smat(:), xs_xcite(:), xs_dxcite(:)
     type(asymtop_rot_channel_l_type),        allocatable :: asymtop_rot_channels_l(:)
@@ -567,7 +567,7 @@ contains
       ! -- min and max values of total J
       jmin = max(0, G%NMIN - G%LMAX_KMAT)
       jmax = abs(G%NMAX + G%LMAX_KMAT)
-      allocate(smat_j(jmin:jmax, ne), source=0._dp)
+      allocate(smat_j(jmin:jmax, ne))
       allocate(asymtop_rot_channels_l_j(jmin:jmax))
       call rft_nonlinear( kmat_flat                           &
                         , kmat_eval_energies                  &
@@ -580,7 +580,6 @@ contains
                         , asymtop_rot_channels_l_j(jmin:jmax) &
       )
       deallocate(elec_channels)
-      !@@@
 
       channels_file_this_spin = G%OUTPUT_DIRECTORY // SPINMULT_NAMES(G%SPINMULTS(ispin)) // ".channels"
 
@@ -602,11 +601,14 @@ contains
           egrid_tot_smat           &
         , prob_smat                &
         , transitions_this_spin    &
-        , smat_j(jmin:jmax)        &
+        , ne                       &
+        , smat_j                   &
+        , kmat_eval_energies       &
         , jmin, jmax               &
         , asymtop_rot_channels_l_j &
         , asymtop_rot_channels_l   &
         )
+      ! @@@
 
 
       deallocate(smat_J)

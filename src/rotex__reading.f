@@ -3,6 +3,7 @@ module rotex__reading
   !! Contains procedures used in reading data (K-matrices and namelist data)
   use rotex__globals,   only: G
   use rotex__constants, only: UKRMOLX, MQDTR2K
+  use rotex__system, only: stdout, stderr, die
 
   implicit none (type, external)
 
@@ -60,6 +61,7 @@ contains
     integer :: i, j, ichan, iflat, i1, i2
     integer :: irrep
     integer :: nirreps
+    integer :: ne
     integer :: nchans_total
     integer, allocatable :: nchans_irrep(:), idx(:)
     character(:), allocatable :: kmat_filename, channels_filename, filename, irrepname
@@ -155,7 +157,7 @@ contains
 
       ! -- total number of channels across all irreps
       nchans_total = nchans_total + nchans_irrep(irrep)
-      ne = size(kmat_flat_per_irrep%mtrx, 2)
+      ne = size(kmat_flat_per_irrep(irrep)%mtrx, 2)
 
       ! -- index map: this irrep → full basis of channels
       allocate(index_map(irrep)%vec(nchans_irrep(irrep)))
@@ -363,6 +365,11 @@ contains
     read(funit, *) i, i, i, nchans_max, nskip_header
     call read_blank(funit, nskip_header)
     nskip_header = nskip_header + 4 ! for the next re-reads
+
+    @@@ trying to read stuff properly now that it all compiles. how to deal with Kmat_ei being 0 etc
+    ei: if 0, start lowest
+    ef: if 0, start highest
+    . whould not be considered when energy independent
 
     ! -- count number of energies and the number of energies that we want to include if EDFT
     do
@@ -617,7 +624,11 @@ contains
     ne_include = 0
     call read_blank(funit)
     read(funit, *) nchans_this_irrep
-    nchans_irrep_flat = nchans_this_irrep * (nchans_this_irrep+1) / 2
+    if(nchans_this_irrep .lt. 1) then
+      write(stderr, '("NCHANS_THIS_IRREP: I0")') nchans_this_irrep
+      call die("READ <1 channels for this irrep")
+    endif
+    nchans_irrep_flat = (nchans_this_irrep * (nchans_this_irrep+1)) / 2
     call read_blank(funit, nchans_this_irrep)
     do
       ! -- energies are the first number, ignore the rest
@@ -631,6 +642,15 @@ contains
       if(E .gt. G%KMAT_EF .AND. G%KMAT_EF .gt. 0._dp) cycle
       ne_include = ne_include + 1
     enddo
+
+    if(G%EDFT) then
+      if(ne_include .lt. 1) then
+        write(stderr, '("NE_INCLUDE: ", I0)') NE_INCLUDE
+        call die("NE_INCLUDE < 1")
+      endif
+    else
+      ne_include = 1
+    endif
 
     rewind(funit)
     ! -- skip header and channels; read K-matrix evaluation energies

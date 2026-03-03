@@ -18,6 +18,7 @@ module rotex__types
   public :: asymtop_rot_channel_l_vector_type
   public :: ivector_type
   public :: rvector_type
+  public :: cvector_type
   public :: rmatrix_type
   public :: cmatrix_type
   public :: asymtop_rot_transition_type
@@ -119,6 +120,11 @@ module rotex__types
     !! The type of a real vector
     real(dp), allocatable :: vec(:)
   end type rvector_type
+
+  type cvector_type
+    !! The type of a complex vector
+    complex(dp), allocatable :: vec(:)
+  end type cvector_type
 
   type rmatrix_type
     !! The type of a real matrix

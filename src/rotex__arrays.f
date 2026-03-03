@@ -20,11 +20,18 @@ module rotex__arrays
   public :: realloc
   public :: unitary_defect
   public :: sort_index
+  public :: idx_binsearch
   public :: packmat
   public :: unpackmat
   public :: ij2k
   public :: nflat2n
+  public :: linear_interpolation
   ! public :: vec2diag
+
+  interface linear_interpolation
+    module procedure :: linear_interpolation_re_rs
+    module procedure :: linear_interpolation_re_cs
+  end interface linear_interpolation
 
   interface unpackmat
     module procedure :: unpackmat_r
@@ -800,7 +807,7 @@ contains
   end subroutine packmat_c
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure function ij2k(i, j) result(k)
+  pure module function ij2k(i, j) result(k)
     !! Given a row i and column j of a symmetric matrix, return
     !! the flattened index k
     implicit none (type, external)
@@ -813,7 +820,7 @@ contains
   end function ij2k
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure elemental function nflat2n(nflat) result(n)
+  pure elemental module function nflat2n(nflat) result(n)
     !! Given a number of flattened array elements nflat=n(n+1)/2,
     !! determine the number of array elements n
     implicit none (type, external)
@@ -821,6 +828,98 @@ contains
     integer :: n
     n = nint(( sqrt(real(8*nflat+1, kind=dp)) - 1 ) / 2)
   end function nflat2n
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module function idx_binsearch(val, arr) result(res)
+    !! Returns the indices that define the interval in ARR in which VAL
+    !! is contained. Assumes that ARR is sorted increasingly.
+    !! Conventions:
+    !!   ARR is length 1: [1,1]
+    !!   VAL < ARR(1): [0,1]
+    !!   VAL > ARR(n): [n, 0]
+    !!   VAL = ARR(i): [i,i]
+    implicit none (type, external)
+    real(dp), intent(in) :: val
+    real(dp), intent(in) :: arr(:)
+    integer :: res(2)
+
+    integer :: n, lo, hi, mid
+
+    n = size(arr, 1)
+
+    ! -- bad size or single element
+    if(n .le. 0) then
+      res = [0,0]
+      return
+    elseif(n.eq.1) then
+      res = [1,1]
+      return
+    endif
+
+    ! -- out of range
+    if(val .lt. arr(1)) then
+      res = [0,1]
+      return
+    elseif(val .gt. arr(n)) then
+      res = [n,0]
+      return
+    endif
+
+    ! -- endpoints
+    if(val .eq. arr(1)) then
+      res = [1,1]
+      return
+    elseif(val .eq. arr(n)) then
+      res = [n,n]
+      return
+    endif
+
+    ! -- binary search on [1,n] for exact match or bracket
+    lo = 1
+    hi = n
+    do while (hi-lo .gt. 1)
+      mid = (lo+hi)/2
+      ! -- transitivity
+      if(val .lt. arr(mid)) then
+        hi = mid
+      elseif(val .gt. arr(mid)) then
+        lo = mid
+      else
+        res = [mid,mid]
+        return
+      endif
+    enddo
+
+    res = [lo,hi]
+
+  end function idx_binsearch
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental subroutine linear_interpolation_re_rs(E1, E2, S1, S2, E, S)
+    !! Given the S-matrices S1 and S2 evaluated at energies E1 < E2,
+    !! return the S-matrix  S(E) s.t. E1 < E < E2 via linear interpolation
+    implicit none (type, external)
+    real(dp), intent(in) :: E1, E2, E
+    real(dp), intent(in) :: S1, S2
+    real(dp), intent(out) :: S
+    real(dp) :: t
+    if(E2 .eq. E1) call die("S-matrix linear interpolation must be done between two different energies")
+    t = (E-E1)/(E2-E1)
+    S = (1._dp - t) * S1 + t * S2
+  end subroutine linear_interpolation_re_rs
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental subroutine linear_interpolation_re_cs(E1, E2, S1, S2, E, S)
+    !! Given the S-matrices S1 and S2 evaluated at energies E1 < E2,
+    !! return the S-matrix  S(E) s.t. E1 < E < E2 via linear interpolation
+    implicit none (type, external)
+    real(dp), intent(in) :: E1, E2, E
+    complex(dp), intent(in) :: S1, S2
+    complex(dp), intent(out) :: S
+    real(dp) :: t
+    if(E2 .eq. E1) call die("S-matrix linear interpolation must be done between two different energies")
+    t = (E-E1)/(E2-E1)
+    S = (1._dp - t) * S1 + t * S2
+  end subroutine linear_interpolation_re_cs
 
 ! ================================================================================================================================ !
 end module rotex__arrays
