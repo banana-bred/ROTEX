@@ -2,6 +2,9 @@
 module rotex__writing
   !! Procedures for writing data to disk
 
+  use rotex__kinds,   only: dp
+  use rotex__globals, only: G
+
   implicit none (type, external)
 
   private
@@ -11,6 +14,8 @@ module rotex__writing
   public :: write_CB_xs_to_file
   public :: write_smat_xs_to_file
   public :: write_total_xs_to_file
+  public :: write_Smat_J_elems_to_file
+  public :: write_elec_mat_elems_to_file
 
   character(*), parameter :: ENERGY_XS_WRITE_FMT = '(2X, 2E30.20)'
 
@@ -22,8 +27,6 @@ contains
   module subroutine write_lifetimes_to_file(N_states)
     !! Writes the states involved in the excitation and their lifetimes
 
-    use rotex__globals,   only: G
-    use rotex__kinds,     only: dp
     use rotex__types,     only: N_states_type
     use rotex__constants, only: au2ev, au2sec
 
@@ -76,7 +79,6 @@ contains
         write(funit, fmt, advance = "no") E
         write(funit, '(X, A)') lifetime_char
 
-
       enddo
 
     enddo
@@ -98,7 +100,6 @@ contains
     )
     !! Writes a Coulomb-Born cross section to a file whos name and file header
     !! carry information about the state symmetry
-    use rotex__kinds,      only: dp
     use rotex__types,      only: N_states_type, asymtop_rot_channel_type
     use rotex__characters, only: add_trailing,  sub, sup
     use rotex__constants,  only: au2eV, au2cm
@@ -180,7 +181,6 @@ contains
     )
     !! Writes an S-matrix (+CB) cross section to a file whos name and file header
     !! carry information about the state symmetry
-    use rotex__kinds,      only: dp
     use rotex__types,      only: rvector_type, asymtop_rot_transition_type,  asymtop_rot_channel_type
     use rotex__arrays,     only: size_check
     use rotex__system,     only: die, warn, mkdir
@@ -288,7 +288,6 @@ contains
     )
     !! Write the total cross-sections (S-matrix + CB correction) to disk for a single transition
 
-    use rotex__kinds,      only: dp
     use rotex__types,      only: asymtop_rot_transition_type, asymtop_rot_channel_type
     use rotex__characters, only: add_trailing, i2c => int2char
     use rotex__arrays,     only: size_check
@@ -388,7 +387,6 @@ contains
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine write_xs_header(funit, N, Ka, Kc, Np, kaup, kcup, xs_type, lmax, lmax2)
-    use rotex__globals, only: G
     use rotex__characters, only: ndigits, i2c => int2char
     implicit none (type, external)
     integer, intent(in) :: funit
@@ -432,7 +430,6 @@ contains
     )
     !! Write rotational channel info to file
 
-    use rotex__kinds, only: dp
     use rotex__types, only: asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
                           , n_states_type, asymtop_rot_channel_type
     use rotex__channel_ops, only: operator(.eq.)
@@ -495,6 +492,205 @@ contains
     enddo
     close(funit)
   end subroutine write_channels_to_file
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  module subroutine write_elec_mat_elems_to_file( &
+        kmat_eval_energies                        &
+      , elec_channels                             &
+      , eigenphases                               &
+      , eigenphases_unwrapped                     &
+      , sinmat                                    &
+      , cosmat                                    &
+      , spinmult_name                             &
+    )
+    !! Writes elements of K(E), sin(E), cos(E) to the corresponding files/directories determined by
+    !! `matname`.
+
+    use rotex__types,      only: elec_channel_type
+    use rotex__constants,  only: au2ev
+    use rotex__characters, only: i2c => int2char
+    use rotex__arrays,     only: size_check
+    use rotex__system, only: mkdir
+
+    implicit none (type, external)
+
+    real(dp),                intent(in) :: Kmat_eval_energies(:)
+      !! nE-element array of matrix evaluation energie
+    type(elec_channel_type), intent(in) :: elec_channels(:)
+      !! n-element array of electronic channels
+    real(dp),                intent(in) :: eigenphases(:,:)
+      !! Electronic eigenphases n×nE before identification and branch correction
+    real(dp),                intent(in) :: eigenphases_unwrapped(:,:)
+      !! Electronic eigenphases n×nE after identification and branch correction
+    real(dp),                intent(in) :: sinmat(:,:,:), cosmat(:,:,:)
+      !! Sine and cosine matrice n×n×nE
+    character(*),            intent(in) :: spinmult_name
+
+    integer :: n, ne, i, j, ie, nwrite
+    integer :: funit_sine, funit_cosine, funit_eigenphases, funit_eigenphases2
+    character(:), allocatable :: eigenphases_file, eigenphases_file2, sin_file, cos_file, phases_dir
+
+    n  = size(eigenphases, 1)
+    ne = size(eigenphases, 2)
+    nwrite = (n*(n+1)) / 2 ! -- symemtric matrices, write only a triangle
+
+    call size_check(elec_channels, n,   "electronic channels")
+    call size_check(sinmat, [n, n, ne], "SIN MATRIX")
+    call size_check(cosmat, [n, n, ne], "COS MATRIX")
+    call size_check(eigenphases, shape(eigenphases_unwrapped), "EIGENPHASES_UNWRAPPED")
+
+    phases_dir       = G%OUTPUT_DIRECTORY // "phases/"
+    call mkdir(phases_dir    // spinmult_name)
+    call mkdir(phases_dir    // spinmult_name)
+    call mkdir(phases_dir    // spinmult_name)
+    eigenphases_file = phases_dir    // spinmult_name // "/eigenphases.dat"
+    eigenphases_file2 = phases_dir   // spinmult_name // "/eigenphases_smooth.dat"
+    sin_file         = phases_dir    // spinmult_name // "/sine_elements.dat"
+    cos_file         = phases_dir    // spinmult_name // "/cosine_elements.dat"
+
+    open(newunit=funit_eigenphases,  file=eigenphases_file)
+    open(newunit=funit_eigenphases2, file=eigenphases_file2)
+    open(newunit=funit_sine,         file=sin_file)
+    open(newunit=funit_cosine,       file=cos_file)
+
+    ! -- channel header
+    write(funit_eigenphases,  '("# ", '//i2c(n)//'(I0,",",I0,",",I0,2X))') &
+      ( elec_channels(i) % nelec                                          &
+      , elec_channels(i) % l                                              &
+      , elec_channels(i) % ml, i=1,n)
+    write(funit_eigenphases2, '("# ", '//i2c(n)//'(I0,",",I0,",",I0,2X))') &
+      ( elec_channels(i) % nelec                                          &
+      , elec_channels(i) % l                                              &
+      , elec_channels(i) % ml, i=1,n)
+    write(funit_sine, '("# ", '//i2c(nwrite)//'(I0,",",I0,",",I0," <-> "I0,",",I0,",",I0,2X))') &
+      ((elec_channels(i) % nelec                                                               &
+      , elec_channels(i) % l                                                                   &
+      , elec_channels(i) % ml                                                                  &
+      , elec_channels(j) % nelec                                                               &
+      , elec_channels(j) % l                                                                   &
+      , elec_channels(j) % ml                                                                  &
+      , i=1, j), j=1,n)
+    write(funit_cosine, '("# ", '//i2c(nwrite)//'(I0,",",I0,",",I0," <-> "I0,",",I0,",",I0,2X))') &
+      ((elec_channels(i) % nelec                                                               &
+      , elec_channels(i) % l                                                                   &
+      , elec_channels(i) % ml                                                                  &
+      , elec_channels(j) % nelec                                                               &
+      , elec_channels(j) % l                                                                   &
+      , elec_channels(j) % ml                                                                  &
+      , i=1, j), j=1,n)
+
+    ! -- data
+    do ie=1, ne
+      write(funit_eigenphases,  '(ES15.7,X)', advance='no') kmat_eval_energies(ie)*au2ev
+      write(funit_eigenphases2, '(ES15.7,X)', advance='no') kmat_eval_energies(ie)*au2ev
+      write(funit_sine,         '(ES15.7,X)', advance='no') kmat_eval_energies(ie)*au2ev
+      write(funit_cosine,       '(ES15.7,X)', advance='no') kmat_eval_energies(ie)*au2ev
+      do i=1,n
+        do j=1,i
+          write(funit_eigenphases,  '(ES15.7,X)', advance='no') eigenphases(i, ie)
+          write(funit_eigenphases2, '(ES15.7,X)', advance='no') eigenphases_unwrapped(i, ie)
+          write(funit_sine,         '(ES15.7,X)', advance='no') sinmat(i, j, ie)
+          write(funit_cosine,       '(ES15.7,X)', advance='no') cosmat(i, j, ie)
+        enddo
+      enddo
+      write(funit_eigenphases,*)
+      write(funit_eigenphases2,*)
+      write(funit_sine,*)
+      write(funit_cosine,*)
+    enddo
+
+    close(funit_eigenphases)
+    close(funit_eigenphases2)
+    close(funit_sine)
+    close(funit_cosine)
+
+  end subroutine write_elec_mat_elems_to_file
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  module subroutine write_Smat_J_elems_to_file(spinmult, Jmin, Jmax, kmat_eval_energies, channels_J, smat_J)
+    !! Writes elements of S^J(E) to disk for inspection
+
+    use rotex__types,      only: r3carr_type, asymtop_rot_channel_l_vector_type
+    use rotex__constants,  only: au2ev, spinmult_names
+    use rotex__characters, only: i2c => int2char
+    use rotex__system,     only: mkdir
+
+    implicit none (type, external)
+
+    integer, intent(in) :: spinmult
+      !! The current spin multiplicity
+    integer,                                 intent(in) :: Jmin, Jmax
+      !! The min/max values of J
+    real(dp),                                intent(in) :: Kmat_eval_energies(:)
+      !! The evaluation energy grid
+    type(asymtop_rot_channel_l_vector_type), intent(in) :: channels_J(Jmin:Jmax)
+      !! The rotational channels per J
+    type(r3carr_type),                      intent(in) :: Smat_J(Jmin:Jmax)
+      !! The S^J sub blocks
+
+    integer :: J, ie, i, k, ne, nchans, funitr, funitc, funitch
+    character(:), allocatable :: fnamer, fnamec, fnamech
+
+    ne = size(kmat_eval_energies, 1)
+
+    call mkdir(G%OUTPUT_DIRECTORY // spinmult_names(spinmult) // "/smat_J")
+    call mkdir(G%OUTPUT_DIRECTORY // "channels")
+
+    do J=Jmin, Jmax
+
+      nchans = size(channels_J(J)%channels, 1)
+
+      fnamer  = G%OUTPUT_DIRECTORY // spinmult_names(spinmult) // "/smat_J/S_J"   // trim(adjustl(i2c(J))) // "_real.dat"
+      fnamec  = G%OUTPUT_DIRECTORY // spinmult_names(spinmult) // "/smat_J/S_J"   // trim(adjustl(i2c(J))) // "_cplx.dat"
+      fnamech = G%OUTPUT_DIRECTORY // "channels/channels_J" // trim(adjustl(i2c(J))) // ".txt"
+
+      ! -- channels
+      open(newunit=funitch,  file=fnamec,  status="replace", action="write")
+      write(funitch, '("# J = ", I0)')
+      write(funitch, '("# ")', advance="no")
+      write(funitch, '(A6)', advance="no") "idx"
+      write(funitch, '(2X, A2)', advance="no") "n"
+      write(funitch, '(2X, A6)', advance="no") "N"
+      write(funitch, '(2X, A6)', advance="no") "Ka"
+      write(funitch, '(2X, A6)', advance="no") "Kc"
+      write(funitch, '(2X, A2)', advance="no") "l"
+      write(funitch, '(2X, A22)') "E (meV)"
+      do i=1, nchans
+        write(funitch, '(2X, I6, 2X, I2, 3(2X, I6), 2X, I2, 2X, ES22.14)') &
+            i                                                            &
+          , channels_J(J)%channels(i)%nelec                              &
+          , channels_J(J)%channels(i)%N                                  &
+          , channels_J(J)%channels(i)%Ka                                 &
+          , channels_J(J)%channels(i)%Kc                                 &
+          , channels_J(J)%channels(i)%l                                  &
+          , channels_J(J)%channels(i)%E
+      enddo
+      close(funitch)
+
+      ! -- S
+      open(newunit=funitr,  file=fnamer,  status="replace", action="write")
+      open(newunit=funitc,  file=fnamec,  status="replace", action="write")
+      write(funitr, '("# J = ", I0)') J             ; write(funitc, '("# J = ", I0)') J
+      write(funitr, '("# ")', advance="no")         ; write(funitc, '("# ")', advance="no")
+      write(funitr, '(A15)', advance="no") "E (eV)" ; write(funitc, '(A15)') "E (eV)"
+      write(funitr, '(" S(E)..")')                  ; write(funitr, '(" S(E)..")')
+      do ie=1, ne
+        write(funitr, '(ES17.7)', advance="no") Kmat_eval_energies(ie) * au2ev
+        write(funitc, '(ES17.7)', advance="no") Kmat_eval_energies(ie) * au2ev
+        do i=1, nchans ; do k=1, nchans
+          write(funitr, '(2X,ES22.12)', advance="no") smat_J(J)%arr(i,k,ie)%re
+          write(funitc, '(2X,ES22.12)', advance="no") smat_J(J)%arr(i,k,ie)%im
+        enddo ; enddo
+        write(funitr, *)
+        write(funitc, *)
+      enddo
+
+    enddo
+
+    close(funitr)
+    close(funitc)
+
+  end subroutine write_Smat_J_elems_to_file
 
 ! ================================================================================================================================ !
 end module rotex__writing

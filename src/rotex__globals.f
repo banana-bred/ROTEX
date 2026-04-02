@@ -47,6 +47,8 @@ module rotex__globals
       !! Whether the input K-matrices are evaluated in a basis of real spherical harmonics
       !! for the scattering electron. If .true., it will be transformed to a basis of
       !! complex-valued spherical harmonics
+    logical :: print_elec_channels
+      !! Whether to print electronic channels once they are defined and ordered
 
     integer :: spin_isomer_kind
       !! Whether and how to enforce ortho/para symmetry for molecules with identical nuclei.
@@ -149,6 +151,9 @@ module rotex__globals
       !! in the order Qxx, Qxy, Qxz, Qyy, Qyz, Qzz
     real(dp), allocatable :: egrid_segs(:)
       !! Array of the bounds (non-degenerate) of the energy grid segments (length num_egrid_segs + 1)
+    real(dp) :: post_rft_sincos2s_imag_tol
+      !! After the energy dependent frame transformation, the sin and cosine matrices are expected
+      !! to have a imaginary values that is no larger than this in magnitude
 
     character(1) :: rotor_kind
       !! The kind of rotor that describes the targer. Character(1).

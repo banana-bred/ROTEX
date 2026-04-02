@@ -20,6 +20,8 @@ module rotex__types
   public :: rvector_type
   public :: cvector_type
   public :: rmatrix_type
+  public :: r3rarr_type
+  public :: r3carr_type
   public :: cmatrix_type
   public :: asymtop_rot_transition_type
   public :: cd4_type
@@ -135,6 +137,16 @@ module rotex__types
     !! The type of a complex matrix
     complex(dp), allocatable :: mtrx(:,:)
   end type cmatrix_type
+
+  type r3rarr_type
+    !! Rank-3 real array type
+    real(dp), allocatable :: r3arr(:,:,:)
+  end type r3rarr_type
+
+  type r3carr_type
+    !! Rank-3 complex array type
+    complex(dp), allocatable :: arr(:,:,:)
+  end type r3carr_type
 
   type cd4_type
     !! Centrifugal Distortion parameters for quartric (4) order

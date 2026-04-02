@@ -470,7 +470,7 @@ contains
 
     use rotex__kinds,     only: dp
     use rotex__channel_ops, only: findloc_transitions
-    use rotex__types,     only: n_states_type, cvector_type, elec_channel_type &
+    use rotex__types,     only: n_states_type, r3carr_type, elec_channel_type &
                            , asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
                            , asymtop_rot_transition_type, rvector_type
     use rotex__system,    only: die, DS => DIRECTORY_SEPARATOR, stdout
@@ -500,11 +500,11 @@ contains
     character(1), parameter :: UKRMOLX_KMAT_ENERGY_UNITS    = "r"!ydberg
     character(1), parameter :: MQDTR2K_KMAT_ENERGY_UNITS    = "e"!lectron-Volts
 
-    integer :: ispin, nspins, jmin, jmax, itrans, ntrans, ne
+    integer :: ispin, nspins, jmin, jmax, itrans, ntrans, ne_mat, ne
     integer, allocatable :: idxmap(:)
 
-    real(dp), allocatable :: kmat_flat(:,:)
-      !! Flattened K-matrix. nchan(nchan+1)/2 x ne dimemsional matrix
+    real(dp), allocatable :: kmat(:,:,:)
+      !! K-matrix. nchan × nchan x ne_mat dimemsional matrix
     real(dp), allocatable :: kmat_eval_energies(:)
       !! Evaluation energies of the K-matrix
 
@@ -512,7 +512,7 @@ contains
     character(:), allocatable :: smat_output_directory_this_spin, smat_output_directory_all_spins
     character(:), allocatable :: channels_file_this_spin
 
-    type(cvector_type),                      allocatable :: smat_j(:,:)
+    type(r3carr_type),                      allocatable :: smat_j(:)
     type(elec_channel_type),                 allocatable :: elec_channels(:)
     type(rvector_type),                      allocatable :: prob_smat(:), xs_xcite(:), xs_dxcite(:)
     type(asymtop_rot_channel_l_type),        allocatable :: asymtop_rot_channels_l(:)
@@ -538,15 +538,15 @@ contains
       end select
 
       call read_kmats(                            &
-          kmat_flat         = kmat_flat           &
+          kmat               = kmat               &
         , kmat_eval_energies = kmat_eval_energies &
-        , spinmult = G%SPINMULTS(ispin)           &
-        , elec_channels     = elec_channels       &
-        , channel_e_units   = channel_e_units     &
-        , kmat_eval_E_units = kmat_eval_e_units   &
+        , spinmult           = G%SPINMULTS(ispin) &
+        , elec_channels      = elec_channels      &
+        , channel_e_units    = channel_e_units    &
+        , kmat_eval_E_units  = kmat_eval_e_units  &
         )
 
-      ne = size(kmat_flat, 2)
+      ne_mat = size(kmat, 3)
 
       if(maxval(elec_channels % l) .gt. G%LMAX_KMAT) call die("K-matrix has at least one channel with&
         & l > LMAX_KMAT: " // i2c(maxval(elec_channels % l)) // " > " // i2c(G%LMAX_KMAT))
@@ -567,9 +567,9 @@ contains
       ! -- min and max values of total J
       jmin = max(0, G%NMIN - G%LMAX_KMAT)
       jmax = abs(G%NMAX + G%LMAX_KMAT)
-      allocate(smat_j(jmin:jmax, ne))
+      allocate(smat_j(jmin:jmax))
       allocate(asymtop_rot_channels_l_j(jmin:jmax))
-      call rft_nonlinear( kmat_flat                           &
+      call rft_nonlinear( kmat                                &
                         , kmat_eval_energies                  &
                         , G%SPINMULTS(ispin)                  &
                         , jmin, jmax                          &
@@ -601,14 +601,12 @@ contains
           egrid_tot_smat           &
         , prob_smat                &
         , transitions_this_spin    &
-        , ne                       &
         , smat_j                   &
         , kmat_eval_energies       &
         , jmin, jmax               &
         , asymtop_rot_channels_l_j &
         , asymtop_rot_channels_l   &
         )
-      ! @@@
 
 
       deallocate(smat_J)

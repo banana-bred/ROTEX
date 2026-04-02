@@ -19,7 +19,7 @@ contains
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine read_kmats(                    &
-                                kmat_flat          &
+                                kmat               &
                               , kmat_eval_energies &
                               , spinmult           &
                               , elec_channels      &
@@ -29,10 +29,10 @@ contains
     !! Reads in a K-matrix from a file with a very particular file format given by kmat_output_type
 
     use rotex__kinds,      only: dp
-    use rotex__types,      only: elec_channel_type, rmatrix_type, ivector_type
+    use rotex__types,      only: elec_channel_type, rmatrix_type, ivector_type, r3rarr_type
     use rotex__channel_ops, only: permsort_channels
     use rotex__utils,      only: read_blank
-    use rotex__arrays,     only: append, is_symmetric, realloc, packmat
+    use rotex__arrays,     only: append, is_symmetric, realloc
     use rotex__system,     only: die, stdout, stderr
     use rotex__symmetry,   only: group_size, irrep_name
     use rotex__constants,  only: au2ev, IOSTAT_END, IOSTAT_OK, spinmult_names, DEFAULT_INT
@@ -40,8 +40,8 @@ contains
 
     implicit none (type, external)
 
-    real(dp), intent(out), allocatable :: Kmat_flat(:,:)
-      !! Flattened K-matrix: nchan(nchan+1)/2 × ne
+    real(dp), intent(out), allocatable :: Kmat(:,:,:)
+      !! K-matrix: nchan × nchan × ne
     real(dp), intent(out), allocatable :: kmat_eval_energies(:)
       !! Evaluation energies of the K-matrix
     integer, intent(in) :: spinmult
@@ -58,7 +58,7 @@ contains
       !!  - "r" for Rydberg
 
     logical :: skip_this_irrep
-    integer :: i, j, ichan, iflat, i1, i2
+    integer :: i, j, ichan, i1, i2
     integer :: irrep
     integer :: nirreps
     integer :: ne
@@ -71,7 +71,7 @@ contains
 
     type(elec_channel_type), allocatable :: elec_channels_this_irrep(:)
     type(ivector_type), allocatable :: index_map(:)
-    type(rmatrix_type), allocatable :: kmat_flat_per_irrep(:)
+    type(r3rarr_type), allocatable :: kmat_irrep(:)
 
     nirreps = group_size(G%POINT_GROUP)
     allocate(nchans_irrep(nirreps))
@@ -99,7 +99,7 @@ contains
     end select
 
     allocate(index_map(nirreps))
-    allocate(kmat_flat_per_irrep(nirreps))
+    allocate(kmat_irrep(nirreps))
 
     nchans_total = 0
 
@@ -117,31 +117,31 @@ contains
         channels_filename = G%CHANNELS_DIR // "channels.geom1." // spinmult_names(spinmult) // "." // irrepname
         kmat_filename     = G%KMAT_DIR     // "K-matrix.geom1." // spinmult_names(spinmult) // "." // irrepname
 
-        call get_flat_kmat_and_channels_ukrmolx( &
-            channels_filename                    &
-          , kmat_filename                        &
-          , kmat_flat_per_irrep(irrep)%mtrx      &
-          , kmat_eval_energies_local             &
-          , channel_E_convert                    &
-          , kmat_e_convert                       &
-          , elec_channels_this_irrep             &
-          , nchans_irrep(irrep)                  &
+        call get_kmat_and_channels_ukrmolx( &
+            channels_filename               &
+          , kmat_filename                   &
+          , kmat_irrep(irrep)%r3arr     &
+          , kmat_eval_energies_local        &
+          , channel_E_convert               &
+          , kmat_e_convert                  &
+          , elec_channels_this_irrep        &
+          , nchans_irrep(irrep)             &
           , skip_this_irrep)
 
       case(MQDTR2K)
 
-        ! -- the kmat file is expected to have the channels
+        ! -- the kmat file is expected to have the channels in this format, so no need for a channels file
         kmat_filename = G%KMAT_DIR // int2char(spinmult) // irrep_name(irrep, G%POINT_GROUP) // ".kmat"
 
-        call get_flat_kmat_and_channels_mqdtr2k( &
-            kmat_filename                        &
-          , kmat_flat_per_irrep(irrep)%mtrx      &
-          , kmat_eval_energies_local             &
-          , channel_E_convert                    &
-          , kmat_e_convert                       &
-          , elec_channels_this_irrep             &
-          , nchans_irrep(irrep)                  &
-          , skip_this_irrep                      &
+        call get_kmat_and_channels_mqdtr2k( &
+            kmat_filename                   &
+          , kmat_irrep(irrep)%r3arr     &
+          , kmat_eval_energies_local        &
+          , channel_E_convert               &
+          , kmat_e_convert                  &
+          , elec_channels_this_irrep        &
+          , nchans_irrep(irrep)             &
+          , skip_this_irrep                 &
         )
 
       case default
@@ -157,7 +157,7 @@ contains
 
       ! -- total number of channels across all irreps
       nchans_total = nchans_total + nchans_irrep(irrep)
-      ne = size(kmat_flat_per_irrep(irrep)%mtrx, 2)
+      ne = size(kmat_irrep(irrep)%r3arr, 3)
 
       ! -- index map: this irrep → full basis of channels
       allocate(index_map(irrep)%vec(nchans_irrep(irrep)))
@@ -171,60 +171,58 @@ contains
 
     deallocate(elec_channels_this_irrep)
 
-    ! -- flattened K-mats per irrep -> total flattened K-mat
-    ! @@@@@
+    ! -- K-matrix per irrep -> total K-matrix
+    allocate(kmat(nchans_total, nchans_total, ne), source=0.0_dp)
 
-    call fill_total_kmat(kmat_flat_per_irrep, index_map, nchans_irrep, nchans_total, ne, kmat_flat)
+    call fill_total_kmat(kmat_irrep, index_map, nchans_irrep, nchans_total, ne, kmat)
 
-    deallocate(kmat_flat_per_irrep)
+    deallocate(kmat_irrep)
     deallocate(index_map)
+
+    ! -- this is probably not necessary, but it's a nice order in which to have channels
+    call permsort_channels(elec_channels, idx)
+    kmat(:,:,:) = kmat(idx,idx,:)
+
+    if(G%print_elec_channels) call print_channels(elec_channels, stdout)
 
   end subroutine read_kmats
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure subroutine fill_total_kmat( &
-        kmat_flat_per_irrep        &
+        kmat_irrep                 &
       , index_map                  &
       , nchans_irrep               &
       , nchans_total               &
       , ne                         &
-      , kmat_flat                  &
+      , kmat                       &
     )
-    !! Using index_map, put the elements of kmat_flat_per_irrep into the full flattened kmat
+    !! Using index_map, put the elements of kmat_irrep into the full kmat
     use rotex__kinds,    only: dp
-    use rotex__types,    only: rmatrix_type, ivector_type
-    use rotex__arrays,   only: ij2k
+    use rotex__types,    only: r3rarr_type, ivector_type
+    use rotex__arrays,   only: ij2k, size_check
     use rotex__symmetry, only: group_size
     implicit none (type, external)
-    type(rmatrix_type), intent(in)               :: kmat_flat_per_irrep(:)
-      !! Array of flattened K-matrices for each irrep
-    type(ivector_type), intent(in)               :: index_map(:)
+    type(r3rarr_type), intent(in)   :: kmat_irrep(:)
+      !! Array of K-matrices for each irrep
+    type(ivector_type), intent(in)  :: index_map(:)
       !! Irrep channel -> total channel index map
-    integer,            intent(in)               :: nchans_irrep(:)
+    integer,            intent(in)  :: nchans_irrep(:)
       !! Number of channels per irrep
-    integer,            intent(in)               :: nchans_total
+    integer,            intent(in)  :: nchans_total
       !! Number of channels across all irreps
-    integer,            intent(in)               :: ne
+    integer,            intent(in)  :: ne
       !! Number of K-matrix evaluation energies
-    real(dp),           intent(out), allocatable :: kmat_flat(:,:)
-      !! The flattened K-matrices for all energies. nchan(nchan+1)/2 × nE
+    real(dp),           intent(out) :: kmat(:,:,:)
+      !! The K-matrices for all energies. nchan × nchan × nE
     integer :: iloc, jloc, kloc, itot, jtot, ktot, irrep, nirreps, ie
-    integer :: nchans_total_flat
-    nchans_total_flat = (nchans_total*(nchans_total+1)) / 2
-    allocate(kmat_flat(nchans_total_flat, ne), source=0._dp)
+    call size_check(kmat, [nchans_total, nchans_total, ne], "KMAT")
     nirreps = group_size(G%POINT_GROUP)
     do irrep=1,nirreps
       kloc = 0
-      do jloc=1,nchans_irrep(irrep)
+      do concurrent(iloc=1:nchans_irrep(irrep), jloc=1:nchans_irrep(irrep), ie=1:ne)
+        itot = index_map(irrep)%vec(iloc)
         jtot = index_map(irrep)%vec(jloc)
-        do iloc=1,jloc
-          itot = index_map(irrep)%vec(iloc)
-          kloc = kloc + 1
-          ktot = ij2k(itot, jtot)
-          do concurrent (ie=1:ne)
-            kmat_flat(ktot, ie) = kmat_flat_per_irrep(irrep)%mtrx(kloc, ie)
-          enddo
-        enddo
+        kmat(itot, jtot, ie) = kmat_irrep(irrep)%r3arr(iloc, jloc, ie)
       enddo
     enddo
   end subroutine fill_total_kmat
@@ -287,21 +285,21 @@ contains
   ! end subroutine fill_parity_array_this_irrep_cs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine get_flat_kmat_and_channels_ukrmolx( &
+  subroutine get_kmat_and_channels_ukrmolx( &
         channels_filename                        &
       , kmat_filename                            &
-      , kmat_flat                                &
+      , kmat                                     &
       , kmat_energies                            &
       , channel_e_convert                        &
       , kmat_e_convert                           &
       , elec_channels_this_irrep                 &
       , nchans_this_irrep                        &
       , skip_this_irrep)
-    !! Return the flattened (1D) K-matrix that is closest to the desired evaluation energy
+    !! Return the K-matrix that is closest to the desired evaluation energy
     !! given by G%KMAT_ENERGY_CLOSEST
     use rotex__constants, only: IOSTAT_END, IOSTAT_OK, au2ev
     use rotex__kinds,     only: dp
-    use rotex__arrays,    only: realloc, size_check, append
+    use rotex__arrays,    only: realloc, size_check, append, unpackmat
     use rotex__types,     only: elec_channel_type
     use rotex__utils,     only: read_blank
     use rotex__system,    only: stdout, stderr, die
@@ -312,8 +310,8 @@ contains
       !! Where to read channels
     character(*), intent(in) :: kmat_filename
       !! Where to read K-matrices
-    real(dp), intent(inout), allocatable :: kmat_flat(:,:)
-      !! Flattened K-matrix for each energy: nchan(nchan+1)/2 × nE
+    real(dp), intent(out), allocatable :: kmat(:,:,:)
+      !! K-matrix for each energy: nchan × nchan × nE_include
     real(dp), allocatable, intent(inout) :: kmat_energies(:)
       !! Array of K-matrix evaluation energies that we want
     real(dp), intent(in) :: channel_e_convert
@@ -334,6 +332,7 @@ contains
     integer  :: ie_include, ne_include, iemin, iemax
     integer  :: funit, nchans_max, nskip, nskip_header, iline, icol, nlines, nchans_flat
     real(dp) :: E
+    real(dp), allocatable :: kmat_flat(:, :)
     type(elec_channel_type) :: chan
 
     skip_this_irrep = .false.
@@ -366,11 +365,6 @@ contains
     call read_blank(funit, nskip_header)
     nskip_header = nskip_header + 4 ! for the next re-reads
 
-    @@@ trying to read stuff properly now that it all compiles. how to deal with Kmat_ei being 0 etc
-    ei: if 0, start lowest
-    ef: if 0, start highest
-    . whould not be considered when energy independent
-
     ! -- count number of energies and the number of energies that we want to include if EDFT
     do
       read(funit, *, iostat = iostat) nchans, i, nchans_flat, E
@@ -381,7 +375,7 @@ contains
       call read_blank(funit, nskip)
       ! -- don't worry about ne_include if we just want one
       if(G%EDFT .eqv. .false.) cycle
-      if(E .lt. G%KMAT_EI .OR. (E .gt. G%KMAT_EF .AND. G%KMAT_EF .ne. 0._dp)) cycle
+      if(E .lt. G%KMAT_EI .OR. (E .gt. G%KMAT_EF .AND. G%KMAT_EF .gt. 0._dp)) cycle
       ne_include = ne_include + 1
     enddo
 
@@ -390,7 +384,7 @@ contains
 
     ! -- read in the K-matrix energies (including those we won't use)
     rewind(funit)
-    call realloc(kmat_energies, ne)
+    call realloc(kmat_energies, ne) ! this will be trimmed down to included energies later
     call read_blank(funit, nskip_header)
     ie = 0
     nchans_this_irrep = 0
@@ -417,7 +411,7 @@ contains
       ! -- minimum and maximum evaluation energies to consider for EDFT
       iemin = findloc(kmat_energies .ge. G%KMAT_EI, .true., 1)
       iemax = merge(ne, findloc(kmat_energies .le. G%KMAT_EF, .true., 1), G%KMAT_EF .eq. 0._dp)
-      write(stdout, '(4x, "user requested k-matrix energies between ", e20.10, "and ", e20.10, " ev")') &
+      write(stdout, '(4x, "user requested k-matrix energies between ", e20.10, " and ", e20.10, " ev")') &
         kmat_energies(iemin)*au2ev, kmat_energies(iemax)*au2ev
     else
       ! -- find the lowest energy if energy independent
@@ -559,27 +553,32 @@ contains
       elec_channels_this_irrep(ichan) = chan
 
     enddo
-
     close(funit)
 
-  end subroutine get_flat_kmat_and_channels_ukrmolx
+    ! -- flat Kmat -> Kmat
+    allocate(Kmat(nchans_this_irrep, nchans_this_irrep, ne_include), source=0.0_dp)
+    do ie=1, ne_include
+      call unpackmat(kmat_flat(:,ie), kmat(:,:,ie))
+    enddo
+
+  end subroutine get_kmat_and_channels_ukrmolx
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine get_flat_kmat_and_channels_mqdtr2k( &
-        kmat_filename                            &
-      , kmat_flat                                &
-      , kmat_eval_energies                       &
-      , channel_e_convert                        &
-      , kmat_e_convert                           &
-      , elec_channels_this_irrep                 &
-      , nchans_this_irrep                        &
+  subroutine get_kmat_and_channels_mqdtr2k( &
+        kmat_filename                       &
+      , kmat                                &
+      , kmat_energies                       &
+      , channel_e_convert                   &
+      , kmat_e_convert                      &
+      , elec_channels_this_irrep            &
+      , nchans_this_irrep                   &
       , skip_this_irrep)
-    !! Return the flattened (1D) K-matrix that is closest to the desired evaluation energy
+    !! Return the K-matrix that is closest to the desired evaluation energy
     !! given by G%KMAT_ENERGY_CLOSEST where the K-matrix channels format is that of MQDTR2K
 
     use rotex__constants, only: IOSTAT_END, IOSTAT_OK, au2ev
     use rotex__kinds,     only: dp
-    use rotex__arrays,    only: realloc, size_check
+    use rotex__arrays,    only: realloc, size_check, unpackmat
     use rotex__types,     only: elec_channel_type
     use rotex__utils,     only: read_blank
     use rotex__system,    only: stdout, die
@@ -588,9 +587,9 @@ contains
 
     character(*), intent(in) :: kmat_filename
       !! Where to read the channels and K-matrices
-    real(dp), intent(inout), allocatable :: kmat_flat(:, :)
-      !! Flattened K-matrices: nchan(nchan+1)/2 × ne
-    real(dp), intent(out), allocatable :: kmat_eval_energies(:)
+    real(dp), intent(out), allocatable :: kmat(:,:,:)
+      !! K-matrices: nchan × nchan × nE_include
+    real(dp), intent(out), allocatable :: kmat_energies(:)
       !! Array of K-matrix evaluation energies to include
     real(dp), intent(in) :: channel_e_convert
       !! Channel energy conversion units. Should be replaced by a global maybe
@@ -607,7 +606,7 @@ contains
     integer  :: ie_include, ne_include, iemin, iemax
     integer  :: nchans_irrep_flat
     real(dp) :: E
-    real(dp), allocatable :: kmat_energies(:)
+    real(dp), allocatable :: kmat_flat(:,:)
 
     skip_this_irrep = .false.
 
@@ -710,10 +709,15 @@ contains
     else
       read(funit, *) E, (kmat_flat(i, 1), i=1, nchans_irrep_flat)
     endif
-
     close(funit)
 
-  end subroutine get_flat_kmat_and_channels_mqdtr2k
+    ! -- flat Kmat -> Kmat
+    allocate(kmat(nchans_this_irrep, nchans_this_irrep, ne_include), source=0._dp)
+    do concurrent (ie=1:ne_include)
+      call unpackmat(kmat_flat(:,ie), kmat(:,:,ie))
+    enddo
+
+  end subroutine get_kmat_and_channels_mqdtr2k
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine print_channels(channels, funit)
@@ -782,6 +786,7 @@ contains
     logical :: use_kmat
     logical :: use_CB
     logical :: symtop_reduce_projection = .true.
+    logical :: print_elec_channels = .true.
     integer :: spin_isomer_kind = 0
     integer :: forbidden_states_kind = 0
     character(:), allocatable :: output_directory
@@ -809,13 +814,14 @@ contains
 
     ! -- namelist: kmat
     logical :: real_spherical_harmonics = .true.
-    logical :: edft
+    logical :: edft = .false.
     integer :: lmax_kmat = DEFAULT_INT
     integer :: num_egrid_segs
     integer, allocatable :: num_egrid(:)
     integer, allocatable :: spinmults(:)
     real(dp), allocatable :: egrid_segs(:)
     real(dp) :: kmat_Ei = 0._dp, kmat_Ef = 0._dp
+    real(dp) :: post_rft_sincos2s_imag_tol = 1e-8_dp
     character(1) :: channel_energy_units_override = DEFAULT_CHAR1
     character(1) :: kmat_energy_units_override    = DEFAULT_CHAR1
     character(3) :: egrid_spacing
@@ -867,6 +873,7 @@ contains
                        , add_cd6                             &
                        , dn, dnk, dk, deltan, deltak         &
                        , hn, hnk, hkn, hk, etan, etank, etak &
+                       , print_elec_channels                 &
                        , xs_zero_threshold
 
     namelist / kmat_namelist /                      &
@@ -889,6 +896,7 @@ contains
                     , kmat_energy_closest           &
                     , real_spherical_harmonics      &
                     , channel_energy_units_override &
+                    , post_rft_sincos2s_imag_tol    &
                     , kmat_energy_units_override
 
     namelist / coulomb_namelist /                 &
@@ -1075,6 +1083,7 @@ contains
     G%ADD_CD4               = add_cd4
     G%ADD_CD6               = add_cd6
     G%XS_ZERO_THRESHOLD     = xs_zero_threshold
+    G%PRINT_ELEC_CHANNELS   = print_elec_channels
     if(add_cd4 .eqv. .true.) then
       dn      = dn     / au2invcm
       dnk     = dnk    / au2invcm
@@ -1120,6 +1129,8 @@ contains
       G%KMAT_OUTPUT_TYPE              = kmat_output_type
       G%KMAT_ENERGY_UNITS_OVERRIDE    = kmat_energy_units_override
       G%CHANNEL_ENERGY_UNITS_OVERRIDE = channel_energy_units_override
+      G%EDFT                          = edft
+      G%POST_RFT_SINCOS2S_IMAG_TOL    = post_rft_sincos2s_imag_tol
     endif
 
     ! -- namelist: coulomb

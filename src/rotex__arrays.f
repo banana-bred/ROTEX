@@ -1,7 +1,9 @@
 ! ================================================================================================================================ !
 module rotex__arrays
   !! Various routines for arrays
-  use rotex__kinds, only: dp
+
+  use rotex__kinds,  only: dp
+  use rotex__system, only: stderr, die
 
   implicit none (type, external)
 
@@ -27,6 +29,7 @@ module rotex__arrays
   public :: nflat2n
   public :: linear_interpolation
   ! public :: vec2diag
+  public :: interp_matrix_at_energy
 
   interface linear_interpolation
     module procedure :: linear_interpolation_re_rs
@@ -66,7 +69,7 @@ module rotex__arrays
 
   interface size_check
     module procedure :: size_check_1d
-    module procedure :: size_check_2d
+    module procedure :: size_check_nd
   end interface size_check
 
   interface norm_frob
@@ -77,56 +80,35 @@ module rotex__arrays
 
   interface realloc
     module procedure :: realloc_1d_int
+    module procedure :: realloc_1d_int2
     module procedure :: realloc_1d_real
-    module procedure :: realloc_1d_cmplx
-    module procedure :: realloc_1d_elec_channel
+    module procedure :: realloc_1d_real2
+    module procedure :: realloc_1d_complex
+    module procedure :: realloc_1d_complex2
+    module procedure :: realloc_2d_int
+    module procedure :: realloc_2d_int2
     module procedure :: realloc_2d_real
-    module procedure :: realloc_2d_cmplx
+    module procedure :: realloc_2d_real2
+    module procedure :: realloc_2d_complex
+    module procedure :: realloc_2d_complex2
+    module procedure :: realloc_3d_int
+    module procedure :: realloc_3d_int2
+    module procedure :: realloc_3d_real
+    module procedure :: realloc_3d_real2
+    module procedure :: realloc_3d_complex
+    module procedure :: realloc_3d_complex2
+    module procedure :: realloc_1d_elec_channel
+    module procedure :: realloc_1d_elec_channel2
   end interface realloc
+
+  interface interp_matrix_at_energy
+    module procedure :: interp_cmatrix_at_energy
+  end interface interp_matrix_at_energy
 
 ! ================================================================================================================================ !
 contains
 ! ================================================================================================================================ !
 
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_int(arr, n)
-    implicit none (type, external)
-    integer, intent(inout), allocatable :: arr(:)
-    integer,  intent(in)                 :: n
-    if(allocated(arr)) then
-      if(size(arr, 1) .eq. n) return
-      deallocate(arr)
-      allocate(arr(n))
-      return
-    endif
-    allocate(arr(n))
-  end subroutine realloc_1d_int
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_real(arr, n)
-    implicit none (type, external)
-    real(dp), intent(inout), allocatable :: arr(:)
-    integer,  intent(in)                 :: n
-    if(allocated(arr)) then
-      if(size(arr, 1) .eq. n) return
-      deallocate(arr)
-      allocate(arr(n))
-      return
-    endif
-    allocate(arr(n))
-  end subroutine realloc_1d_real
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_cmplx(arr, n)
-    implicit none (type, external)
-    complex(dp), intent(inout), allocatable :: arr(:)
-    integer,  intent(in)                 :: n
-    if(allocated(arr)) then
-      if(size(arr, 1) .eq. n) return
-      deallocate(arr)
-      allocate(arr(n))
-      return
-    endif
-    allocate(arr(n))
-  end subroutine realloc_1d_cmplx
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine realloc_1d_elec_channel(arr, n)
     use rotex__types, only: elec_channel_type
@@ -136,37 +118,222 @@ contains
     if(allocated(arr)) then
       if(size(arr, 1) .eq. n) return
       deallocate(arr)
-      allocate(arr(n))
-      return
     endif
     allocate(arr(n))
   end subroutine realloc_1d_elec_channel
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_2d_real(arr, n, m)
+  pure module subroutine realloc_1d_elec_channel2(arr, dims)
+    use rotex__types, only: elec_channel_type
+    implicit none (type, external)
+    type(elec_channel_type), intent(inout), allocatable :: arr(:)
+    integer,  intent(in)                 :: dims(1)
+    if(allocated(arr)) then
+      if(size(arr, 1) .eq. dims(1)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1)))
+  end subroutine realloc_1d_elec_channel2
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_1d_int(arr, n)
+    implicit none (type, external)
+    integer, intent(inout), allocatable :: arr(:)
+    integer, intent(in)                 :: n
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. [n])) return
+      deallocate(arr)
+    endif
+    allocate(arr(n))
+  end subroutine realloc_1d_int
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_1d_int2(arr, dims)
+    implicit none (type, external)
+    integer, intent(inout), allocatable :: arr(:)
+    integer, intent(in)                 :: dims(1)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1)))
+  end subroutine realloc_1d_int2
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_2d_int(arr, n1,n2)
+    implicit none (type, external)
+    integer, intent(inout), allocatable :: arr(:,:)
+    integer, intent(in)                 :: n1,n2
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. [n1,n2])) return
+      deallocate(arr)
+    endif
+    allocate(arr(n1,n2))
+  end subroutine realloc_2d_int
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_2d_int2(arr, dims)
+    implicit none (type, external)
+    integer, intent(inout), allocatable :: arr(:,:)
+    integer, intent(in)                 :: dims(2)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1),dims(2)))
+  end subroutine realloc_2d_int2
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_3d_int(arr, n1,n2,n3)
+    implicit none (type, external)
+    integer, intent(inout), allocatable :: arr(:,:,:)
+    integer, intent(in)                 :: n1,n2,n3
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. [n1,n2,n3])) return
+      deallocate(arr)
+    endif
+    allocate(arr(n1,n2,n3))
+  end subroutine realloc_3d_int
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_3d_int2(arr, dims)
+    implicit none (type, external)
+    integer, intent(inout), allocatable :: arr(:,:,:)
+    integer, intent(in)                 :: dims(3)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1), dims(2), dims(3)))
+  end subroutine realloc_3d_int2
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_1d_real(arr, n)
+    implicit none (type, external)
+    real(dp), intent(inout), allocatable :: arr(:)
+    integer, intent(in)                 :: n
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. [n])) return
+      deallocate(arr)
+    endif
+    allocate(arr(n))
+  end subroutine realloc_1d_real
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_1d_real2(arr, dims)
+    implicit none (type, external)
+    real(dp), intent(inout), allocatable :: arr(:)
+    integer, intent(in)                 :: dims(1)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1)))
+  end subroutine realloc_1d_real2
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_2d_real(arr, n1,n2)
     implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:,:)
-    integer,  intent(in)                 :: n, m
+    integer, intent(in)                 :: n1,n2
     if(allocated(arr)) then
-      if(all(shape(arr) .eq. [n,m])) return
+      if(all(shape(arr) .eq. [n1,n2])) return
       deallocate(arr)
-      allocate(arr(n,m))
-      return
     endif
-    allocate(arr(n,m))
+    allocate(arr(n1,n2))
   end subroutine realloc_2d_real
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_2d_cmplx(arr, n, m)
+  pure module subroutine realloc_2d_real2(arr, dims)
+    implicit none (type, external)
+    real(dp), intent(inout), allocatable :: arr(:,:)
+    integer, intent(in)                 :: dims(2)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1),dims(2)))
+  end subroutine realloc_2d_real2
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_3d_real(arr, n1,n2,n3)
+    implicit none (type, external)
+    real(dp), intent(inout), allocatable :: arr(:,:,:)
+    integer, intent(in)                 :: n1,n2,n3
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. [n1,n2,n3])) return
+      deallocate(arr)
+    endif
+    allocate(arr(n1,n2,n3))
+  end subroutine realloc_3d_real
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_3d_real2(arr, dims)
+    implicit none (type, external)
+    real(dp), intent(inout), allocatable :: arr(:,:,:)
+    integer, intent(in)                 :: dims(3)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1), dims(2), dims(3)))
+  end subroutine realloc_3d_real2
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_1d_complex(arr, n)
+    implicit none (type, external)
+    complex(dp), intent(inout), allocatable :: arr(:)
+    integer, intent(in)                 :: n
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. [n])) return
+      deallocate(arr)
+    endif
+    allocate(arr(n))
+  end subroutine realloc_1d_complex
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_1d_complex2(arr, dims)
+    implicit none (type, external)
+    complex(dp), intent(inout), allocatable :: arr(:)
+    integer, intent(in)                 :: dims(1)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1)))
+  end subroutine realloc_1d_complex2
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_2d_complex(arr, n1,n2)
     implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:,:)
-    integer,  intent(in)                 :: n, m
+    integer, intent(in)                 :: n1,n2
     if(allocated(arr)) then
-      if(all(shape(arr) .eq. [n,m])) return
+      if(all(shape(arr) .eq. [n1,n2])) return
       deallocate(arr)
-      allocate(arr(n,m))
-      return
     endif
-    allocate(arr(n,m))
-  end subroutine realloc_2d_cmplx
+    allocate(arr(n1,n2))
+  end subroutine realloc_2d_complex
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_2d_complex2(arr, dims)
+    implicit none (type, external)
+    complex(dp), intent(inout), allocatable :: arr(:,:)
+    integer, intent(in)                 :: dims(2)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1),dims(2)))
+  end subroutine realloc_2d_complex2
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_3d_complex(arr, n1,n2,n3)
+    implicit none (type, external)
+    complex(dp), intent(inout), allocatable :: arr(:,:,:)
+    integer, intent(in)                 :: n1,n2,n3
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. [n1,n2,n3])) return
+      deallocate(arr)
+    endif
+    allocate(arr(n1,n2,n3))
+  end subroutine realloc_3d_complex
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine realloc_3d_complex2(arr, dims)
+    implicit none (type, external)
+    complex(dp), intent(inout), allocatable :: arr(:,:,:)
+    integer, intent(in)                 :: dims(3)
+    if(allocated(arr)) then
+      if(all(shape(arr) .eq. dims)) return
+      deallocate(arr)
+    endif
+    allocate(arr(dims(1), dims(2), dims(3)))
+  end subroutine realloc_3d_complex2
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function norm_frob_i(A) result(res)
@@ -222,7 +389,6 @@ contains
   pure function unitary_defect(A) result(rF)
     !! Return the unitary defect with respect to the Frobenius norm
     !! \(rF = ||A^{\dagger}A-I||_F / sqrt{n}\)
-    use rotex__system, only: die
     implicit none (type, external)
     class(*), intent(in) :: A(:,:)
     real(dp) :: rF
@@ -340,7 +506,6 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function eye(n) result(res)
     !! Return an n x n identity matrix
-    use rotex__system, only: die
     integer, intent(in) :: n
     integer :: res(n,n)
     integer :: i
@@ -541,7 +706,6 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine size_check_1d(arr, larr, name)
     !! Check that the size of the array arr is of length larr
-    use rotex__system,     only: die
     use rotex__characters, only: i2c => int2char
     implicit none (type, external)
     class(*), intent(in) :: arr(:)
@@ -551,17 +715,22 @@ contains
       call die("Array " // name // "(:) " // i2c(shape(arr)) // " must have the shape " // i2c([larr]))
   end subroutine size_check_1d
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine size_check_2d(arr, larr, name)
+  pure module subroutine size_check_nd(arr, larr, name)
     !! Check that the size of the array arr is of length larr
-    use rotex__system,     only: die
     use rotex__characters, only: i2c => int2char
     implicit none (type, external)
-    class(*), intent(in) :: arr(:,:)
+    class(*), intent(in) :: arr(..)
     integer, intent(in) :: larr(:)
     character(*), intent(in) :: name
-    if(any(shape(arr) .ne. larr)) &
-      call die("Array " // name // "(:,:) " // i2c(shape(arr)) // " must have the shape " // i2c(larr))
-  end subroutine size_check_2d
+    select rank(arr)
+    rank(0)
+      call die("Can't check the length of a rank-0 array !")
+    rank default
+      if(any(shape(arr) .ne. larr)) then
+        call die("Array " // name // " with shape " // i2c(shape(arr)) // " must have the shape " // i2c(larr))
+      endif
+    end select
+  end subroutine size_check_nd
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module function uniq(arr) result(res)
@@ -579,7 +748,7 @@ contains
       res(k) = arr(i)
     enddo
     if(k .eq. 0) then
-      call realloc(res, 0)
+      call realloc(res, [0])
       return
     endif
     res = res(1:k)
@@ -627,7 +796,7 @@ contains
     n = size(mat, 1)
     nflat = (n*(n+1))/2
     call size_check_1d(flatmat, nflat, "FLATMAT")
-    call size_check_2d(mat, [n, n], "MAT")
+    call size_check_nd(mat, [n, n], "MAT")
     select case(UL_)
       case('U') ; call unpackmat_ru(flatmat, mat)
       case('L') ; call unpackmat_rl(flatmat, mat)
@@ -641,6 +810,7 @@ contains
       real(dp), intent(in) :: flatmat(:)
       real(dp), intent(out) :: mat(:,:)
       integer :: n, i, j, k
+      mat=0.0_dp
       n = size(mat, 1)
       k=0
       do j=1,n ; do i=1,j
@@ -653,6 +823,7 @@ contains
       real(dp), intent(in) :: flatmat(:)
       real(dp), intent(out) :: mat(:,:)
       integer :: n, i, j, k
+      mat=0.0_dp
       n = size(mat, 1)
       k=0
       do j=1,n ; do i=1,j
@@ -689,7 +860,7 @@ contains
     n = size(mat, 1)
     nflat = (n*(n+1))/2
     call size_check_1d(flatmat, nflat, "FLATMAT")
-    call size_check_2d(mat, [n, n], "MAT")
+    call size_check_nd(mat, [n, n], "MAT")
     select case(UL_)
       case('U') ; call unpackmat_cu(flatmat, mat)
       case('L') ; call unpackmat_cl(flatmat, mat)
@@ -703,6 +874,7 @@ contains
       complex(dp), intent(in) :: flatmat(:)
       complex(dp), intent(out) :: mat(:,:)
       integer :: n, i, j, k
+      mat=(0.0_dp,0.0_dp)
       n = size(mat, 1)
       k=0
       do j=1,n ; do i=1,j
@@ -715,6 +887,7 @@ contains
       complex(dp), intent(in) :: flatmat(:)
       complex(dp), intent(out) :: mat(:,:)
       integer :: n, i, j, k
+      mat=(0.0_dp,0.0_dp)
       n = size(mat, 1)
       k=0
       do j=1,n ; do i=1,j
@@ -740,7 +913,6 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine packmat_r(mat, flatmat, UL)
     !! Pack the symmetric matrix mat's upper or lower triangle into flatmat.
-    use rotex__system, only: die
     implicit none
     real(dp),     intent(in)  :: mat(:,:)
     real(dp),     intent(out) :: flatmat(:)
@@ -749,7 +921,7 @@ contains
       !! L: store lower triangle
     integer :: i, j, n, k
     n = size(mat, 1)
-    call size_check_2d(mat, [n, n], "MAT")
+    call size_check_nd(mat, [n, n], "MAT")
     call size_check_1d(flatmat, (n*(n+1))/2, "FLATMAT")
     k=0
     select case(UL)
@@ -774,7 +946,6 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine packmat_c(mat, flatmat, UL)
     !! Pack the symmetric matrix mat's upper or lower triangle into flatmat
-    use rotex__system, only: die
     implicit none
     complex(dp),  intent(in)  :: mat(:,:)
     complex(dp),  intent(out) :: flatmat(:)
@@ -783,7 +954,7 @@ contains
       !! L: store lower triangle
     integer :: i, j, n, k
     n = size(mat, 1)
-    call size_check_2d(mat, [n, n], "MAT")
+    call size_check_nd(mat, [n, n], "MAT")
     call size_check_1d(flatmat, (n*(n+1))/2, "FLATMAT")
     k=0
     select case(UL)
@@ -920,6 +1091,49 @@ contains
     t = (E-E1)/(E2-E1)
     S = (1._dp - t) * S1 + t * S2
   end subroutine linear_interpolation_re_cs
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine interp_cmatrix_at_energy(E, Egrid, Mgrid, M, allow_out_of_bounds)
+    implicit none (type, external)
+    real(dp),    intent(in)  :: E, Egrid(:)
+    complex(dp), intent(in)  :: Mgrid(:,:,:)
+    complex(dp), intent(out) :: M(:,:)
+    logical, intent(in), optional :: allow_out_of_bounds
+    logical :: aoob
+    integer :: i, j, i1, i2, ne, nM1,  nM2
+    integer :: ib(2)
+    aoob = .true. ; if(present(allow_out_of_bounds)) aoob = allow_out_of_bounds
+    ne  = size(Egrid, 1)
+    nM1 = size(Mgrid, 1)
+    nM2 = size(Mgrid, 2)
+    call size_check(Mgrid, [nM1, nM2, nE], "Mgrid")
+    call size_check(M,     [nM1, nM2],     "M")
+    ib = idx_binsearch(E, Egrid)
+    i1 = ib(1)
+    i2 = ib(2)
+    if(ne .eq. 1) then
+      ! -- only 1 energy
+      M = Mgrid(:,:,1)
+    elseif(i1.eq. 0 .AND. i2 .eq. 1) then
+      ! -- E < Egrid
+      if(aoob .eqv. .false.) call die("E < Egrid disallowed")
+      M = Mgrid(:,:,1)
+    elseif(i1 .eq. ne .AND. i2 .eq. 0) then
+      ! -- E > Egrid
+      if(aoob .eqv. .false.) call die("E > Egrid disallowed")
+      M = Mgrid(:,:,ne)
+    elseif(i1 .eq. i2) then
+      ! -- an exact grid point, just take that value
+      M = Mgrid(:,:,i1)
+    elseif(i1 .ge. 1 .AND. i2 .gt. i1) then
+      ! -- element-wise interpolaion in energy
+      do concurrent(i=1:nM1, j=1:nM2)
+        call linear_interpolation(Egrid(i1), Egrid(i2), Mgrid(i, j, i1), Mgrid(i, j, i2), E, M(i,j))
+      enddo
+    else
+      call die("Bad bracketing for indices in `interp_matrix_at_energy`")
+    endif
+  end subroutine interp_cmatrix_at_energy
 
 ! ================================================================================================================================ !
 end module rotex__arrays

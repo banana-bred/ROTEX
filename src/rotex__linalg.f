@@ -191,9 +191,9 @@ contains
         deallocate(work) ; allocate(work(lwork))
 
         call dsytrf('L', n, BT, n, ipiv, work, lwork, info)
-        if(info .ne. 0) call die("DSYTRF exited with nonzero INFO")
+        if(info .ne. 0) call die("DSYTRF exited with nonzero INFO: "//i2c(INFO))
         call dsytrs('L', n, m, BT, n, ipiv, AT, n, info)
-        if(info .ne. 0) call die("DSYTRS exited with nonzero INFO")
+        if(info .ne. 0) call die("DSYTRS exited with nonzero INFO: "//i2c(INFO))
       endif
 
     else
