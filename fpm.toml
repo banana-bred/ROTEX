@@ -14,6 +14,7 @@ link = ["lapack"]
 [preprocess.cpp]
 suffixes = [".f"]
 macros = ["USE_FORBEAR", "USE_CDMSREADER", "USE_OPENMP"]
+# macros = ["USE_FORBEAR", "USE_CDMSREADER", "USE_OPENMP", "PROB_SINGLE"]  # <- save S-matrix probabilities as singles
 
 [dependencies]
 forbear         = { git = "https://github.com/szaghi/forbear",                branch = "master" }

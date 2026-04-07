@@ -2,7 +2,7 @@
 module rotex__drivers
   !! Driver used by the PROGRAM in main
 
-  use rotex__kinds,     only: dp
+  use rotex__kinds,     only: dp, prob_rk
   use rotex__globals,   only: G, UKRMOLX, MQDTR2K, DEFAULT_CHAR1
   use rotex__system,    only: die, stdout, stderr
 
@@ -472,7 +472,7 @@ contains
     use rotex__channel_ops, only: findloc_transitions, sort_channels_by_energy
     use rotex__types,     only: n_states_type, r3carr_type, elec_channel_type &
                            , asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
-                           , asymtop_rot_transition_type, rvector_type
+                           , asymtop_rot_transition_type, rvector_type, prob_vector_type
     use rotex__system,    only: die, DS => DIRECTORY_SEPARATOR, stdout
     use rotex__globals, only: SPINMULT_NAMES
     use rotex__rft,       only: do_eirft, do_edrft_chunk, real2complex_ylm, K2sincos, K2S_cayley
@@ -519,7 +519,8 @@ contains
     character(:), allocatable :: channels_file_this_spin
 
     type(elec_channel_type),                 allocatable :: elec_channels(:)
-    type(rvector_type),                      allocatable :: transition_probs(:), xs_xcite(:), xs_dxcite(:)
+    type(rvector_type),                      allocatable :: xs_xcite(:), xs_dxcite(:)
+    type(prob_vector_type),                  allocatable :: transition_probs(:)
     type(asymtop_rot_transition_type),       allocatable :: transitions_this_spin(:)
     type(asymtop_rot_channel_l_type),        allocatable :: all_rotational_channels(:)
     type(asymtop_rot_channel_l_type),        allocatable :: current_rotational_channels(:)
@@ -594,7 +595,7 @@ contains
       if(G%PRINT_MEMINFO) call print_prob_meminfo(stdout, num_egrid, transitions_this_spin, transition_probs)
       allocate(transition_probs(ntrans_this_spin))
       do concurrent (itrans=1:ntrans_this_spin)
-        allocate(transition_probs(itrans) % vec(num_egrid), source=0._dp)
+        allocate(transition_probs(itrans) % vec(num_egrid), source=0._prob_rk)
       enddo
 
       ! -- K -> S or sin,cos
@@ -602,14 +603,15 @@ contains
 
         ! -- correct for branch cuts to get a smooth S-matrix
         nchans_elec = size(kmat, 1)
-        write(stdout, '("Energy dependent frame transformation requested. Allocating &
-          & electronic sine and cosine matrices of dimension: ", I0, "×", I0, "×", I0, "..")') &
-            nchans_elec, nchans_elec, ne_mat
-        if(G%PRINT_MEMINFO) call print_elecmat_meminfo(stdout, sin_elec, ne_mat, nchans_elec)
+        write(stdout, '("Energy dependent frame transformation requested")')
+        write(stdout, '("Allocating electronic sine and cosine matrices of dimension: ", I0, "×", &
+          & I0, "×", I0, "..")') nchans_elec, nchans_elec, ne_mat
+        if(G%PRINT_MEMINFO) call print_elecmat_meminfo(stdout, (1.0_dp, 1.0_dp), ne_mat, nchans_elec, 2)
         allocate(sin_elec(nchans_elec, nchans_elec, ne_mat), source=0._dp)
         allocate(cos_elec(nchans_elec, nchans_elec, ne_mat), source=0._dp)
         write(stdout, '("Converting K(E) -> {sin(E), cos(E)}..")')
         call K2sincos(kmat, kmat_eval_energies, sin_elec, cos_elec, elec_channels, G%SPINMULTS(ispin))
+        deallocate(kmat)
 
         write(stdout, '("Populating complex sin, cos matrices in case of spherical harmonics transformation..")')
         csin_elec = cmplx(sin_elec, kind=dp) ; deallocate(sin_elec)
@@ -648,9 +650,6 @@ contains
         current_rotational_channels = all_rotational_channels(idxmap)
         nrot_current = size(current_rotational_channels, 1)
 
-        call realloc(smat_rot_flat, (nrot_current*(nrot_current+1))/2, ne_mat)
-        smat_rot_flat = (0.0_dp, 0.0_dp)
-
         EDFT: if(G%EDFT) then
 
           ne_per_chunk = determine_edrft_chunk_size_mb( &
@@ -662,7 +661,7 @@ contains
 
           if(G%PRINT_MEMINFO) call print_chunk_meminfo(stdout, (1.0_dp, 1.0_dp), nrot_current, ne_mat, ne_per_chunk)
 
-          call do_edrft_chunked_J(        &
+          call do_edrft_get_probs(        &
               egrid_tot_smat              &
             , kmat_eval_energies          &
             , ne_per_chunk                &
@@ -690,6 +689,7 @@ contains
             , elec_channels            &
             , current_rotational_channels &
           )
+          call realloc(smat_rot_flat, (nrot_current*(nrot_current+1))/2, 1)
           call packmat(smat_rot, smat_rot_flat(:,1), "U")
 
           deallocate(smat_rot)
@@ -831,7 +831,7 @@ contains
   end subroutine do_kmat_xs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine do_edrft_chunked_J( &
+  subroutine do_edrft_get_probs( &
       total_energy_grid                 &
     , kmat_eval_energies                &
     , ne_per_chunk                      &
@@ -847,7 +847,7 @@ contains
     !! Perform the EDRFT: {sin_elec(E), cos_elec(E)} -> S^J(E), then accumulate transition
     !! probabilities. The evaluation energy grid is chunked to save memory
     use rotex__types,  only: N_states_type, elec_channel_type, asymtop_rot_channel_l_type &
-                           , asymtop_rot_transition_type, rvector_type
+                           , asymtop_rot_transition_type, rvector_type, prob_vector_type
     use rotex__arrays, only: realloc
     use rotex__rft,    only: do_edrft_chunk
     use rotex__mqdtxs, only: get_smat_probs_chunk
@@ -875,7 +875,7 @@ contains
       !! The array of rotational channels (N, Ka, Kc, l) that make up the basis of the S-matrix subblock for this J
     type(asymtop_rot_transition_type), intent(in)    :: transitions_this_spin(:)
       !! Array of transitions that will be considered for (de-)excitation for the current spin multiplicity
-    type(rvector_type),                intent(inout) :: transition_probs(:)
+    type(prob_vector_type),            intent(inout) :: transition_probs(:)
       !! Probability at each scattering energy for pairs of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
 
     integer :: nflat_rot, nrot_current, ne_mat, ne_this_chunk
@@ -966,7 +966,7 @@ contains
     write(stdout, '(" done !")')
 #endif
 
-  end subroutine do_edrft_chunked_J
+  end subroutine do_edrft_get_probs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine convert_multipoles(cartesian_moments_array, spherical_moments_array)
@@ -1414,14 +1414,14 @@ contains
     !! Calculate excitation and de-excitation cross sections from probabilities
 
     use rotex__kinds,       only: dp
-    use rotex__types,       only: rvector_type, asymtop_rot_transition_type, asymtop_rot_channel_type
+    use rotex__types,       only: prob_vector_type, rvector_type, asymtop_rot_transition_type, asymtop_rot_channel_type
     use rotex__arrays,      only: size_check
     use rotex__symmetry,    only: rotstate_is_allowed
     use rotex__constants,   only: pi
 
     implicit none (type, external)
 
-    type(rvector_type), intent(in) :: prob(:)
+    type(prob_vector_type), intent(in) :: prob(:)
       !! Array of arrays of probabilities P
     type(asymtop_rot_transition_type), intent(inout), allocatable :: transitions(:)
       !! Array of transitions between states lo -> up
@@ -1470,15 +1470,15 @@ contains
       if(rotstate_is_allowed(nup, kaup, kcup) .eqv. .false.) cycle
 
       ! -- find the starting point of our energy grid
-      iemin = findloc(prob(itrans) % vec(:) .gt. 0.0_dp, .true., 1)
+      iemin = findloc(prob(itrans) % vec(:) .gt. 0.0_prob_rk, .true., 1)
 
       ! -- electron energy grids
       Eel_ex  = egrid_tot(iemin:) - Elo
       Eel_dex = egrid_tot(iemin:) - Eup
 
       ! -- cross sections
-      xs_xcite(itrans)  % vec(iemin:) = prob(itrans)%vec(iemin:) * pi/(2*Eel_ex(:))  / (2*Nlo+1)
-      xs_dxcite(itrans) % vec(iemin:) = prob(itrans)%vec(iemin:) * pi/(2*Eel_dex(:)) / (2*Nup+1)
+      xs_xcite(itrans)  % vec(iemin:) = real(prob(itrans)%vec(iemin:), kind=dp) * pi/(2*Eel_ex(:))  / (2*Nlo+1)
+      xs_dxcite(itrans) % vec(iemin:) = real(prob(itrans)%vec(iemin:), kind=dp) * pi/(2*Eel_dex(:)) / (2*Nup+1)
 
       ! -- filter out tiny cross sections
       if( all(xs_xcite(itrans)  % vec(iemin:) .lt. G%XS_ZERO_THRESHOLD) ) cycle
@@ -2126,7 +2126,8 @@ contains
     use rotex__utils, only: estimate_total_storage_size
     implicit none (type, external)
     integer,  intent(in) :: funit
-    class(*), intent(in) :: obj(..)
+    ! class(*), intent(in) :: obj(..)
+    class(*), intent(in) :: obj
     integer,  intent(in) :: nrot_current, ne_mat, ne_per_chunk
     integer      :: nrot_flat, nchunks
     real(dp)     :: storage
@@ -2150,31 +2151,35 @@ contains
     !! Just print some information on memory storage for the probability arrays and transition arrays.
     !! Assumes that all transition_probs%vec(:) will have the same length
     use rotex__utils, only: estimate_total_storage_size
-    use rotex__types, only: asymtop_rot_transition_type, rvector_type
+    use rotex__types, only: asymtop_rot_transition_type, prob_vector_type
     integer,                           intent(in) :: funit, num_egrid
     type(asymtop_rot_transition_type), intent(in) :: transitions(:)
-    type(rvector_type),                intent(in) :: transition_probs(:)
+    type(prob_vector_type),            intent(in) :: transition_probs(:)
     integer      :: ntrans
     real(dp)     :: storage
     character(2) :: units
+    type(prob_vector_type) :: prob_dummy
+    type(asymtop_rot_transition_type) :: trans_dummy
     ntrans = size(transitions, 1)
     write(funit, *)
     write(funit, '(A65, I0)') "Number of transitions: ", ntrans
-    call estimate_total_storage_size(transition_probs, [ntrans], storage, units)
+    call estimate_total_storage_size(trans_dummy, [ntrans], storage, units)
     write(funit, '(A65, F0.1, 1X, A)') "Estimated memory consumption for transition descriptor array: ", storage, trim(units)
     write(funit, '(A65, I0)') "Number of output scattering energies: ", num_egrid
-    call estimate_total_storage_size(transitions, [ntrans, num_egrid], storage, units)
+    call estimate_total_storage_size(prob_dummy, [ntrans, num_egrid], storage, units)
     write(funit, '(A65, F0.1, 1X, A)') "Estimated memory consumption for transition probability array: ", storage, trim(units)
     write(funit, *)
   end subroutine print_prob_meminfo
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine print_elecmat_meminfo(funit, elecmat, ne_mat, nchans_elec)
+  subroutine print_elecmat_meminfo(funit, elecmat, ne_mat, nchans_elec, multby)
     !! Just print some information on memory storage for the probability arrays and transition arrays
     use rotex__utils, only: estimate_total_storage_size
     use rotex__types, only: asymtop_rot_transition_type, rvector_type
     integer,  intent(in) :: funit, ne_mat, nchans_elec
-    class(*), intent(in) :: elecmat(..)
+    ! class(*), intent(in) :: elecmat(..)
+    class(*), intent(in) :: elecmat
+    integer,  intent(in) :: multby
     real(dp)     :: storage
     character(2) :: units
     write(funit, *)
@@ -2182,7 +2187,7 @@ contains
     write(funit, '(A65, I0)') "Number of electronic channels: ", nchans_elec
     ! -- multiply the storage size by 4 because there is the sine and cosine matrix, and these will probably be complex
     !    at some point for the spherical harmonic transformation
-    call estimate_total_storage_size(elecmat, [ne_mat, nchans_elec, nchans_elec], storage, units, 4)
+    call estimate_total_storage_size(elecmat, [ne_mat, nchans_elec, nchans_elec], storage, units, multby)
     write(funit, '(A65, F0.1, 1X, A)') "Estimated memory consumption for sin/cos matrices : ", storage, trim(units)
     write(funit, *)
   end subroutine print_elecmat_meminfo

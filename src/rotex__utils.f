@@ -326,9 +326,11 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine estimate_total_storage_size(obj, dims, storage, units, multby)
     !! Estimate how much space will be taken up by obj
-    use rotex__kinds, only: int64
+    use rotex__kinds, only: int64, prob_rk
+    use rotex__types, only: prob_vector_type
     implicit none (type, external)
-    class(*),     intent(in)  :: obj(..)
+    ! class(*),     intent(in)  :: obj(..)
+    class(*),     intent(in)  :: obj
       !! Some object that represents the type that will take up space
     integer,      intent(in)  :: dims(:)
       !! Dimensions of the object
@@ -339,7 +341,12 @@ contains
     integer, intent(in), optional :: multby
       !! Multiply the storage size by this amount
     integer(int64) :: nbytes
-    nbytes = int(storage_size(obj)/8, kind=int64) * int(product(dims), kind=int64)
+    select type(obj)
+    type is (prob_vector_type)
+      nbytes = int(storage_size(0.0_prob_rk)/8, kind=int64) * int(product(dims), kind=int64)
+    class default
+      nbytes = int(storage_size(obj)/8, kind=int64) * product(int(dims, kind=int64))
+    end select
     if(present(multby)) nbytes = nbytes * multby
     call bytes2human(nbytes, storage, units)
   end subroutine estimate_total_storage_size
@@ -363,9 +370,9 @@ contains
     integer(int64), intent(in) :: nbytes
     real(dp),       intent(out) :: storage
     character(2),   intent(out) :: units
-    integer(int64), parameter :: NBYTES_PER_KB = 1024_int64
-    integer(int64), parameter :: NBYTES_PER_MB = 1024_int64 * NBYTES_PER_KB
-    integer(int64), parameter :: NBYTES_PER_GB = 1024_int64 * NBYTES_PER_MB
+    integer(int64), parameter :: NBYTES_PER_KB = 1000_int64
+    integer(int64), parameter :: NBYTES_PER_MB = 1000_int64 * NBYTES_PER_KB
+    integer(int64), parameter :: NBYTES_PER_GB = 1000_int64 * NBYTES_PER_MB
     real(dp) :: nbytes_r
     nbytes_r = real(nbytes, kind=dp)
     if(nbytes .lt. NBYTES_PER_KB) then

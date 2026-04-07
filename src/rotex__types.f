@@ -1,7 +1,7 @@
 ! ================================================================================================================================ !
 module rotex__types
   !! Contains type definitions and procedures for those types used throughout the program
-  use rotex__kinds,   only: dp, xdp, qp
+  use rotex__kinds,   only: dp, xdp, qp, prob_rk
 
   implicit none (type, external)
 
@@ -27,6 +27,7 @@ module rotex__types
   public :: asymtop_rot_transition_type
   public :: cd4_type
   public :: cd6_type
+  public :: prob_vector_type
 
   ! -- ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
   ! -- ↓↓↓↓↓↓↓↓ type definitions ↓↓↓↓↓↓↓↓
@@ -119,6 +120,12 @@ module rotex__types
     integer, allocatable :: vec(:)
   end type ivector_type
 
+  type prob_vector_type
+    !! The type of a probability vector.
+    !! This is basically an rvector, with real kind that can change
+    !! with compile flags to save space
+    real(prob_rk), allocatable :: vec(:)
+  end type prob_vector_type
   type rvector_type
     !! The type of a real vector
     real(dp), allocatable :: vec(:)

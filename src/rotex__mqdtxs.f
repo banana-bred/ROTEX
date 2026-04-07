@@ -30,7 +30,7 @@ contains
     !! Given a rotationally resolved S-matrix, calculate rotational (de-)excitation
     !! cross section probabilities for the supplied transitions.
 
-    use rotex__types,      only: rvector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
+    use rotex__types,      only: prob_vector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
                                , asymtop_rot_channel_type, r3carr_type, n_states_type, asymtop_rot_transition_type
     use rotex__channel_ops, only: operator(.ne.), operator(.eq.), operator(.isin.), trim_channel_l, get_channel_index
     use rotex__arrays,     only: append, size_check, realloc, interp_array_at_energy, unpackmat
@@ -41,7 +41,7 @@ contains
 
     real(dp), intent(in) :: total_energy_grid(:)
       !! The total energy grid on which the S-matrix will be evaluated
-    type(rvector_type), intent(inout), allocatable :: transition_probs(:)
+    type(prob_vector_type), intent(inout), allocatable :: transition_probs(:)
       !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
     type(asymtop_rot_transition_type), intent(in), allocatable :: transitions(:)
       !! Array of transitions that will be considered for (de-)excitation
@@ -79,8 +79,8 @@ contains
     !! Given a rotationally resolved S-matrix, calculate rotational (de-)excitation
     !! cross section probabilities for the supplied transitions.
 
-    use rotex__types,      only: rvector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
-                               , asymtop_rot_channel_type, r3carr_type, n_states_type, asymtop_rot_transition_type
+    use rotex__types,      only: asymtop_rot_channel_l_type, prob_vector_type, asymtop_rot_channel_type &
+                               , n_states_type, asymtop_rot_transition_type
     use rotex__channel_ops, only: operator(.ne.), operator(.eq.), operator(.isin.), trim_channel_l, get_channel_index
     use rotex__arrays,     only: append, size_check, realloc, interp_array_at_energy, unpackmat
     use rotex__symmetry,   only: is_spin_forbidden
@@ -90,7 +90,7 @@ contains
 
     real(dp),                          intent(in)             :: total_energy_grid(:)
       !! The total energy grid on which the S-matrix will be evaluated
-    type(rvector_type),                intent(inout)          :: transition_probs(:)
+    type(prob_vector_type),            intent(inout)          :: transition_probs(:)
       !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
     type(asymtop_rot_transition_type), intent(in)             :: transitions(:)
       !! Array of transitions that will be considered for (de-)excitation
@@ -430,7 +430,8 @@ contains
     )
     !! Accumulate transition probabilities for the current energy and J
 
-    use rotex__types, only: asymtop_rot_transition_type, rvector_type, asymtop_rot_channel_type
+    use rotex__kinds, only: prob_rk
+    use rotex__types, only: asymtop_rot_transition_type, prob_vector_type, asymtop_rot_channel_type
 
     implicit none (type, external)
 
@@ -454,7 +455,7 @@ contains
       !! The current J
     complex(dp),                       intent(in), contiguous :: Sphys(:,:)
       !! The current physical S-matrix
-    type(rvector_type),                intent(inout)          :: transition_probs(:)
+    type(prob_vector_type),            intent(inout)          :: transition_probs(:)
       !! Array of probabilities for each transition
 
     integer :: itrans, imap
@@ -482,7 +483,7 @@ contains
       )**2)
 
       ! -- accumulate probabilities for this J
-      transition_probs(itrans) % vec(ie) = transition_probs(itrans) % vec(ie) + prob_term
+      transition_probs(itrans) % vec(ie) = transition_probs(itrans) % vec(ie) + real(prob_term, kind=prob_rk)
 
       if(prob_term .ge. 0) cycle
 

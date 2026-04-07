@@ -164,8 +164,11 @@ contains
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine print_header()
-    use rotex__system,   only: stdout, determine_system_properties
-    use iso_fortran_env, only: compiler_version, compiler_options
+    use, intrinsic :: iso_fortran_env, only: compiler_version, compiler_options
+    use rotex__system, only: stdout, determine_system_properties
+#ifdef USE_OPENMP
+    use omp_lib,       only: omp_get_num_threads, omp_get_thread_num
+#endif
     implicit none
     write(stdout, *)
     write(stdout, *)
@@ -191,6 +194,14 @@ contains
     write(stdout, *)
     write(stdout, "(2A)") "Fortran compiler options :: ", compiler_options()
     write(stdout, *)
+#ifdef USE_OPENMP
+    !$omp parallel
+    if(omp_get_thread_num() .eq. 0) write(stdout, '("Number of available threads via OpenMP: ", I0)') &
+      omp_get_num_threads()
+    !$omp end parallel
+#else
+    write(stdout, '("OpenMP has *not* been explicitly requested")')
+#endif
   end subroutine print_header
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
