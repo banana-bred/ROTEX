@@ -2,14 +2,12 @@
 program rotex
   !! The main program
 
-  use rotex__kinds, only: dp
-  use rotex__globals, only: G
+  use rotex__kinds,      only: dp
+  use rotex__globals,    only: G, read_namelists
   use rotex__drivers,    only: make_grid, diagonalize_rotational_hamiltonian &
                              , make_output_directories, do_coulomb_born_approx, do_kmat_xs, combine_cb_smat_xs
-  use rotex__reading,    only: read_namelists
   use rotex__types,      only: eigenh_type, n_states_type, asymtop_rot_channel_l_type &
                              , asymtop_rot_channel_l_vector_type, cmatrix_type, rvector_type, asymtop_rot_transition_type
-  use rotex__rft,        only: rft_nonlinear
   use rotex__system,     only: mkdir, die, stdout
   use rotex__hamilton,   only: h_asym, assign_projections
   use rotex__characters, only: lower
@@ -110,7 +108,7 @@ program rotex
 
   ! -- do this only AFTER we have called DO_COULOMB_BORN_APPROX because it may use
   !    CDMS energies which will change the energies of our rotational levels (but not the eigenvectors)
-  call print_rot_targ_states(n_states)
+  if(G%PRINT_ROT_STATES) call print_rot_targ_states(n_states)
 
   usingkmat: if(G%use_kmat) then
 

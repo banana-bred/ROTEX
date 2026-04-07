@@ -15,6 +15,8 @@ module rotex__utils
   public :: downcast
   public :: printmat
   public :: isin
+  public :: estimate_total_storage_size
+  public :: bytes2human
 
   interface isint
     module procedure :: isint_r
@@ -43,6 +45,11 @@ module rotex__utils
     module procedure :: printmat_r
     module procedure :: printmat_c
   end interface printmat
+
+  interface bytes2human
+    module procedure :: bytes2human_int32
+    module procedure :: bytes2human_int64
+  end interface bytes2human
 
 ! ================================================================================================================================ !
 contains
@@ -315,6 +322,66 @@ contains
     endif
     res = .true.
   end function isin
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine estimate_total_storage_size(obj, dims, storage, units, multby)
+    !! Estimate how much space will be taken up by obj
+    use rotex__kinds, only: int64
+    implicit none (type, external)
+    class(*),     intent(in)  :: obj(..)
+      !! Some object that represents the type that will take up space
+    integer,      intent(in)  :: dims(:)
+      !! Dimensions of the object
+    real(dp),     intent(out) :: storage
+      !! Number of `units` that will be taken up, approximately`
+    character(2), intent(out) :: units
+      !! The units of `storage. One of: B, KB, MB, GB
+    integer, intent(in), optional :: multby
+      !! Multiply the storage size by this amount
+    integer(int64) :: nbytes
+    nbytes = int(storage_size(obj)/8, kind=int64) * int(product(dims), kind=int64)
+    if(present(multby)) nbytes = nbytes * multby
+    call bytes2human(nbytes, storage, units)
+  end subroutine estimate_total_storage_size
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental module subroutine bytes2human_int32(nbytes, storage, units)
+    !! Convert an integer number of bytes to something like KB, MB, GB
+    use rotex__kinds, only: int32, int64
+    implicit none (type, external)
+    integer(int32), intent(in) :: nbytes
+    real(dp),       intent(out) :: storage
+    character(2),   intent(out) :: units
+    call bytes2human_int64(int(nbytes, kind=int64), storage, units)
+  end subroutine bytes2human_int32
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental module subroutine bytes2human_int64(nbytes, storage, units)
+    !! Convert an integer number of bytes to something like KB, MB, GB
+    use rotex__kinds, only: int64
+    implicit none (type, external)
+    integer(int64), intent(in) :: nbytes
+    real(dp),       intent(out) :: storage
+    character(2),   intent(out) :: units
+    integer(int64), parameter :: NBYTES_PER_KB = 1024_int64
+    integer(int64), parameter :: NBYTES_PER_MB = 1024_int64 * NBYTES_PER_KB
+    integer(int64), parameter :: NBYTES_PER_GB = 1024_int64 * NBYTES_PER_MB
+    real(dp) :: nbytes_r
+    nbytes_r = real(nbytes, kind=dp)
+    if(nbytes .lt. NBYTES_PER_KB) then
+      storage = nbytes_r
+      units = " B"
+    elseif(nbytes .lt. NBYTES_PER_MB) then
+      storage = nbytes_r / NBYTES_PER_KB
+      units = "KB"
+    elseif(nbytes .lt. NBYTES_PER_GB) then
+      storage = nbytes_r / NBYTES_PER_MB
+      units = "MB"
+    else
+      storage = nbytes_r / NBYTES_PER_GB
+      units = "GB"
+    endif
+  end subroutine bytes2human_int64
 
 ! ================================================================================================================================ !
 end module rotex__utils

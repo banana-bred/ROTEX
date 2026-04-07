@@ -3,7 +3,7 @@ module rotex__system
   !! Contains the definitions of stdout, stdin, stderr, and procedures to interact with the program/system
   !! such as producing warnings and stopping the execution of the code while producing error messages
 
-  use, intrinsic :: iso_fortran_env, only: input_unit, output_unit, error_unit, iostat_end
+  use, intrinsic :: iso_fortran_env, only: input_unit, output_unit, error_unit, IOSTAT_END
 
   implicit none (type, external)
 
@@ -29,6 +29,8 @@ module rotex__system
   integer, parameter, public :: OS_SOLARIS = 5
   integer, parameter, public :: OS_FREEBSD = 6
   integer, parameter, public :: OS_OPENBSD = 7
+
+  public :: IOSTAT_END ! imported above from iso_fortran_env
 
   logical, public :: OS_is_windows
     !! Is the current operating system Windows ?

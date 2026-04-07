@@ -586,9 +586,9 @@ contains
       write(funit_sine,         '(ES15.7,X)', advance='no') kmat_eval_energies(ie)*au2ev
       write(funit_cosine,       '(ES15.7,X)', advance='no') kmat_eval_energies(ie)*au2ev
       do i=1,n
+        write(funit_eigenphases,  '(ES15.7,X)', advance='no') eigenphases(i, ie)
+        write(funit_eigenphases2, '(ES15.7,X)', advance='no') eigenphases_unwrapped(i, ie)
         do j=1,i
-          write(funit_eigenphases,  '(ES15.7,X)', advance='no') eigenphases(i, ie)
-          write(funit_eigenphases2, '(ES15.7,X)', advance='no') eigenphases_unwrapped(i, ie)
           write(funit_sine,         '(ES15.7,X)', advance='no') sinmat(i, j, ie)
           write(funit_cosine,       '(ES15.7,X)', advance='no') cosmat(i, j, ie)
         enddo
@@ -607,11 +607,12 @@ contains
   end subroutine write_elec_mat_elems_to_file
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine write_Smat_J_elems_to_file(spinmult, Jmin, Jmax, kmat_eval_energies, channels_J, smat_J)
+  module subroutine write_Smat_J_elems_to_file(spinmult, J, kmat_eval_energies, channels, smat_flat)
     !! Writes elements of S^J(E) to disk for inspection
 
-    use rotex__types,      only: r3carr_type, asymtop_rot_channel_l_vector_type
-    use rotex__constants,  only: au2ev, spinmult_names
+    use rotex__types,      only: asymtop_rot_channel_l_type
+    use rotex__constants,  only: au2ev
+    use rotex__globals,    only: spinmult_names
     use rotex__characters, only: i2c => int2char
     use rotex__system,     only: mkdir
 
@@ -619,72 +620,70 @@ contains
 
     integer, intent(in) :: spinmult
       !! The current spin multiplicity
-    integer,                                 intent(in) :: Jmin, Jmax
-      !! The min/max values of J
+    integer,                                 intent(in) :: J
+      !! The current value of J
     real(dp),                                intent(in) :: Kmat_eval_energies(:)
       !! The evaluation energy grid
-    type(asymtop_rot_channel_l_vector_type), intent(in) :: channels_J(Jmin:Jmax)
+    type(asymtop_rot_channel_l_type), intent(in) :: channels(:)
       !! The rotational channels per J
-    type(r3carr_type),                      intent(in) :: Smat_J(Jmin:Jmax)
-      !! The S^J sub blocks
+    complex(dp),                      intent(in) :: smat_flat(:,:)
+      !! The current flattened S^J sub block
 
-    integer :: J, ie, i, k, ne, nchans, funitr, funitc, funitch
+    integer :: ie, i, i1, i2, k, ne, nchans, funitr, funitc, funitch
     character(:), allocatable :: fnamer, fnamec, fnamech
 
     ne = size(kmat_eval_energies, 1)
 
-    call mkdir(G%OUTPUT_DIRECTORY // spinmult_names(spinmult) // "/smat_J")
+    call mkdir(G%OUTPUT_DIRECTORY // "/smat_J" // spinmult_names(spinmult))
     call mkdir(G%OUTPUT_DIRECTORY // "channels")
 
-    do J=Jmin, Jmax
+    nchans = size(channels, 1)
 
-      nchans = size(channels_J(J)%channels, 1)
+    fnamer  = G%OUTPUT_DIRECTORY // "/smat_J" // spinmult_names(spinmult) // "/S_J"   // trim(adjustl(i2c(J))) // "_real.dat"
+    fnamec  = G%OUTPUT_DIRECTORY // "/smat_J" // spinmult_names(spinmult) // "/S_J"   // trim(adjustl(i2c(J))) // "_cplx.dat"
+    fnamech = G%OUTPUT_DIRECTORY // "channels/channels_J" // trim(adjustl(i2c(J))) // ".txt"
 
-      fnamer  = G%OUTPUT_DIRECTORY // spinmult_names(spinmult) // "/smat_J/S_J"   // trim(adjustl(i2c(J))) // "_real.dat"
-      fnamec  = G%OUTPUT_DIRECTORY // spinmult_names(spinmult) // "/smat_J/S_J"   // trim(adjustl(i2c(J))) // "_cplx.dat"
-      fnamech = G%OUTPUT_DIRECTORY // "channels/channels_J" // trim(adjustl(i2c(J))) // ".txt"
+    ! -- channels
+    open(newunit=funitch,  file=fnamec,  status="replace", action="write")
+    write(funitch, '("# J = ", I0)')
+    write(funitch, '("# ")', advance="no")
+    write(funitch, '(A6)', advance="no") "idx"
+    write(funitch, '(2X, A2)', advance="no") "n"
+    write(funitch, '(2X, A6)', advance="no") "N"
+    write(funitch, '(2X, A6)', advance="no") "Ka"
+    write(funitch, '(2X, A6)', advance="no") "Kc"
+    write(funitch, '(2X, A2)', advance="no") "l"
+    write(funitch, '(2X, A22)') "E (meV)"
+    do i=1, nchans
+      write(funitch, '(2X, I6, 2X, I2, 3(2X, I6), 2X, I2, 2X, ES22.14)') &
+          i                                                            &
+        , channels(i)%nelec                              &
+        , channels(i)%N                                  &
+        , channels(i)%Ka                                 &
+        , channels(i)%Kc                                 &
+        , channels(i)%l                                  &
+        , channels(i)%E
+    enddo
+    close(funitch)
 
-      ! -- channels
-      open(newunit=funitch,  file=fnamec,  status="replace", action="write")
-      write(funitch, '("# J = ", I0)')
-      write(funitch, '("# ")', advance="no")
-      write(funitch, '(A6)', advance="no") "idx"
-      write(funitch, '(2X, A2)', advance="no") "n"
-      write(funitch, '(2X, A6)', advance="no") "N"
-      write(funitch, '(2X, A6)', advance="no") "Ka"
-      write(funitch, '(2X, A6)', advance="no") "Kc"
-      write(funitch, '(2X, A2)', advance="no") "l"
-      write(funitch, '(2X, A22)') "E (meV)"
-      do i=1, nchans
-        write(funitch, '(2X, I6, 2X, I2, 3(2X, I6), 2X, I2, 2X, ES22.14)') &
-            i                                                            &
-          , channels_J(J)%channels(i)%nelec                              &
-          , channels_J(J)%channels(i)%N                                  &
-          , channels_J(J)%channels(i)%Ka                                 &
-          , channels_J(J)%channels(i)%Kc                                 &
-          , channels_J(J)%channels(i)%l                                  &
-          , channels_J(J)%channels(i)%E
-      enddo
-      close(funitch)
-
-      ! -- S
-      open(newunit=funitr,  file=fnamer,  status="replace", action="write")
-      open(newunit=funitc,  file=fnamec,  status="replace", action="write")
-      write(funitr, '("# J = ", I0)') J             ; write(funitc, '("# J = ", I0)') J
-      write(funitr, '("# ")', advance="no")         ; write(funitc, '("# ")', advance="no")
-      write(funitr, '(A15)', advance="no") "E (eV)" ; write(funitc, '(A15)') "E (eV)"
-      write(funitr, '(" S(E)..")')                  ; write(funitr, '(" S(E)..")')
-      do ie=1, ne
-        write(funitr, '(ES17.7)', advance="no") Kmat_eval_energies(ie) * au2ev
-        write(funitc, '(ES17.7)', advance="no") Kmat_eval_energies(ie) * au2ev
-        do i=1, nchans ; do k=1, nchans
-          write(funitr, '(2X,ES22.12)', advance="no") smat_J(J)%arr(i,k,ie)%re
-          write(funitc, '(2X,ES22.12)', advance="no") smat_J(J)%arr(i,k,ie)%im
-        enddo ; enddo
-        write(funitr, *)
-        write(funitc, *)
-      enddo
-
+    ! -- S
+    open(newunit=funitr,  file=fnamer,  status="replace", action="write")
+    open(newunit=funitc,  file=fnamec,  status="replace", action="write")
+    write(funitr, '("# J = ", I0)') J             ; write(funitc, '("# J = ", I0)') J
+    write(funitr, '("# ")', advance="no")         ; write(funitc, '("# ")', advance="no")
+    write(funitr, '(A15)', advance="no") "E (eV)" ; write(funitc, '(A15)') "E (eV)"
+    write(funitr, '(" S(E)..")')                  ; write(funitr, '(" S(E)..")')
+    do ie=1, ne
+      write(funitr, '(ES17.7)', advance="no") Kmat_eval_energies(ie) * au2ev
+      write(funitc, '(ES17.7)', advance="no") Kmat_eval_energies(ie) * au2ev
+      k=0
+      do i1=1, nchans ; do i2=1, i1
+        k=k+1
+        write(funitr, '(2X,ES22.12)', advance="no") smat_flat(k,ie)%re
+        write(funitc, '(2X,ES22.12)', advance="no") smat_flat(k,ie)%im
+      enddo ; enddo
+      write(funitr, *)
+      write(funitc, *)
     enddo
 
     close(funitr)

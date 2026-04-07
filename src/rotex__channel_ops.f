@@ -2,7 +2,6 @@
 module rotex__channel_ops
   !! Various channel operators
   use rotex__kinds, only: dp
-  use rotex__globals, only: G
   use rotex__types, only: channel_type, elec_channel_type &
                         , asymtop_rot_channel_type        &
                         , asymtop_rot_channel_l_type      &

@@ -22,7 +22,6 @@ module rotex__characters
   public :: sup
   public :: sub
 
-
   integer, parameter :: big_char = 100
 
   interface s2hms

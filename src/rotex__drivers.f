@@ -3,8 +3,8 @@ module rotex__drivers
   !! Driver used by the PROGRAM in main
 
   use rotex__kinds,     only: dp
-  use rotex__globals,   only: G
-  use rotex__constants, only: UKRMOLX, MQDTR2K, DEFAULT_CHAR1
+  use rotex__globals,   only: G, UKRMOLX, MQDTR2K, DEFAULT_CHAR1
+  use rotex__system,    only: die, stdout, stderr
 
   implicit none (type, external)
 
@@ -469,18 +469,19 @@ contains
     !! get electron-impact excitation cross sections entirely from the K-matrix scattering data.
 
     use rotex__kinds,     only: dp
-    use rotex__channel_ops, only: findloc_transitions
+    use rotex__channel_ops, only: findloc_transitions, sort_channels_by_energy
     use rotex__types,     only: n_states_type, r3carr_type, elec_channel_type &
                            , asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
                            , asymtop_rot_transition_type, rvector_type
     use rotex__system,    only: die, DS => DIRECTORY_SEPARATOR, stdout
-    use rotex__constants, only: SPINMULT_NAMES
-    use rotex__rft,       only: rft_nonlinear
-    use rotex__arrays,    only: append_uniq
+    use rotex__globals, only: SPINMULT_NAMES
+    use rotex__rft,       only: do_eirft, do_edrft_chunk, real2complex_ylm, K2sincos, K2S_cayley
+    use rotex__arrays,    only: append_uniq, realloc, packmat
     use rotex__mqdtxs,    only: get_smat_probs
     use rotex__characters, only: i2c => int2char
     use rotex__reading,   only: read_kmats
-    use rotex__writing,   only: write_smat_xs_to_file, write_channels_to_file
+    use rotex__writing,   only: write_smat_xs_to_file, write_channels_to_file, write_smat_xs_to_file &
+                              , write_Smat_J_elems_to_file
 
     implicit none (type, external)
 
@@ -500,7 +501,9 @@ contains
     character(1), parameter :: UKRMOLX_KMAT_ENERGY_UNITS    = "r"!ydberg
     character(1), parameter :: MQDTR2K_KMAT_ENERGY_UNITS    = "e"!lectron-Volts
 
-    integer :: ispin, nspins, jmin, jmax, itrans, ntrans, ne_mat, ne
+    integer :: ie, nchans_elec, nrot_current
+    integer :: ispin, nspins, J, Jmin, Jmax, itrans, ntrans, ne_mat, num_egrid, ne, ntrans_this_spin
+    integer :: ne_per_chunk
     integer, allocatable :: idxmap(:)
 
     real(dp), allocatable :: kmat(:,:,:)
@@ -508,17 +511,21 @@ contains
     real(dp), allocatable :: kmat_eval_energies(:)
       !! Evaluation energies of the K-matrix
 
+    real(dp), allocatable :: sin_elec(:,:,:), cos_elec(:,:,:)
+    complex(dp), allocatable :: smat_elec(:,:), smat_rot(:,:), smat_rot_flat(:,:)
+    complex(dp), allocatable :: csin_elec(:,:,:), ccos_elec(:,:,:)
     character(1) :: kmat_eval_E_units, channel_e_units
     character(:), allocatable :: smat_output_directory_this_spin, smat_output_directory_all_spins
     character(:), allocatable :: channels_file_this_spin
 
-    type(r3carr_type),                      allocatable :: smat_j(:)
     type(elec_channel_type),                 allocatable :: elec_channels(:)
-    type(rvector_type),                      allocatable :: prob_smat(:), xs_xcite(:), xs_dxcite(:)
-    type(asymtop_rot_channel_l_type),        allocatable :: asymtop_rot_channels_l(:)
-    type(asymtop_rot_channel_l_vector_type), allocatable :: asymtop_rot_channels_l_j(:)
+    type(rvector_type),                      allocatable :: transition_probs(:), xs_xcite(:), xs_dxcite(:)
     type(asymtop_rot_transition_type),       allocatable :: transitions_this_spin(:)
+    type(asymtop_rot_channel_l_type),        allocatable :: all_rotational_channels(:)
+    type(asymtop_rot_channel_l_type),        allocatable :: current_rotational_channels(:)
+    type(asymtop_rot_channel_l_vector_type), allocatable :: rotational_channels_per_J(:)
 
+    num_egrid = size(egrid_tot_smat, 1)
     nspins = size(G%SPINMULTS, 1)
     spinsdo: do ispin= 1, nspins
 
@@ -551,6 +558,7 @@ contains
       if(maxval(elec_channels % l) .gt. G%LMAX_KMAT) call die("K-matrix has at least one channel with&
         & l > LMAX_KMAT: " // i2c(maxval(elec_channels % l)) // " > " // i2c(G%LMAX_KMAT))
 
+      write(stdout, *)
       write(stdout, '(A)') "Performing the rotational frame transformation"
       write(stdout, '(A)') "----------------------------------------------"
       write(stdout, *)
@@ -567,55 +575,177 @@ contains
       ! -- min and max values of total J
       jmin = max(0, G%NMIN - G%LMAX_KMAT)
       jmax = abs(G%NMAX + G%LMAX_KMAT)
-      allocate(smat_j(jmin:jmax))
-      allocate(asymtop_rot_channels_l_j(jmin:jmax))
-      call rft_nonlinear( kmat                                &
-                        , kmat_eval_energies                  &
-                        , G%SPINMULTS(ispin)                  &
-                        , jmin, jmax                          &
-                        , smat_j                              &
-                        , elec_channels                       &
-                        , n_states                            &
-                        , asymtop_rot_channels_l              &
-                        , asymtop_rot_channels_l_j(jmin:jmax) &
+
+      ! -- build the all rotational channels that will be used for the RFT
+      !    and beyond
+      write(stdout, '("Building rotational channels..")')
+      call build_rotational_channels( &
+          n_states                    &
+        , elec_channels               &
+        , all_rotational_channels     &
       )
+      call sort_channels_by_energy(all_rotational_channels)
+      write(stdout, '("Building rotational transitions..")')
+      call build_rotational_transitions(all_rotational_channels, transitions_this_spin)
+
+      ! -- allocate and initialize the probabilities arrays for each transition
+      ntrans_this_spin = size(transitions_this_spin, 1)
+      write(stdout, '("Allocating transition probabilities..")')
+      if(G%PRINT_MEMINFO) call print_prob_meminfo(stdout, num_egrid, transitions_this_spin, transition_probs)
+      allocate(transition_probs(ntrans_this_spin))
+      do concurrent (itrans=1:ntrans_this_spin)
+        allocate(transition_probs(itrans) % vec(num_egrid), source=0._dp)
+      enddo
+
+      ! -- K -> S or sin,cos
+      if(G%EDFT) then
+
+        ! -- correct for branch cuts to get a smooth S-matrix
+        nchans_elec = size(kmat, 1)
+        write(stdout, '("Energy dependent frame transformation requested. Allocating &
+          & electronic sine and cosine matrices of dimension: ", I0, "×", I0, "×", I0, "..")') &
+            nchans_elec, nchans_elec, ne_mat
+        if(G%PRINT_MEMINFO) call print_elecmat_meminfo(stdout, sin_elec, ne_mat, nchans_elec)
+        allocate(sin_elec(nchans_elec, nchans_elec, ne_mat), source=0._dp)
+        allocate(cos_elec(nchans_elec, nchans_elec, ne_mat), source=0._dp)
+        write(stdout, '("Converting K(E) -> {sin(E), cos(E)}..")')
+        call K2sincos(kmat, kmat_eval_energies, sin_elec, cos_elec, elec_channels, G%SPINMULTS(ispin))
+
+        write(stdout, '("Populating complex sin, cos matrices in case of spherical harmonics transformation..")')
+        csin_elec = cmplx(sin_elec, kind=dp) ; deallocate(sin_elec)
+        ccos_elec = cmplx(cos_elec, kind=dp) ; deallocate(cos_elec)
+
+        if(G%REAL_SPHERICAL_HARMONICS) then
+          write(stdout, '("Converting sine and cosine matrices to the complex spherical harmonics basis..")')
+          do concurrent(ie=1:ne_mat)
+            call real2complex_ylm(csin_elec(:,:,ie), elec_channels)
+            call real2complex_ylm(ccos_elec(:,:,ie), elec_channels)
+          enddo
+        endif
+
+        write(stdout, *)
+        write(stdout, '(A)') "Frame transformation: sin_elec, cos_elec -> S^J"
+
+      else
+
+        ! -- just do the Cayley transform and get the S-matrix directly
+        allocate(smat_elec, mold=cmplx(kmat(:,:,1), kind=dp)) ; smat_elec = 0.0_dp
+        call K2S_cayley(kmat(:,:,1), smat_elec)
+
+        ! -- make sure we're in the basis of COMPLEX spherical harmonics
+        if(G%REAL_SPHERICAL_HARMONICS) call real2complex_ylm(smat_elec, elec_channels)
+
+        write(stdout, '(A)') "Frame transformation: S_elec -> S^J"
+
+      endif
+
+
+      !@@@TODO clean this up a bit
+      write(stdout, '(11X, 2(A5, " /"),A5,X)') "Jmin", "J", "Jmax"
+      Jloop: do J=Jmin, Jmax
+
+        call collect_j_channels_indices(J, all_rotational_channels, idxmap)
+        current_rotational_channels = all_rotational_channels(idxmap)
+        nrot_current = size(current_rotational_channels, 1)
+
+        call realloc(smat_rot_flat, (nrot_current*(nrot_current+1))/2, ne_mat)
+        smat_rot_flat = (0.0_dp, 0.0_dp)
+
+        EDFT: if(G%EDFT) then
+
+          ne_per_chunk = determine_edrft_chunk_size_mb( &
+              storage_size(smat_rot_flat)/8             &
+            , nrot_current                              &
+            , ne_mat                                    &
+            , G%EDFT_CHUNK_TARGET_MB                    &
+          )
+
+          if(G%PRINT_MEMINFO) call print_chunk_meminfo(stdout, (1.0_dp, 1.0_dp), nrot_current, ne_mat, ne_per_chunk)
+
+          call do_edrft_chunked_J(        &
+              egrid_tot_smat              &
+            , kmat_eval_energies          &
+            , ne_per_chunk                &
+            , csin_elec                   &
+            , ccos_elec                   &
+            , Jmin, Jmax, J               &
+            , N_states                    &
+            , elec_channels               &
+            , current_rotational_channels &
+            , transitions_this_spin       &
+            , transition_probs            &
+          )
+
+        else
+
+          ! -- one energy -> one chunk
+          ne_per_chunk = 1
+          allocate(smat_rot(nrot_current, nrot_current), source=(0.0_dp, 0.0_dp))
+
+          call do_eirft(               &
+              smat_elec                &
+            , smat_rot                 &
+            , J                        &
+            , N_states                 &
+            , elec_channels            &
+            , current_rotational_channels &
+          )
+          call packmat(smat_rot, smat_rot_flat(:,1), "U")
+
+          deallocate(smat_rot)
+
+          call get_smat_probs(         &
+              egrid_tot_smat           &
+            , transition_probs         &
+            , transitions_this_spin    &
+            , smat_rot_flat            &
+            , kmat_eval_energies       &
+            , J                        &
+            , current_rotational_channels &
+          )
+
+
+        endif EDFT
+
+      enddo Jloop
+
+      deallocate(csin_elec)
+      deallocate(ccos_elec)
       deallocate(elec_channels)
+      if(allocated(sin_elec))   deallocate(sin_elec)
+      if(allocated(cos_elec))   deallocate(cos_elec)
+      if(allocated(smat_elec))  deallocate(smat_elec)
 
       channels_file_this_spin = G%OUTPUT_DIRECTORY // SPINMULT_NAMES(G%SPINMULTS(ispin)) // ".channels"
+
+      ! -- keep track of channel contributions per J for the following write
+      allocate(rotational_channels_per_J(Jmin:Jmax))
+      do J = Jmin, Jmax
+        call collect_j_channels_indices(J, all_rotational_channels, idxmap)
+        rotational_channels_per_J(J) % channels = all_rotational_channels(idxmap)
+      enddo
 
       call write_channels_to_file(            &
           channels_file_this_spin             &
         , jmin                                &
         , jmax                                &
         , n_states                            &
-        , asymtop_rot_channels_l              &
-        , asymtop_rot_channels_l_j(jmin:jmax) &
+        , all_rotational_channels              &
+        , rotational_channels_per_J &
       )
+
+      deallocate(all_rotational_channels)
+      deallocate(current_rotational_channels)
+      deallocate(rotational_channels_per_J)
 
       write(stdout, *)
       write(stdout, '(A)') "--------------------------"
       write(stdout, '(A)') "Calculating cross sections"
       write(stdout, '(A)') "⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻"
 
-      call get_smat_probs(         &
-          egrid_tot_smat           &
-        , prob_smat                &
-        , transitions_this_spin    &
-        , smat_j                   &
-        , kmat_eval_energies       &
-        , jmin, jmax               &
-        , asymtop_rot_channels_l_j &
-        , asymtop_rot_channels_l   &
-        )
-
-
-      deallocate(smat_J)
-      deallocate(asymtop_rot_channels_l)
-      deallocate(asymtop_rot_channels_l_j)
-
       ! -- this routine also remove transitions whose cross sectiosn are too small
       call get_xs_from_smat(    &
-          prob_smat             &
+          transition_probs      &
         , transitions_this_spin &
         , egrid_tot_smat        &
         , xs_xcite              &
@@ -658,13 +788,12 @@ contains
       idxmap = findloc_transitions(transitions_this_spin, transitions)
 
       ! -- allocate the spinavg cross section arrays if necessary before adding this spin's contribution
-      ne     = size(egrid_tot_smat, 1)
       ntrans = size(transitions_this_spin, 1)
       if(.not. allocated(xs_xcite_spinavg)) then
         allocate(xs_xcite_spinavg(ntrans))
         allocate(xs_dxcite_spinavg(ntrans))
-        do itrans=1, ntrans ; allocate(xs_xcite_spinavg(itrans)%vec(ne),  source = 0.0_dp) ; enddo
-        do itrans=1, ntrans ; allocate(xs_dxcite_spinavg(itrans)%vec(ne), source = 0.0_dp) ; enddo
+        do itrans=1, ntrans ; allocate(xs_xcite_spinavg(itrans)%vec(num_egrid),  source = 0.0_dp) ; enddo
+        do itrans=1, ntrans ; allocate(xs_dxcite_spinavg(itrans)%vec(num_egrid), source = 0.0_dp) ; enddo
       endif
 
       ! -- σ_allspins += σ_thisspin * (2S+1) / Σ(2S+1)
@@ -677,7 +806,7 @@ contains
         , xs_xcite_spinavg           &
         , xs_dxcite_spinavg)
 
-      if(allocated(prob_smat))   deallocate(prob_smat)
+      if(allocated(transition_probs))   deallocate(transition_probs)
 
     enddo spinsdo
 
@@ -700,6 +829,144 @@ contains
     enddo
 
   end subroutine do_kmat_xs
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine do_edrft_chunked_J( &
+      total_energy_grid                 &
+    , kmat_eval_energies                &
+    , ne_per_chunk                      &
+    , csin_elec                         &
+    , ccos_elec                         &
+    , Jmin, Jmax, J                     &
+    , N_states                          &
+    , elec_channels                     &
+    , current_rotational_channels       &
+    , transitions_this_spin             &
+    , transition_probs                  &
+  )
+    !! Perform the EDRFT: {sin_elec(E), cos_elec(E)} -> S^J(E), then accumulate transition
+    !! probabilities. The evaluation energy grid is chunked to save memory
+    use rotex__types,  only: N_states_type, elec_channel_type, asymtop_rot_channel_l_type &
+                           , asymtop_rot_transition_type, rvector_type
+    use rotex__arrays, only: realloc
+    use rotex__rft,    only: do_edrft_chunk
+    use rotex__mqdtxs, only: get_smat_probs_chunk
+#ifdef USE_FORBEAR
+    use rotex__progress,   only: progressbar_type
+#endif
+
+    implicit none(type, external)
+
+    real(dp),                          intent(in)    :: total_energy_grid(:)
+      !! Grid of total energies for the scattering cross sections
+    real(dp),                          intent(in)    :: kmat_eval_energies(:)
+      !! Grid of electronic matrix evaluation energies
+    integer,                           intent(in)    :: ne_per_chunk
+      !! Number of evaluation energies per evaluation energy chunk
+    complex(dp),                       intent(in)    :: csin_elec(:,:,:), ccos_elec(:,:,:)
+      !! Comlex-valued {sine, cosine} matrices
+    integer,                           intent(in)    :: Jmin, Jmax, J
+      !! The min, max, and current J
+    type(N_states_type),               intent(in)    :: N_states(:)
+      !! The array of rotational states of the target (N, Ka, Kc), needed as input for the RFT
+    type(elec_channel_type),           intent(in)    :: elec_channels(:)
+      !! The array of electronic channels (n, l, ml), needed as input for the RFT
+    type(asymtop_rot_channel_l_type),  intent(in)    :: current_rotational_channels(:)
+      !! The array of rotational channels (N, Ka, Kc, l) that make up the basis of the S-matrix subblock for this J
+    type(asymtop_rot_transition_type), intent(in)    :: transitions_this_spin(:)
+      !! Array of transitions that will be considered for (de-)excitation for the current spin multiplicity
+    type(rvector_type),                intent(inout) :: transition_probs(:)
+      !! Probability at each scattering energy for pairs of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
+
+    integer :: nflat_rot, nrot_current, ne_mat, ne_this_chunk
+    integer :: ichunk, nchunks
+    integer :: ie0, ie1
+    complex(dp), allocatable :: smat_rot_flat_chunk(:,:)
+
+    character(31) :: prefix_string
+
+#ifdef USE_FORBEAR
+    ! -- forbear variables
+    integer  :: iprogress, iprogress_last
+    real(dp) :: rprogress, rprogress_inc
+    type(progressbar_type) progressbar
+#endif
+
+    ne_mat       = size(kmat_eval_energies, 1)
+    nrot_current = size(current_rotational_channels, 1)
+    nflat_rot    = (nrot_current*(nrot_current+1))/2
+
+   write(prefix_string, '("EDFT+MQDT", 2X, 2(I5," /"),I5,2X)') Jmin, J, Jmax
+#ifdef USE_FORBEAR
+    call progressbar % initialize( &
+        filled_char_string = "|" &
+      , empty_char_string = " " &
+      , bracket_left_string = "[" &
+      , prefix_string = prefix_string &
+      , suffix_string = "] " &
+      , add_progress_percent = .true. &
+    )
+    call progressbar % start
+    call progressbar % update(current = 0.0_dp)
+    rprogress = 0.0_dp
+    iprogress_last = 0
+    nchunks = (ne_mat + ne_per_chunk - 1) / ne_per_chunk
+    rprogress_inc = 1.0_dp / real(nchunks, kind=dp)
+#else
+    write(stdout, '(A)') prefix_string//".."
+#endif
+
+    call realloc(smat_rot_flat_chunk, nflat_rot, ne_per_chunk)
+    smat_rot_flat_chunk = (0.0_dp, 0.0_dp)
+
+    ! -- loop over chunks
+    ichunk = 0
+    chunks: do ie0 = 1, ne_mat, ne_per_chunk
+      ie1 = min(ne_mat, ie0 + ne_per_chunk - 1)
+      ne_this_chunk = ie1 - ie0 + 1
+
+      call do_edrft_chunk(                        &
+          csin_elec                               &
+        , ccos_elec                               &
+        , kmat_eval_energies                      &
+        , ie0, ie1                                &
+        ! -- may have fewer energies in a chunk; pass 1:ne_this_chunk and keep it contiguous
+        , smat_rot_flat_chunk(:, 1:ne_this_chunk) &
+        , J                                       &
+        , N_states                                &
+        , elec_channels                           &
+        , current_rotational_channels             &
+      )
+
+      call get_smat_probs_chunk(      &
+          total_energy_grid           &
+        , transition_probs            &
+        , transitions_this_spin       &
+        , smat_rot_flat_chunk(:, 1:ne_this_chunk) &
+        , kmat_eval_energies(ie0:ie1) &
+        , J                           &
+        , current_rotational_channels &
+      )
+
+#ifdef USE_FORBEAR
+      ichunk = ichunk + 1
+      rprogress = real(ichunk, kind=dp) / real(nchunks, kind=dp)
+      iprogress = floor(rprogress * 100)
+      if(iprogress .eq. iprogress_last) cycle chunks
+      if(iprogress .eq. 100) cycle chunks
+      iprogress_last = iprogress
+      call progressbar % update(current = rprogress)
+#endif
+
+    enddo chunks
+
+#ifdef USE_FORBEAR
+    call progressbar % update(current = 1.0_dp)
+#else
+    write(stdout, '(" done !")')
+#endif
+
+  end subroutine do_edrft_chunked_J
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine convert_multipoles(cartesian_moments_array, spherical_moments_array)
@@ -810,7 +1077,7 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine make_output_directories(pcb_output_directory, tcb_output_directory, smat_output_directory)
     use rotex__system,    only: DS => DIRECTORY_SEPARATOR, mkdir
-    use rotex__constants, only: SPINMULT_NAMES
+    use rotex__globals, only: SPINMULT_NAMES
     implicit none (type, external)
     character(:), intent(out), allocatable :: pcb_output_directory, tcb_output_directory, smat_output_directory
     integer :: ispin
@@ -1647,6 +1914,278 @@ contains
     end function symtop_degen
 
   end subroutine reduce_symtop_ksign
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure subroutine build_rotational_channels(n_states, elec_channels, rot_channels)
+    !! Build rotational+electronic channels channels: (N Ka Kc)+(l λ) = (N Ka Kc l λ)
+    use rotex__kinds,    only: dp
+    use rotex__types,    only: n_states_type, elec_channel_type, asymtop_rot_channel_l_type
+    use rotex__channel_ops, only: operator(.eq.)
+    use rotex__arrays,   only: append
+    use rotex__symmetry, only: spin_symmetry
+    use rotex__system,   only: die
+    implicit none (type, external)
+    type(N_states_type),            intent(in)               :: n_states(:)
+    type(elec_channel_type),        intent(in)               :: elec_channels(:)
+    type(asymtop_rot_channel_l_type), intent(out), allocatable :: rot_channels(:)
+    integer  :: i_N_state, i_tau, i_elec_channel
+    integer  :: n, ka, kc, ksym, nelec, iq, sym
+    integer  :: l
+    real(dp) :: e, e_elec, e_rot
+    type(asymtop_rot_channel_l_type) :: channel
+    ka = 0; kc = 0
+    ! -- build rotational channels from elec_channels and N_states
+    do i_n_state = 1, size(n_states, 1)
+
+      n  = n_states(i_n_state) % n
+
+      do i_tau = 1, 2*n + 1
+
+        select case(G%ROTOR_KIND)
+        case("a", "A")
+          ka = n_states(i_n_state) % ka(i_tau)
+          kc = n_states(i_n_state) % kc(i_tau)
+        case("s", "S")
+          select case(G%ROTOR_ZAXIS)
+          case("a", "A")
+            ksym = n_states(i_n_state) % ka(i_tau)
+            ka = ksym
+            kc = 0
+          case("c", "C")
+            ksym = n_states(i_n_state) % kc(i_tau)
+            ka = 0
+            kc = ksym
+          case default
+            call die("Symtop rotational G%ROTOR_ZAXIS must be A or C")
+          end select
+
+          ! ! -- skip forbidden channels
+          ! if(symtop_rotstate_is_allowed(N, Ksym) .eqv. .false.) cycle
+
+        end select
+        do i_elec_channel = 1, size(elec_channels, 1)
+          nelec = elec_channels(i_elec_channel) % nelec
+          l     = elec_channels(i_elec_channel) % l
+          iq    = elec_channels(i_elec_channel) % iq
+          ! -- get the channel energy (rotational + electronic)
+          e_elec = elec_channels(i_elec_channel) % e
+          e_rot  = n_states(i_n_state) % eigenh % eigvals(i_tau)
+          e      = e_rot + e_elec
+          ! -- for now, enforce ground state RE only
+          if(nelec .ne. 1) cycle
+          sym = spin_symmetry(n, ka, kc)
+          channel = asymtop_rot_channel_l_type(nelec=nelec, l=l, iq=iq, n=n, ka=ka, kc=kc, e=e, sym=sym)
+          if(allocated(rot_channels)) then
+            if(any(channel .eq. rot_channels)) cycle
+          endif
+          call append(rot_channels, channel)
+        enddo
+      enddo
+    enddo
+  end subroutine build_rotational_channels
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  impure subroutine build_rotational_transitions(channels, transitions)
+    !! Build an array of transitions that will be considered given an array of rotational channels
+    use rotex__types, only: asymtop_rot_transition_type, asymtop_rot_channel_l_type &
+                          , asymtop_rot_channel_type
+    use rotex__symmetry, only: is_spin_forbidden
+    use rotex__channel_ops, only: trim_channel_l, operator(.isin.), operator(.eq.)
+    use rotex__arrays, only: append
+
+    implicit none (type, external)
+
+    type(asymtop_rot_channel_l_type),  intent(in)               :: channels(:)
+    type(asymtop_rot_transition_type), intent(out), allocatable :: transitions(:)
+
+    integer :: ichan, fchan, Ni, Nf, nchans
+    type(asymtop_rot_channel_type) :: lo, up
+    type(asymtop_rot_transition_type) :: transition
+
+    nchans = size(channels, 1)
+    ! -- build combinations of states (without l), de-excitations will be handled by symmetry
+    do ichan = 1, nchans
+      Ni = channels(ichan) % N
+      if(Ni .lt.  G%NMIN) cycle
+      if(Ni .gt.  G%NMAX) cycle
+      lo = trim_channel_l(channels(ichan))
+      do fchan = ichan+1, nchans
+        Nf = channels(fchan) % N
+        if(Nf .lt. G%NMIN) cycle
+        if(Nf .gt. G%NMAX) cycle
+        up = trim_channel_l(channels(fchan))
+        ! -- skip elastic pairs
+        if(lo .eq. up) cycle
+        ! -- skip de-excitations for now. These shoud not show up here anyway; they'll be handled symmetrically
+        !    when excitations are considered
+        if(lo % E .ge. up % E) cycle
+        !  -- respect ortho/para symmetry if applicable (returns true if theres nothing to respect)
+        if(is_spin_forbidden(lo, up)) cycle
+        transition = asymtop_rot_transition_type(lo = lo,  up = up)
+        ! -- only append transitions uniquely
+        if(allocated(transitions) .eqv. .false.) then
+          call append(transitions, transition)
+          cycle
+        endif
+        if(transition .isin. transitions) cycle
+        call append(transitions, transition)
+      enddo
+    enddo
+
+  end subroutine build_rotational_transitions
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure subroutine collect_j_channels_indices(j, channels_l, idx)
+    !! Go through channels_l and add the channels to channels_l_j that
+    !! obey the degenerate triangle inequality for N, l, J
+    use rotex__types,     only: asymtop_rot_channel_l_type
+    use rotex__functions, only: istriangle
+    implicit none (type, external)
+    integer, intent(in) :: j
+      !! Total angular momentum J
+    type(asymtop_rot_channel_l_type), intent(in) :: channels_l(:)
+      !! All rotatinal channels
+    integer, intent(out), allocatable :: idx(:)
+      !! Rotational channels for this J will be channels_l(idx)
+    integer :: nchans_rot
+    integer :: n, l
+    integer :: ichan
+    integer :: count
+    nchans_rot = size(channels_l, 1)
+    count = 0
+    ! -- count number of channels
+    do ichan=1, nchans_rot
+      n     = channels_l(ichan) % n
+      l     = channels_l(ichan) % l
+      if(istriangle(n, l, j) .eqv. .false.) cycle
+      count = count + 1
+    enddo
+    allocate(idx(count), source=0)
+    if(count .eq. 0) return
+    ! -- fill idx if count > 0
+    count = 0
+    do ichan=1, nchans_rot
+      n     = channels_l(ichan) % n
+      l     = channels_l(ichan) % l
+      if(istriangle(n, l, j) .eqv. .false.) cycle
+      count = count + 1
+      idx(count) = ichan
+    enddo
+  end subroutine collect_j_channels_indices
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function determine_edrft_chunk_size_mb(matrix_storage_size_bytes, nchans, ne_mat, target_chunk_size_mb) result(ne_per_chunk)
+    !! In the EDRFT and subsequent MQDT CCEP used to determine (de-)excitation probabilities, the
+    !! matrix evaluation energy grid is split into chunks to save memory (it becomes very easy to eat a lot of memory
+    !! as the number of channels grows quickly).
+    !! If target_chunk_size_mb <= 0: no chunking (alternate view: one big chunk)
+    use rotex__kinds, only: int64
+    implicit none (type, external)
+    integer, intent(in) :: matrix_storage_size_bytes
+      !! The storage size of an element of a rotationally resolved matrix that will be chunked. This should be the result of
+      !! `storage_size(smat_rot_flat)/8` or something to that effect. This will probably be 16 (complex S-matrix, real64 precision)
+    integer, intent(in) :: nchans
+      !! The current number of channels
+    integer, intent(in) :: ne_mat
+      !! The total number of matrix evaluation energies
+    integer, intent(in) :: target_chunk_size_mb
+      !! Approximately how large we want each chunk of matrices to be in MB
+    integer :: ne_per_chunk
+      !! The number of energies that make up a chunk
+
+    integer(int64) :: target_bytes, bytes_per_energy, nflat
+
+    if(ne_mat .le. 0) call die("Cannot chunk ≤ 0 evaluation energies")
+    if(nchans .le. 0) call die("Cannot chunk ≤ 0 channels")
+    if(matrix_storage_size_bytes .le. 0) call die("Cannot chunk a matrix with storage size ≤ 0")
+
+    ! -- no chunking, full memory
+    if(target_chunk_size_mb .le. 0) then
+      ne_per_chunk = ne_mat
+      return
+    endif
+
+    nflat = (int(nchans, kind=int64)*int(nchans+1, kind=int64)) / 2_int64
+    bytes_per_energy = int(matrix_storage_size_bytes, kind=int64) * nflat
+    target_bytes = int(target_chunk_size_mb, kind=int64) * 1024_int64**2
+
+    if(bytes_per_energy .le. 0) then
+      ne_per_chunk = 1
+      return
+    endif
+
+    ne_per_chunk = int(target_bytes / bytes_per_energy)
+    if(ne_per_chunk .lt. 1)      ne_per_chunk = 1
+    if(ne_per_chunk .gt. ne_mat) ne_per_chunk = ne_mat
+
+  end function determine_edrft_chunk_size_mb
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine print_chunk_meminfo(funit, obj, nrot_current, ne_mat, ne_per_chunk)
+    !! Just print some information on memory storage to funit for the rotationa S-matrix
+    use rotex__utils, only: estimate_total_storage_size
+    implicit none (type, external)
+    integer,  intent(in) :: funit
+    class(*), intent(in) :: obj(..)
+    integer,  intent(in) :: nrot_current, ne_mat, ne_per_chunk
+    integer      :: nrot_flat, nchunks
+    real(dp)     :: storage
+    character(2) :: units
+    nrot_flat = (nrot_current*(nrot_current+1))/2
+    nchunks = (ne_mat + ne_per_chunk - 1) / ne_per_chunk
+    call estimate_total_storage_size(obj, [nrot_flat, ne_per_chunk], storage, units)
+    write(funit, *)
+    write(funit, '(A60, I0)') "Number of rotational channels: ", nrot_current
+    write(funit, '(A60, I0)') "Number of non-redundant rotational matrix elements: ", nrot_flat
+    write(funit, '(A60, I0, " bytes")') "Elemental storage size for flattened rotational S-matrix: ", storage_size(obj)/8
+    write(funit, '(A60, I0, " MB")') "Target chunk size: ", G%EDFT_CHUNK_TARGET_MB
+    write(funit, '(A60, I0)')  "Calculated number of energies per chunk: ", ne_per_chunk
+    write(funit, '(A60, I0)') "Number of chunks: ", nchunks
+    write(funit, '(A60, F0.1, X, A)') "Estimated memory consumption for each chunk: ", storage, trim(units)
+    write(funit, *)
+  end subroutine print_chunk_meminfo
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine print_prob_meminfo(funit, num_egrid, transitions, transition_probs)
+    !! Just print some information on memory storage for the probability arrays and transition arrays.
+    !! Assumes that all transition_probs%vec(:) will have the same length
+    use rotex__utils, only: estimate_total_storage_size
+    use rotex__types, only: asymtop_rot_transition_type, rvector_type
+    integer,                           intent(in) :: funit, num_egrid
+    type(asymtop_rot_transition_type), intent(in) :: transitions(:)
+    type(rvector_type),                intent(in) :: transition_probs(:)
+    integer      :: ntrans
+    real(dp)     :: storage
+    character(2) :: units
+    ntrans = size(transitions, 1)
+    write(funit, *)
+    write(funit, '(A65, I0)') "Number of transitions: ", ntrans
+    call estimate_total_storage_size(transition_probs, [ntrans], storage, units)
+    write(funit, '(A65, F0.1, 1X, A)') "Estimated memory consumption for transition descriptor array: ", storage, trim(units)
+    write(funit, '(A65, I0)') "Number of output scattering energies: ", num_egrid
+    call estimate_total_storage_size(transitions, [ntrans, num_egrid], storage, units)
+    write(funit, '(A65, F0.1, 1X, A)') "Estimated memory consumption for transition probability array: ", storage, trim(units)
+    write(funit, *)
+  end subroutine print_prob_meminfo
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine print_elecmat_meminfo(funit, elecmat, ne_mat, nchans_elec)
+    !! Just print some information on memory storage for the probability arrays and transition arrays
+    use rotex__utils, only: estimate_total_storage_size
+    use rotex__types, only: asymtop_rot_transition_type, rvector_type
+    integer,  intent(in) :: funit, ne_mat, nchans_elec
+    class(*), intent(in) :: elecmat(..)
+    real(dp)     :: storage
+    character(2) :: units
+    write(funit, *)
+    write(funit, '(A65, I0)') "Number of evaluation energies: ", ne_mat
+    write(funit, '(A65, I0)') "Number of electronic channels: ", nchans_elec
+    ! -- multiply the storage size by 4 because there is the sine and cosine matrix, and these will probably be complex
+    !    at some point for the spherical harmonic transformation
+    call estimate_total_storage_size(elecmat, [ne_mat, nchans_elec, nchans_elec], storage, units, 4)
+    write(funit, '(A65, F0.1, 1X, A)') "Estimated memory consumption for sin/cos matrices : ", storage, trim(units)
+    write(funit, *)
+  end subroutine print_elecmat_meminfo
 
 ! ================================================================================================================================ !
 end module rotex__drivers

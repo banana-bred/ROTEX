@@ -29,7 +29,7 @@ module rotex__arrays
   public :: nflat2n
   public :: linear_interpolation
   ! public :: vec2diag
-  public :: interp_matrix_at_energy
+  public :: interp_array_at_energy
 
   interface linear_interpolation
     module procedure :: linear_interpolation_re_rs
@@ -101,9 +101,10 @@ module rotex__arrays
     module procedure :: realloc_1d_elec_channel2
   end interface realloc
 
-  interface interp_matrix_at_energy
+  interface interp_array_at_energy
+    module procedure :: interp_cvector_at_energy
     module procedure :: interp_cmatrix_at_energy
-  end interface interp_matrix_at_energy
+  end interface interp_array_at_energy
 
 ! ================================================================================================================================ !
 contains
@@ -1093,6 +1094,47 @@ contains
   end subroutine linear_interpolation_re_cs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure module subroutine interp_cvector_at_energy(E, Egrid, Vgrid, V, allow_out_of_bounds)
+    implicit none (type, external)
+    real(dp),    intent(in)  :: E, Egrid(:)
+    complex(dp), intent(in)  :: Vgrid(:,:)
+    complex(dp), intent(out) :: V(:)
+    logical, intent(in), optional :: allow_out_of_bounds
+    logical :: aoob
+    integer :: i, i1, i2, nE, nV
+    integer :: ib(2)
+    aoob = .true. ; if(present(allow_out_of_bounds)) aoob = allow_out_of_bounds
+    nE = size(Egrid, 1)
+    nV = size(Vgrid, 1)
+    call size_check(Vgrid, [nV, nE], "VGRID")
+    call size_check(V,     [nV],     "V")
+    ib = idx_binsearch(E, Egrid)
+    i1 = ib(1) ; i2 = ib(2)
+    if(nE .eq. 1) then
+      ! -- only 1 energy
+      V = Vgrid(:,1)
+    elseif(i1.eq. 0 .AND. i2 .eq. 1) then
+      ! -- E < Egrid
+      if(aoob .eqv. .false.) call die("E < Egrid disallowed")
+      V = Vgrid(:,1)
+    elseif(i1 .eq. nE .AND. i2 .eq. 0) then
+      ! -- E > Egrid
+      if(aoob .eqv. .false.) call die("E > Egrid disallowed")
+      V = Vgrid(:,nE)
+    elseif(i1 .eq. i2) then
+      ! -- an exact grid point, just take that value
+      V = Vgrid(:,i1)
+    elseif(i1 .ge. 1 .AND. i2 .gt. i1) then
+      ! -- element-wise interpolaion in energy
+      do concurrent(i=1:nV)
+        call linear_interpolation(Egrid(i1), Egrid(i2), Vgrid(i, i1), Vgrid(i, i2), E, V(i))
+      enddo
+    else
+      call die("Bad bracketing for indices in `interp_cmatrix_at_energy`")
+    endif
+  end subroutine interp_cvector_at_energy
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure module subroutine interp_cmatrix_at_energy(E, Egrid, Mgrid, M, allow_out_of_bounds)
     implicit none (type, external)
     real(dp),    intent(in)  :: E, Egrid(:)
@@ -1103,7 +1145,7 @@ contains
     integer :: i, j, i1, i2, ne, nM1,  nM2
     integer :: ib(2)
     aoob = .true. ; if(present(allow_out_of_bounds)) aoob = allow_out_of_bounds
-    ne  = size(Egrid, 1)
+    nE  = size(Egrid, 1)
     nM1 = size(Mgrid, 1)
     nM2 = size(Mgrid, 2)
     call size_check(Mgrid, [nM1, nM2, nE], "Mgrid")
@@ -1131,7 +1173,7 @@ contains
         call linear_interpolation(Egrid(i1), Egrid(i2), Mgrid(i, j, i1), Mgrid(i, j, i2), E, M(i,j))
       enddo
     else
-      call die("Bad bracketing for indices in `interp_matrix_at_energy`")
+      call die("Bad bracketing for indices in `interp_cvector_at_energy`")
     endif
   end subroutine interp_cmatrix_at_energy
 

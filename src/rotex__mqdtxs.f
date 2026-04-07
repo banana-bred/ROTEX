@@ -11,6 +11,7 @@ module rotex__MQDTXS
   private
 
   public :: get_smat_probs
+  public :: get_smat_probs_chunk
 
 ! ================================================================================================================================ !
 contains
@@ -19,14 +20,12 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine get_smat_probs( &
         total_energy_grid           &
-      , prob                        &
+      , transition_probs            &
       , transitions                 &
-      , smat_j                      &
+      , smat_rot_flat               &
       , smat_eval_energies          &
-      , jmin                        &
-      , jmax                        &
-      , channels_j                  &
-      , channels_tot                &
+      , J                           &
+      , channels_this_J             &
     )
     !! Given a rotationally resolved S-matrix, calculate rotational (de-)excitation
     !! cross section probabilities for the supplied transitions.
@@ -34,315 +33,229 @@ contains
     use rotex__types,      only: rvector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
                                , asymtop_rot_channel_type, r3carr_type, n_states_type, asymtop_rot_transition_type
     use rotex__channel_ops, only: operator(.ne.), operator(.eq.), operator(.isin.), trim_channel_l, get_channel_index
-    use rotex__arrays,     only: append, size_check, realloc, interp_matrix_at_energy
+    use rotex__arrays,     only: append, size_check, realloc, interp_array_at_energy, unpackmat
     use rotex__symmetry,   only: is_spin_forbidden
     use rotex__characters, only: i2c => int2char
-#ifdef USE_FORBEAR
-    use rotex__progress,   only: progressbar_type
-#endif
-#ifdef USE_OPENMP
-    use omp_lib, only: omp_get_thread_num
-#endif
 
     implicit none (type, external)
 
     real(dp), intent(in) :: total_energy_grid(:)
       !! The total energy grid on which the S-matrix will be evaluated
-    type(rvector_type), intent(out), allocatable :: prob(:)
+    type(rvector_type), intent(inout), allocatable :: transition_probs(:)
       !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
-    type(asymtop_rot_transition_type), intent(inout), allocatable :: transitions(:)
+    type(asymtop_rot_transition_type), intent(in), allocatable :: transitions(:)
       !! Array of transitions that will be considered for (de-)excitation
-    type(r3carr_type), intent(in) :: smat_j(jmin:jmax)
-      !! Array of S-matrix sub-blocks  for each J and each energy
+    complex(dp), intent(in) :: smat_rot_flat(:,:)
+      !! Flattened array of S-matrix sub-block for this J
     real(dp), intent(in) :: smat_eval_energies(:)
       !! Array of evaluation energies of the S-matrix
-    integer, intent(in) :: jmin, jmax
-      !! Min/max values of J to consider for the S-matrix subblocks
-    type(asymtop_rot_channel_l_vector_type), intent(in) :: channels_j(jmin:jmax)
-      !! Contains the array of channels for each J
-    type(asymtop_rot_channel_l_type), intent(in) :: channels_tot(:)
-      !! Contains the array of channels ∀ J
+    integer, intent(in) :: J
+      !! The current J
+    type(asymtop_rot_channel_l_type), intent(in) :: channels_this_j(:)
+      !! The array of channels for THIS J
 
-#ifdef USE_FORBEAR
-    integer  :: iprogress, iprogress_last
-    real(dp) :: rprogress, rprogress_inc
-    type(progressbar_type) progressbar
-#endif
-
-    logical, allocatable :: keep_transition_mask(:)
-    integer  :: ithread
-    integer  :: j, ni, nf
-    integer  :: neleclo, nlo, kalo, kclo
-    integer  :: nelecup, nup, kaup, kcup
-    integer  :: ichan, fchan, itrans
-    integer  :: ie, ne_tot, nchans_j, nchans_tot, nopen, nclosed
-    real(dp) :: etot, elo, eup
-    real(dp) :: sum_ll
-    real(dp) :: prob_term
-    real(dp),    allocatable :: beta(:)
-    integer, allocatable :: indices_lo(:), indices_up(:)
-    complex(dp), allocatable :: s(:,:)
-    complex(dp), allocatable :: q(:)
-    complex(dp), allocatable :: sphys(:,:)
-    character(22) :: prefix_string
-    type(asymtop_rot_channel_type) :: lo, up
-    type(asymtop_rot_transition_type) :: transition
-    type(asymtop_rot_channel_l_type), allocatable :: channels_this_j(:)
-
-    nchans_tot = size(channels_tot, 1)
-
-    ! -- build combinations of states (without l), de-excitations will be handled by symmetry
-    do ichan = 1, nchans_tot
-      Ni = channels_tot(ichan) % N
-      if(Ni .lt.  G%NMIN) cycle
-      if(Ni .gt.  G%NMAX) cycle
-      lo = trim_channel_l(channels_tot(ichan))
-      do fchan = ichan+1, nchans_tot
-        Nf = channels_tot(fchan) % N
-        if(Nf .lt. G%NMIN) cycle
-        if(Nf .gt. G%NMAX) cycle
-        up = trim_channel_l(channels_tot(fchan))
-        ! -- skip elastic pairs
-        if(lo .eq. up) cycle
-        ! -- skip de-excitations for now. These shoud not show up here anyway; they'll be handled symmetrically
-        !    when excitations are considered
-        if(lo % E .ge. up % E) cycle
-        !  -- respect ortho/para symmetry if applicable (returns true if theres nothing to respect)
-        if(is_spin_forbidden(lo, up)) cycle
-        transition = asymtop_rot_transition_type(lo = lo,  up = up)
-        ! -- only append transitions uniquely
-        if(allocated(transitions) .eqv. .false.) then
-          call append(transitions, transition)
-          cycle
-        endif
-        if(transition .isin. transitions) cycle
-        call append(transitions, transition)
-      enddo
-    enddo
-
-    ! -- keep track of which transitions to keep based on the corresponding cross sections
-    allocate(keep_transition_mask(size(transitions, 1)), source = .true.)
-
-    call size_check(channels_J, Jmax - Jmin + 1, "CHANNELS_J")
-
-    ne_tot = size(total_energy_grid, 1)
-
-    ! -- allocate and initialize the probabilities arrays for each transition
-    allocate(prob(size(transitions, 1)))
-    do itrans = 1, size(transitions, 1)
-      allocate(prob(itrans) % vec(ne_tot))
-      prob(itrans) % vec(:) = 0
-    enddo
-
-    ! -- update user
-    write(*,*)
-    write(stdout, '(A)') "Performing closed-channel elimination on the S-matrix and accumulating cross section probabilities"
-
-    ! -- Σ_J
-    write(stdout, '(2X, 2(A5, " /"), A5)') "Jmin", "J", "Jmax"
-    do J=Jmin,Jmax
-
-      block
-        integer :: i,n
-        n=size(channels_J(J)%channels)
-        if (.not. all(channels_J(J)%channels(1:n-1)%E .le. channels_J(J)%channels(2:n)%E)) stop "problem"
-      end block
-
-      write(prefix_string, '(2X, 2(I5," /"),I5,X)') Jmin, J, Jmax
-#ifdef USE_FORBEAR
-      call progressbar % initialize( &
-          filled_char_string = "|" &
-        , empty_char_string = " " &
-        , bracket_left_string = "[" &
-        , prefix_string = prefix_string &
-        , suffix_string = "] " &
-        , add_progress_percent = .true. &
-      )
-      call progressbar % start
-      call progressbar % update(current = 0.0_dp)
-#else
-      write(stdout, '(A)') prefix_string
-#endif
-
-      ! -- get the channels, S-matrix, and f/g normalization coefficients for this J
-      channels_this_J = channels_J(J) % channels
-      nchans_J = size(channels_this_J, 1)
-
-#ifdef USE_FORBEAR
-      rprogress    = 0.0_dp
-      iprogress_last = 0
-      rprogress_inc = 1.0_dp / real(ne_tot, kind = dp)
-#endif
-
-      ! -- loop over the total enrgy grid
-      !$omp parallel default(none) &
-      !$omp& shared(ne_tot, channels_this_J, prob, transitions, J, nchans_J, G, total_energy_grid&
-#ifdef USE_FORBEAR
-      !$omp&   , progressbar, rprogress, rprogress_inc, iprogress, iprogress_last, smat_eval_energies, smat_j)&
-#else
-      !$omp&   )&
-#endif
-      !$omp& private(ie, Etot, Sphys, beta, nopen, nclosed, lo, up, indices_lo, indices_up, itrans&
-      !$omp&   , q,  neleclo, nelecup, Nlo, Nup, Kalo, Kaup, Kclo, Kcup, Elo, Eup, prob_term &
-      !$omp&   , sum_ll, ithread, S)
-#ifdef USE_OPENMP
-      ithread = omp_get_thread_num()
-#else
-      ithread = 0
-#endif
-
-      ! -- allocate S (for each thread) so that it can be used in the EDFT or EIFT case
-      call realloc(S, nchans_J, nchans_J)
-      call realloc(q, nchans_J)
-
-      ! -- in the case of EIFT we only have 1 S-matrix. 1 copy per thread is not so bad even
-      !    though it's the same matrix
-      if(G%EDFT .eqv. .false.) S = smat_J(J)%arr(:,:,1)
-
-      !$omp do schedule(static)
-      nrg: do ie=1,ne_tot
-
-        Etot = total_energy_grid(ie)
-        q    = fg_norm_coeff_q(channels_this_J, Etot)
-
-        ! -- linear interpolation of S-matrix. OMP will use local copies of the matrices
-        if(G%EDFT) call interp_matrix_at_energy(Etot, smat_eval_energies, smat_j(J)%arr, S, allow_out_of_bounds=.true.)
-
-        nclosed = count(channels_this_J % E .gt. Etot)
-        nopen   = count(channels_this_J % E .le. Etot)
-        if(nopen + nclosed .ne. nchans_J) call die("Number of opened and closed channels does not add to the number of channels !")
-
-        call realloc(beta, nclosed)
-        call realloc(Sphys, nopen, nopen)
-        beta = 0
-        Sphys = 0
-
-        if(G%TARGCHARGE .eq. 0) then
-          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          !! Maybe we can have a CCEP for neutrals ?
-          !! This γ parameter is given by something like
-          !!   f + cot(γ)g
-          !! where f and g are reference functions,
-          !! (so, spherical bessels I guess)
-          !! We will need κ, the R-matrix radius probably,
-          !! and possibly the channel l
-          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          Sphys = S(1:nopen,1:nopen)
-        elseif(G%TARGCHARGE .gt. 0) then
-          call CCEP(S, channels_this_J, q, Etot, Sphys, beta, nopen, nclosed)
-        else
-          call die("CCEP not implemented for negative ions")
-        endif
-
-#ifdef USE_FORBEAR
-        !$omp atomic
-        rprogress = rprogress + rprogress_inc
-
-        ! -- update progress
-        update_progress: if(ithread .eq. 0) then
-          iprogress = floor(rprogress * 100)
-          if(iprogress .eq. iprogress_last) exit update_progress
-          if(iprogress .eq. 100) exit update_progress
-          iprogress_last = iprogress
-          call progressbar % update(current = rprogress)
-        endif update_progress
-#endif
-
-        ! -- loop over the pairs of states for excitation, accumulate probabilities in each transition
-        !    for this J
-        do itrans = 1, size(transitions, 1)
-          lo = transitions(itrans) % lo
-          up = transitions(itrans) % up
-          ! -- make sure both channels in this transition are actually in this J block
-          if((lo .isin. channels_this_J(1:nopen)) .eqv. .false.) cycle
-          if((up .isin. channels_this_J(1:nopen)) .eqv. .false.) cycle
-          neleclo = lo % nelec
-          Nlo     = lo % N
-          Kalo    = lo % Ka
-          Kclo    = lo % Kc
-          nelecup = up % nelec
-          Nup     = up % N
-          Kaup    = up % Ka
-          Kcup    = up % Kc
-          Elo     = lo % E
-          Eup     = up % E
-          if(Elo .ge. Etot) cycle
-          if(Eup .gt. Etot) cycle
-          ! -- get the indices of the S-matrix channels (with l) that match
-          indices_lo = pack([(ichan,ichan=1,nopen)], lo .eq. channels_this_J(1:nopen))! .AND. channels_this_J % E .lt. Etot)
-          indices_up = pack([(ichan,ichan=1,nopen)], up .eq. channels_this_J(1:nopen))! .AND. channels_this_J % E .lt. Etot)
-          ! -- Σ_{ll'} |Sphys_{il,i'l'}|²
-          prob_term = (2*J+1) * sum(abs(Sphys(indices_lo, indices_up))**2)
-
-          prob(itrans) % vec(ie) = prob(itrans) % vec(ie) + prob_term
-
-          if(prob_term .ge. 0) cycle
-
-          ! -- error
-          write(stderr, '(A)') "❌"
-          write(stderr, '(2X, A, 3E15.6)') "Elo, Eup, Etot: ", Elo, Eup, Etot
-          write(stderr, '(2X, A, 4I4)') "Lower state nelec, N, Ka, Kc: ", neleclo, Nlo, Kalo, Kclo
-          write(stderr, '(2X, A, 4I4)') "Upper state nelec, N, Ka, Kc: ", nelecup, Nup, Kaup, Kcup
-          write(stderr, '(2X, A20, E15.6)') "(2J+1) Σ_{ll'} |S_{ll'}|²", sum_ll
-          call die("Negative probability from the S-matrix !")
-
-        enddo
-
-      enddo nrg
-      !$omp end do
-      !$omp end parallel
-
-#ifdef USE_FORBEAR
-      call progressbar % update(current = 1.0_dp)
-#endif
-
-    enddo ! J
-
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  contains
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-
-    ! ---------------------------------------------------------------------------------------------------------------------------- !
-    pure function fg_norm_coeff_q(channels, Etot) result(res)
-      !! Given an array of channels, determine the factor B for each channel at a particular total energy E
-      use rotex__constants, only: pi
-      implicit none (type, external)
-      type(asymtop_rot_channel_l_type), intent(in) :: channels(:)
-        !! Array of channels for which we want to get the factor B
-      real(dp), intent(in) :: Etot
-        !! The total energy
-      complex(dp), allocatable :: res(:)
-      integer :: i, l, n, iq
-      real(dp) :: EE, Echan
-      n = size(channels, 1)
-      allocate(res(n))
-      res = 1
-      do i = 1, n
-        iq = channels(i) % iq
-        l  = channels(i) % l
-        if(iq .eq. 4) cycle
-        if(iq .ne. 0) call die("iq cannot be different from 4 and 0")
-        Echan = channels(i) % E
-        EE = Etot - Echan
-        res(i) = sqrt(A_coulomb(2*EE, l))
-        ! -- extra factor for closed channels only
-        if(EE .gt. 0) cycle
-        res(i) = res(i) / sqrt(1._dp - exp(-2*pi/sqrt(2*EE)))
-      enddo
-    end function fg_norm_coeff_q
-
-    ! ---------------------------------------------------------------------------------------------------------------------------- !
-    pure elemental function A_coulomb(e, l) result(res)
-      !! Calcualte the factor A for the Coulomb functions (Seaton, 2002, Comp. Phys. Comm.)
-      implicit none (type, external)
-      real(dp), intent(in) :: e
-      integer,  intent(in) :: l
-      real(dp) :: res
-      integer :: n
-      res = product( [( 1+n*n*e, n=0, l )] )
-    end function A_coulomb
+    call get_smat_probs_chunk( &
+        total_energy_grid      &
+      , transition_probs       &
+      , transitions            &
+      , smat_rot_flat          &
+      , smat_eval_energies     &
+      , J                      &
+      , channels_this_J        &
+    )
 
   end subroutine get_smat_probs
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  module subroutine get_smat_probs_chunk( &
+        total_energy_grid           &
+      , transition_probs            &
+      , transitions                 &
+      , smat_rot_flat_chunk         &
+      , smat_eval_energies_chunk    &
+      , J                           &
+      , channels_this_J             &
+    )
+    !! Given a rotationally resolved S-matrix, calculate rotational (de-)excitation
+    !! cross section probabilities for the supplied transitions.
+
+    use rotex__types,      only: rvector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
+                               , asymtop_rot_channel_type, r3carr_type, n_states_type, asymtop_rot_transition_type
+    use rotex__channel_ops, only: operator(.ne.), operator(.eq.), operator(.isin.), trim_channel_l, get_channel_index
+    use rotex__arrays,     only: append, size_check, realloc, interp_array_at_energy, unpackmat
+    use rotex__symmetry,   only: is_spin_forbidden
+    use rotex__characters, only: i2c => int2char
+
+    implicit none (type, external)
+
+    real(dp),                          intent(in)             :: total_energy_grid(:)
+      !! The total energy grid on which the S-matrix will be evaluated
+    type(rvector_type),                intent(inout)          :: transition_probs(:)
+      !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
+    type(asymtop_rot_transition_type), intent(in)             :: transitions(:)
+      !! Array of transitions that will be considered for (de-)excitation
+    complex(dp),                       intent(in), contiguous :: smat_rot_flat_chunk(:,:)
+      !! Flattened array of S-matrix sub-block for this J
+    real(dp),                          intent(in)             :: smat_eval_energies_chunk(:)
+      !! Array of evaluation energies of the S-matrix
+    integer,                           intent(in)             :: J
+      !! The current J
+    type(asymtop_rot_channel_l_type),  intent(in)             :: channels_this_j(:)
+      !! The array of channels for THIS J
+
+    integer :: neleclo, nlo, kalo, kclo
+    integer :: nelecup, nup, kaup, kcup
+    integer :: nchans_J_flat, ne_chunk, ntrans
+    integer :: ichan, itrans, ntrans_keep
+    integer :: ie, ne_tot, nchans_j, nopen, nclosed, imap
+    integer :: max_nup, max_nlo
+
+    integer, allocatable :: idx_trans(:), idx_tmp(:)
+    integer, allocatable :: idx_lo(:,:), idx_up(:,:)
+    integer, allocatable :: n_idx_lo(:), n_idx_up(:)
+
+    real(dp) :: etot, elo, eup
+    real(dp) :: prob_term
+
+    real(dp),    allocatable :: beta(:)
+
+    complex(dp), allocatable :: s(:,:), s_flat(:)
+    complex(dp), allocatable :: q(:)
+    complex(dp), allocatable :: sphys(:,:)
+
+    type(asymtop_rot_channel_type) :: lo, up
+
+    ntrans        = size(transitions, 1)
+    ne_tot        = size(total_energy_grid, 1)
+    ne_chunk      = size(smat_rot_flat_chunk, 2)
+    nchans_J      = size(channels_this_J, 1)
+    nchans_J_flat = (nchans_J*(nchans_J+1))/2
+
+    call size_check(smat_rot_flat_chunk,      [nchans_J_flat, ne_chunk], "SMAT_ROT_FLAT_CHUNK")
+    call size_check(transition_probs,         [ntrans],                  "TRANSITION_PROBS")
+    call size_check(smat_eval_energies_chunk, [ne_chunk],                "SMAT_EVAL_ENERGIES_CHUNK")
+
+    ! -- get the transition indices that matter
+    idx_trans = get_transition_map_this_J(transitions, channels_this_J)
+    ntrans_keep = size(idx_trans, 1)
+    if(ntrans_keep .eq. 0) then
+      write(stderr, '("WARN: No transitions detected for J = ", I0, ". Exiting")') J
+      return
+    endif
+
+    ! -- get the mapping of transitions that matter -> S^J
+    max_nlo = 0
+    max_nup = 0
+    allocate(n_idx_lo(ntrans_keep))
+    allocate(n_idx_up(ntrans_keep))
+    do imap = 1, ntrans_keep
+      itrans = idx_trans(imap)
+      lo = transitions(itrans) % lo
+      up = transitions(itrans) % up
+
+      idx_tmp = pack([(ichan, ichan=1, nchans_J)], lo .eq. channels_this_J)
+      n_idx_lo(imap) = size(idx_tmp, 1)
+      max_nlo = max(max_nlo, n_idx_lo(imap))
+
+      idx_tmp = pack([(ichan, ichan=1, nchans_J)], up .eq. channels_this_J)
+      n_idx_up(imap) = size(idx_tmp, 1)
+      max_nup = max(max_nup, n_idx_up(imap))
+    enddo
+
+    if(max_nlo .eq. 0 .OR. max_nup .eq. 0) then
+      write(stderr, '("MAX_NLO: " ,I0)') max_nlo
+      write(stderr, '("MAX_NUP: " ,I0)') max_nup
+      call die("Neither max_nlo nor max_nup is allowed to be 0 at this point")
+    endif
+
+    allocate(idx_lo(max_nlo, ntrans_keep), source=0)
+    allocate(idx_up(max_nup, ntrans_keep), source=0)
+
+    do imap = 1, ntrans_keep
+      itrans = idx_trans(imap)
+      lo = transitions(itrans) % lo
+      up = transitions(itrans) % up
+
+      idx_tmp = pack([(ichan, ichan=1, nchans_J)], lo .eq. channels_this_J)
+      idx_lo(1:n_idx_lo(imap), imap) = idx_tmp
+
+      idx_tmp = pack([(ichan, ichan=1, nchans_J)], up .eq. channels_this_J)
+      idx_up(1:n_idx_up(imap), imap) = idx_tmp
+    enddo
+    deallocate(idx_tmp)
+
+    ! -- loop over the total enrgy grid
+    !$omp parallel default(none) &
+    !$omp& shared(ne_tot, channels_this_J, transition_probs, transitions, J, nchans_J, G, total_energy_grid &
+    !$omp&   , smat_eval_energies_chunk, smat_rot_flat_chunk, idx_lo, idx_up, n_idx_up, n_idx_lo, idx_trans) &
+    !$omp& private(ie, Etot, Sphys, beta, nopen, nclosed, lo, up, itrans&
+    !$omp&   , q,  neleclo, nelecup, Nlo, Nup, Kalo, Kaup, Kclo, Kcup, Elo, Eup, prob_term &
+    !$omp&   , S, S_flat)
+
+    ! -- allocate S (for each thread) so that it can be used in the EDFT or EIFT case
+    call realloc(S, nchans_J, nchans_J)
+    call realloc(q, nchans_J)
+
+    ! -- make nthreads copies of the energy independent S-matrix, or allocate nthreads
+    !    vectors for each energy's flattened S-matrix
+    if(G%EDFT .eqv. .false.) then
+      call unpackmat(smat_rot_flat_chunk(:,1), S)
+    else
+      call realloc(s_flat, (nchans_J*(nchans_J+1))/2)
+    endif
+
+    !$omp do schedule(static)
+    nrg: do ie=1,ne_tot
+
+      Etot = total_energy_grid(ie)
+      q    = fg_norm_coeff_q(channels_this_J, Etot)
+
+      ! -- linear interpolation of S-matrix. OpenMP will use local copies of the matrices
+      if(G%EDFT) then
+        call interp_array_at_energy(Etot, smat_eval_energies_chunk, smat_rot_flat_chunk, S_flat, G%ALLOW_EDFT_EGRID_OUT_OF_BOUNDS)
+        call unpackmat(s_flat(:), s)
+      endif
+
+      nclosed = count(channels_this_J % E .gt. Etot)
+      nopen   = count(channels_this_J % E .le. Etot)
+
+      if(nopen + nclosed .ne. nchans_J) call die("Number of opened and closed channels does not add to the number of channels !")
+
+      call realloc(beta, nclosed)
+      call realloc(Sphys, nopen, nopen)
+      beta = 0
+      Sphys = 0
+
+      if(G%TARGCHARGE .eq. 0) then
+        !TODO: CCEP from neutral BC ?
+        Sphys = S(1:nopen,1:nopen)
+      elseif(G%TARGCHARGE .gt. 0) then
+        call CCEP(S, channels_this_J, q, Etot, Sphys, beta, nopen, nclosed)
+      else
+        call die("CCEP not implemented for negative ions")
+      endif
+
+      ! -- loop over the pairs of states for excitation, accumulate probabilities in each transition
+      !    for this J
+      call accumulate_probs( &
+          transitions        &
+        , idx_trans          &
+        , idx_lo             &
+        , n_idx_lo           &
+        , idx_up             &
+        , n_idx_up           &
+        , ie                 &
+        , Etot               &
+        , J                  &
+        , Sphys              &
+        , transition_probs   &
+      )
+
+    enddo nrg
+    !$omp end do
+    !$omp end parallel
+
+  end subroutine get_smat_probs_chunk
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine CCEP(S, channels, q, Etot, Sphys, beta, nopen, nclosed)
@@ -459,6 +372,168 @@ contains
     Sphys = right_divide(A, B)
 
   end subroutine CCEP
+
+  ! ---------------------------------------------------------------------------------------------------------------------------- !
+  pure function fg_norm_coeff_q(channels, Etot) result(res)
+    !! Given an array of channels, determine the factor B for each channel at a particular total energy E
+    use rotex__types,     only: asymtop_rot_channel_l_type
+    use rotex__constants, only: pi
+    implicit none (type, external)
+    type(asymtop_rot_channel_l_type), intent(in) :: channels(:)
+      !! Array of channels for which we want to get the factor B
+    real(dp), intent(in) :: Etot
+      !! The total energy
+    complex(dp), allocatable :: res(:)
+    integer :: i, l, n, iq
+    real(dp) :: EE, Echan
+    n = size(channels, 1)
+    allocate(res(n))
+    res = 1
+    do i = 1, n
+      iq = channels(i) % iq
+      l  = channels(i) % l
+      if(iq .eq. 4) cycle
+      if(iq .ne. 0) call die("iq cannot be different from 4 and 0")
+      Echan = channels(i) % E
+      EE = Etot - Echan
+      res(i) = sqrt(A_coulomb(2*EE, l))
+      ! -- extra factor for closed channels only
+      if(EE .gt. 0) cycle
+      res(i) = res(i) / sqrt(1._dp - exp(-2*pi/sqrt(2*EE)))
+    enddo
+  end function fg_norm_coeff_q
+
+  ! ---------------------------------------------------------------------------------------------------------------------------- !
+  pure elemental function A_coulomb(e, l) result(res)
+    !! Calcualte the factor A for the Coulomb functions (Seaton, 2002, Comp. Phys. Comm.)
+    implicit none (type, external)
+    real(dp), intent(in) :: e
+    integer,  intent(in) :: l
+    real(dp) :: res
+    integer :: n
+    res = product( [( 1+n*n*e, n=0, l )] )
+  end function A_coulomb
+
+  ! ---------------------------------------------------------------------------------------------------------------------------- !
+  pure subroutine accumulate_probs( &
+        transitions                 &
+      , idx_trans                   &
+      , idx_lo                      &
+      , n_idx_lo                    &
+      , idx_up                      &
+      , n_idx_up                    &
+      , ie                          &
+      , Etot                        &
+      , J                           &
+      , Sphys                       &
+      , transition_probs            &
+    )
+    !! Accumulate transition probabilities for the current energy and J
+
+    use rotex__types, only: asymtop_rot_transition_type, rvector_type, asymtop_rot_channel_type
+
+    implicit none (type, external)
+
+    type(asymtop_rot_transition_type), intent(in)             :: transitions(:)
+      !! Array of all transitions for the current spin
+    integer,                           intent(in)             :: idx_trans(:)
+      !! Array of indices that slice the transitions for the current J
+    integer,                           intent(in)             :: idx_lo(:,:)
+      !! Array map from transitions % lo -> S^J(ilo,:)
+    integer,                           intent(in)             :: n_idx_lo(:)
+      !! Number of indices for each transition
+    integer,                           intent(in)             :: idx_up(:,:)
+      !! Array map from transitions % up -> S^J(:,iup)
+    integer,                           intent(in)             :: n_idx_up(:)
+      !! Number of indices for each transition
+    integer,                           intent(in)             :: ie
+      !! The current energy index
+    real(dp),                          intent(in)             :: Etot
+      !! The current total energy
+    integer,                           intent(in)             :: J
+      !! The current J
+    complex(dp),                       intent(in), contiguous :: Sphys(:,:)
+      !! The current physical S-matrix
+    type(rvector_type),                intent(inout)          :: transition_probs(:)
+      !! Array of probabilities for each transition
+
+    integer :: itrans, imap
+    ! integer :: neleclo, Nlo, Kalo, Kclo
+    ! integer :: nelecup, Nup, Kaup, Kcup
+    real(dp) :: Elo, Eup
+    real(dp) :: prob_term
+    type(asymtop_rot_channel_type) :: lo, up
+
+    do imap = 1, size(idx_trans, 1)
+      itrans = idx_trans(imap)
+      lo = transitions(itrans) % lo
+      up = transitions(itrans) % up
+      Elo = lo % E
+      Eup = up % E
+
+      ! -- skip energeticaly unavailable transitions
+      if(Elo .ge. Etot) cycle
+      if(Eup .gt. Etot) cycle
+
+      ! -- Σ_{ll'} |Sphys_{il,i'l'}|²
+      prob_term = (2*J+1) * sum(abs(            &
+        Sphys( idx_lo(1:n_idx_lo(imap), imap)   &
+             , idx_up(1:n_idx_up(imap), imap) ) &
+      )**2)
+
+      ! -- accumulate probabilities for this J
+      transition_probs(itrans) % vec(ie) = transition_probs(itrans) % vec(ie) + prob_term
+
+      if(prob_term .ge. 0) cycle
+
+      ! -- error
+      ! neleclo = lo % nelec
+      ! Nlo     = lo % N
+      ! Kalo    = lo % Ka
+      ! Kclo    = lo % Kc
+      ! nelecup = up % nelec
+      ! Nup     = up % N
+      ! Kaup    = up % Ka
+      ! Kcup    = up % Kc
+      ! write(stderr, '(A)') "❌"
+      ! write(stderr, '(2X, A, 3E15.6)') "Elo, Eup, Etot: ", Elo, Eup, Etot
+      ! write(stderr, '(2X, A, 4I4)') "Lower state nelec, N, Ka, Kc: ", neleclo, Nlo, Kalo, Kclo
+      ! write(stderr, '(2X, A, 4I4)') "Upper state nelec, N, Ka, Kc: ", nelecup, Nup, Kaup, Kcup
+      call die("Negative probability from the S-matrix !")
+
+    enddo
+
+  end subroutine accumulate_probs
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function get_transition_map_this_J(transitions, channels) result(idx)
+    !! Determine which transitions are to be considered for the current J,
+    !! given the current channels for this J
+    use rotex__types,       only: asymtop_rot_transition_type, asymtop_rot_channel_l_type &
+                                , asymtop_rot_channel_type
+    use rotex__channel_ops, only: operator(.eq.), operator(.isin.)
+    implicit none (type, external)
+    type(asymtop_rot_transition_type), intent(in) :: transitions(:)
+    type(asymtop_rot_channel_l_type),  intent(in) :: channels(:)
+    logical, allocatable :: mask(:)
+    integer, allocatable :: idx(:)
+    integer :: itrans, ntrans
+    type(asymtop_rot_channel_type) :: lo, up
+    ntrans = size(transitions, 1)
+    allocate(mask(ntrans), source=.false.)
+    do itrans=1, ntrans
+      lo = transitions(itrans) % lo
+      up = transitions(itrans) % up
+      ! -- skip elastic scattering
+      if(lo .eq. up) cycle
+      ! -- make sure both channels in this transition are actually in this J block
+      if((lo .isin. channels) .eqv. .false.) cycle
+      if((up .isin. channels) .eqv. .false.) cycle
+      mask(itrans) = .true.
+    enddo
+    idx = pack([(itrans, itrans=1, ntrans)], mask)
+  end function get_transition_map_this_J
+
 
 ! ================================================================================================================================ !
 end module rotex__MQDTXS

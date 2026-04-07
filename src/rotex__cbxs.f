@@ -551,7 +551,7 @@ contains
     use rotex__system,    only: stderr
     ! use WignerSymbol, only: wigner3j
     use rotex__wigner,    only: wigner3j
-    use rotex__constants, only: CB_MINT_IMAG_THRESH
+    use rotex__globals, only: CB_MINT_IMAG_THRESH
     use rotex__functions, only: istriangle
     ! use rotex__wigner, only: wigner3j => threej
 

@@ -1,12 +1,13 @@
 ! ================================================================================================================================ !
 module rotex__types
   !! Contains type definitions and procedures for those types used throughout the program
-  use rotex__kinds,     only: dp, xdp, qp
-  use rotex__constants, only: IQ_DEFAULT
+  use rotex__kinds,   only: dp, xdp, qp
 
   implicit none (type, external)
 
   private
+
+  integer, parameter, public :: IQ_DEFAULT = 4 ! default Coulomb f,g normalization
 
   ! -- types
   public :: eigenH_type

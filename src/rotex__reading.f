@@ -1,8 +1,7 @@
 ! ================================================================================================================================ !
 module rotex__reading
   !! Contains procedures used in reading data (K-matrices and namelist data)
-  use rotex__globals,   only: G
-  use rotex__constants, only: UKRMOLX, MQDTR2K
+  use rotex__globals,   only: G, UKRMOLX, MQDTR2K
   use rotex__system, only: stdout, stderr, die
 
   implicit none (type, external)
@@ -10,7 +9,6 @@ module rotex__reading
   private
 
   public :: read_kmats
-  public :: read_namelists
 
 ! ================================================================================================================================ !
 contains
@@ -33,9 +31,10 @@ contains
     use rotex__channel_ops, only: permsort_channels
     use rotex__utils,      only: read_blank
     use rotex__arrays,     only: append, is_symmetric, realloc
-    use rotex__system,     only: die, stdout, stderr
+    use rotex__system,     only: die, stdout, stderr, IOSTAT_END, IOSTAT_OK
     use rotex__symmetry,   only: group_size, irrep_name
-    use rotex__constants,  only: au2ev, IOSTAT_END, IOSTAT_OK, spinmult_names, DEFAULT_INT
+    use rotex__constants,  only: au2ev
+    use rotex__globals,    only: spinmult_names, DEFAULT_INT
     use rotex__characters, only: int2char
 
     implicit none (type, external)
@@ -120,7 +119,7 @@ contains
         call get_kmat_and_channels_ukrmolx( &
             channels_filename               &
           , kmat_filename                   &
-          , kmat_irrep(irrep)%r3arr     &
+          , kmat_irrep(irrep)%r3arr         &
           , kmat_eval_energies_local        &
           , channel_E_convert               &
           , kmat_e_convert                  &
@@ -297,12 +296,12 @@ contains
       , skip_this_irrep)
     !! Return the K-matrix that is closest to the desired evaluation energy
     !! given by G%KMAT_ENERGY_CLOSEST
-    use rotex__constants, only: IOSTAT_END, IOSTAT_OK, au2ev
+    use rotex__constants, only: au2ev
     use rotex__kinds,     only: dp
     use rotex__arrays,    only: realloc, size_check, append, unpackmat
     use rotex__types,     only: elec_channel_type
     use rotex__utils,     only: read_blank
-    use rotex__system,    only: stdout, stderr, die
+    use rotex__system,    only: stdout, stderr, die, IOSTAT_OK, IOSTAT_END
 
     implicit none (type, external)
 
@@ -411,7 +410,7 @@ contains
       ! -- minimum and maximum evaluation energies to consider for EDFT
       iemin = findloc(kmat_energies .ge. G%KMAT_EI, .true., 1)
       iemax = merge(ne, findloc(kmat_energies .le. G%KMAT_EF, .true., 1), G%KMAT_EF .eq. 0._dp)
-      write(stdout, '(4x, "user requested k-matrix energies between ", e20.10, " and ", e20.10, " ev")') &
+      write(stdout, '(4x, "user requested k-matrix energies between ", es10.3, " and ", es10.3, " ev")') &
         kmat_energies(iemin)*au2ev, kmat_energies(iemax)*au2ev
     else
       ! -- find the lowest energy if energy independent
@@ -576,12 +575,12 @@ contains
     !! Return the K-matrix that is closest to the desired evaluation energy
     !! given by G%KMAT_ENERGY_CLOSEST where the K-matrix channels format is that of MQDTR2K
 
-    use rotex__constants, only: IOSTAT_END, IOSTAT_OK, au2ev
+    use rotex__constants, only: au2ev
     use rotex__kinds,     only: dp
     use rotex__arrays,    only: realloc, size_check, unpackmat
     use rotex__types,     only: elec_channel_type
     use rotex__utils,     only: read_blank
-    use rotex__system,    only: stdout, die
+    use rotex__system,    only: stdout, die, IOSTAT_END, IOSTAT_OK
 
     implicit none (type, external)
 
@@ -668,7 +667,7 @@ contains
     if(G%EDFT) then
       iemin = findloc(kmat_energies .ge. G%KMAT_EI, .true., 1)
       iemax = merge(ne, findloc(kmat_energies .le. G%KMAT_EF, .true., 1), G%KMAT_EF .eq. 0._dp)
-      write(stdout, '(4x, "user requested k-matrix energies between ", e20.10, "and ", e20.10, " ev")') &
+      write(stdout, '(4x, "user requested k-matrix energies between ", es10.3, " and ", es10.3, " ev")') &
         kmat_energies(iemin)*au2ev, kmat_energies(iemax)*au2ev
       ne_skip = iemin - 1
     else
@@ -763,403 +762,6 @@ contains
     enddo
     call die("Failed to find the given channel !")
   end function find_global_channel_index
-
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine read_namelists
-    !! Reads user parameters and puts them into the config derived type
-    use rotex__kinds,      only: dp
-    use rotex__types,      only: cd4_type, cd6_type
-    use rotex__globals,    only: G
-    use rotex__arrays,     only: append, remove_value
-    use rotex__system,     only: stdin, stdout, ds => directory_separator, die
-    use rotex__constants,  only: au2invcm, au2ev, macheps => macheps_dp, au2cm, au2deb, DEFAULT_CHAR1&
-                               , UKRMOLX, MQDTR2K
-    use rotex__characters, only: add_trailing, to_lower, lower
-
-    implicit none (type, external)
-
-    integer, parameter :: DEFAULT_INT = huge(1)
-
-    ! -- namelist: control
-    integer :: Nmin
-    integer :: Nmax
-    logical :: use_kmat
-    logical :: use_CB
-    logical :: symtop_reduce_projection = .true.
-    logical :: print_elec_channels = .true.
-    integer :: spin_isomer_kind = 0
-    integer :: forbidden_states_kind = 0
-    character(:), allocatable :: output_directory
-    character(1) :: rotor_kind = DEFAULT_CHAR1
-    character(1) :: rotor_zaxis = DEFAULT_CHAR1, rotor_c2axis = DEFAULT_CHAR1
-    real(dp) :: abc(3) = 0.0_dp
-    real(dp) :: B_rot = 0.0_dp, H_rot = 0.0_dp, D_rot = 0.0_dp
-    integer :: targcharge = DEFAULT_INT
-    logical :: add_cd4 = .false.
-    logical :: add_cd6 = .false.
-    ! -- cd4
-    real(dp) :: dn     = 0.0_dp
-    real(dp) :: dnk    = 0.0_dp
-    real(dp) :: dk     = 0.0_dp
-    real(dp) :: deltan = 0.0_dp
-    real(dp) :: deltak = 0.0_dp
-    ! -- cd6
-    real(dp) :: hn     = 0.0_dp
-    real(dp) :: hnk    = 0.0_dp
-    real(dp) :: hkn    = 0.0_dp
-    real(dp) :: hk     = 0.0_dp
-    real(dp) :: etan   = 0.0_dp
-    real(dp) :: etank  = 0.0_dp
-    real(dp) :: etak   = 0.0_dp
-
-    ! -- namelist: kmat
-    logical :: real_spherical_harmonics = .true.
-    logical :: edft = .false.
-    integer :: lmax_kmat = DEFAULT_INT
-    integer :: num_egrid_segs
-    integer, allocatable :: num_egrid(:)
-    integer, allocatable :: spinmults(:)
-    real(dp), allocatable :: egrid_segs(:)
-    real(dp) :: kmat_Ei = 0._dp, kmat_Ef = 0._dp
-    real(dp) :: post_rft_sincos2s_imag_tol = 1e-8_dp
-    character(1) :: channel_energy_units_override = DEFAULT_CHAR1
-    character(1) :: kmat_energy_units_override    = DEFAULT_CHAR1
-    character(3) :: egrid_spacing
-    character(7) :: kmat_output_type = "======="
-    character(:), allocatable :: point_group
-    character(:), allocatable :: kmat_dir
-    character(:), allocatable :: channels_dir
-
-    ! -- namelist: coulomb
-    logical :: use_CDMS_einstA = .false.
-    logical :: only_einsta = .false.
-    logical :: do_xtrap = .false.
-    logical :: do_dipole = .true.
-    logical :: do_quadrupole = .false.
-    logical :: analytic_total_cb(2)
-    integer :: nE = DEFAULT_INT
-    integer :: nE_xtrap = DEFAULT_INT
-    integer :: lmax_partial = DEFAULT_INT
-    integer :: lmax_total = DEFAULT_INT
-    real(dp) :: eta_thresh = 0.0_dp
-    real(dp) :: Ef = 0.0_dp
-    real(dp) :: Ei_xtrap = 0.0_dp
-    real(dp) :: cartesian_dipole_moments(3)
-    ! real(dp) :: cartesian_quadrupole_moments(6)
-    real(dp) :: xs_zero_threshold = 0.0_dp   ! include all cross sections by default
-    real(dp) :: kmat_energy_closest = 0.0_dp ! just take the first one
-    character(1) :: egrid_xtrap_pre, egrid_xtrap_post
-    character(:), allocatable :: CDMS_file
-
-    namelist / control_namelist /                            &
-      !! Contains parameters and values that are necessary to run the program
-                         output_directory                    &
-                       , spin_isomer_kind                    &
-                       , forbidden_states_kind               &
-                       , symtop_reduce_projection            &
-                       , nmin                                &
-                       , nmax                                &
-                       , use_kmat                            &
-                       , use_cb                              &
-                       , rotor_zaxis                         &
-                       , rotor_c2axis                        &
-                       , rotor_kind                          &
-                       , targcharge                          &
-                       , abc                                 &
-                       , B_rot                               &
-                       , D_rot                               &
-                       , H_rot                               &
-                       , add_cd4                             &
-                       , add_cd6                             &
-                       , dn, dnk, dk, deltan, deltak         &
-                       , hn, hnk, hkn, hk, etan, etank, etak &
-                       , print_elec_channels                 &
-                       , xs_zero_threshold
-
-    namelist / kmat_namelist /                      &
-      !! Parameters regarding the K-matrces used for (de-excitation)
-                      kmat_dir                      &
-                    , channels_dir                  &
-                    , lmax_kmat                     &
-                    , point_group                   &
-                    , num_egrid_segs                &
-                    , num_egrid                     &
-                    , egrid_xtrap_pre               &
-                    , egrid_xtrap_post              &
-                    , egrid_segs                    &
-                    , edft                          &
-                    , kmat_ei                       &
-                    , kmat_ef                       &
-                    , egrid_spacing                 &
-                    , spinmults                     &
-                    , kmat_output_type              &
-                    , kmat_energy_closest           &
-                    , real_spherical_harmonics      &
-                    , channel_energy_units_override &
-                    , post_rft_sincos2s_imag_tol    &
-                    , kmat_energy_units_override
-
-    namelist / coulomb_namelist /                 &
-      !! Parameters regarding the Coulomb-Born approximation
-      !! used for (de-)excitation
-                         use_CDMS_einstA          &
-                       , only_einsta              &
-                       , cdms_file                &
-                       , eta_thresh               &
-                       , ef                       &
-                       , ne                       &
-                       , ne_xtrap                 &
-                       , do_xtrap                 &
-                       , ei_xtrap                 &
-                       , cartesian_dipole_moments &
-                       ! , cartesian_quadrupole_moments &
-                       , do_dipole                &
-                       , do_quadrupole            &
-                       , analytic_total_cb        &
-                       , lmax_partial             &
-                       , lmax_total
-
-    !!!!!!!!!!!!!!!!!!!!!! CONTROL_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    allocate(character(1000) :: output_directory)
-    ! -- read
-    read(stdin, control_namelist)
-    ! -- check defaults
-    if(Nmin          .eq. DEFAULT_INT)   call die("Must specify NMIN in CONTROL_NAMELIST")
-    if(Nmax          .eq. DEFAULT_INT)   call die("Must specify NMAX in CONTROL_NAMELIST")
-    if(rotor_kind    .eq. DEFAULT_CHAR1) call die("Must specify ROTOR_KIND in CONTROL_NAMELIST")
-    if(targcharge .eq. DEFAULT_INT)   call die("Must specify TARGCHARGE in CONTROL_NAMELIST")
-    if(rotor_zaxis         .eq. DEFAULT_CHAR1) call die("Must specify ZAXIS in CONTROL_NAMELIST")
-    if(rotor_c2axis        .eq. DEFAULT_CHAR1) call die("Must specify C2AXIS in CONTROL_NAMELIST")
-    if(lower(rotor_kind) .eq. "l") then
-      if(B_rot .le. 0.0_dp) call die("Must have a positive rotational constant B_rot for a linear molecule")
-    else
-      if(any(ABC .eq. 0.0_dp)) call die("Must specify nonzero rotational constants ABC in CONTROL_NAMELIST")
-    endif
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    !!!!!!!!!!!!!!!!!!!!!! KMAT_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if(use_kmat .eqv. .true.) then
-      ! -- prepare for reading
-      rewind(stdin)
-      allocate(character(1000) :: kmat_dir)
-      allocate(character(1000) :: channels_dir)
-      allocate(num_egrid(100))
-      allocate(egrid_segs(101))
-      allocate(character(10)   :: point_group)
-      allocate(spinmults(10))
-      spinmults = DEFAULT_INT
-      kmat_dir(1:1)     = DEFAULT_CHAR1
-      channels_dir(1:1) = DEFAULT_CHAR1
-      kmat_output_type(1:1) = DEFAULT_CHAR1
-      ! -- read
-      read(stdin, kmat_namelist)
-      ! -- trim arrays
-      num_egrid  = num_egrid(1:num_egrid_segs)
-      egrid_segs = egrid_segs(1:num_egrid_segs+1) / au2ev
-      ! -- normalize characters
-      call to_lower(egrid_spacing)
-      call to_lower(kmat_output_type)
-      select case(kmat_output_type)
-      case(UKRMOLX, MQDTR2K)
-        continue
-      case default
-        call die("KMAT_OUTPUT_TYPE in KMAT_NAMELIST must be one of " // UKRMOLX // " or " // MQDTR2K)
-      end select
-      select case(egrid_spacing)
-        case("lin", "log") ; continue
-        case default ; call die("EGRID_SPACING (" // egrid_spacing // ") must be LIN or LOG in KMAT_NAMELIST")
-      end select
-      ! -- check defaults
-      if(kmat_dir(1:1) .eq. DEFAULT_CHAR1) call die("Must specify KMAT_DIR in KMAT_NAMELIST")
-      if(lmax_kmat .eq. DEFAULT_INT .OR. lmax_kmat .lt. 0) &
-        call die("LMAX_KMAT in KMAT_NAMELIST must be defined and be non-negative")
-      call remove_value(spinmults, DEFAULT_INT)
-      if(any(spinmults .lt. 1)) call die("SPINMULTS in KMAT_NAMELIST cannot have values that are < 1")
-      if(     channels_dir(1:1) .eq. DEFAULT_CHAR1 &
-        .AND. kmat_output_type  .eq. UKRMOLX) call die("Must specify CHANNELS_DIR in KMAT_NAMELIST with&
-          & KMAT_OUPUT_TYPE = " // UKRMOLX)
-    endif
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    !!!!!!!!!!!!!!!!!!!!!! COULOMB_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    if(use_CB .eqv. .true.) then
-      allocate(character(1000) :: cdms_file)
-      ! -- prepare for reading
-      cdms_file(1:1) = DEFAULT_CHAR1
-      rewind(stdin)
-      ! -- read
-      read(stdin, coulomb_namelist)
-      ! -- check values
-      if(use_CDMS_einstA) then
-        if(CDMS_file(1:1) .eq. DEFAULT_CHAR1) call die("Must define CDMS_FILE in COULOMB_NAMELIST&
-          & when USE_CDMS_EINSTA is .TRUE.")
-      endif
-      if(do_dipole .eqv. .false.) call die("DO_DIPOLE in COULOMB_NAMELIST should not be set to .FALSE.; nothing would be done")
-      if(do_quadrupole) call die("DO_QUADRUPOLE in COULOMB_NAMELIST should not be set to true; it is not implemented")
-      if(eta_thresh .eq. 0.0_dp) call die("eta_thresh in COULOMB_NAMELIST must be defined and be positive")
-      if(Ef .eq. 0.0_dp) call die("EF in COULOMB_NAMELIST must be defined and be positive")
-      if(nE .eq. DEFAULT_INT .OR. ne .le. 0) call die("NE in COULOMB_NAMELIST must be defined and positive")
-      if(lmax_partial .eq. DEFAULT_INT) call die("LMAX_PARTIAL in COULOMB_NAMELIST must be defined and nonnegative")
-      if(lmax_total .eq. DEFAULT_INT .AND. (analytic_total_cb(1) .eqv. .false.)) &
-        call die("LMAX_TOTAL in COULOMB_NAMELIST must be defined and nonnegative if ANALYTIC_TOTAL_CB(1) is .false.")
-      if(do_xtrap) then
-        if(ne_xtrap .eq. DEFAULT_INT .OR. ne_xtrap .le. 0) then
-          call die("NE_XTRAP in COULOMB_NAMELIST must be defined and positive if DO_XTRAP is .TRUE.")
-        endif
-        if(Ei_xtrap .eq. 0.0_dp) then
-          call die("EI_XTRAP in COULOMB_NAMELIST must be defined, and nonzero if DO_XTRAP is .TRUE.")
-        endif
-      endif
-    endif
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    call to_lower(rotor_zaxis)
-    call to_lower(rotor_c2axis)
-
-    ! -- convert to atomic units
-    Ef                = Ef                / au2ev
-    Ei_xtrap          = Ei_xtrap          / au2ev
-    ABC(:)            = ABC(:)            / au2invcm
-    B_rot             = B_rot             / au2invcm
-    D_rot             = D_rot             / au2invcm
-    H_rot             = H_rot             / au2invcm
-    kmat_ei           = kmat_ei           / au2ev
-    kmat_ef           = kmat_ef           / au2ev
-    xs_zero_threshold = xs_zero_threshold / (au2cm*au2cm)
-
-    ! -- convert to lower case
-    call to_lower(rotor_kind)
-    if(use_kmat .eqv. .true.) call to_lower(point_group)
-    call to_lower(kmat_energy_units_override)
-    call to_lower(channel_energy_units_override)
-
-    ! -- remove spaces
-    if(allocated(point_group))      point_group      = trim(point_group)
-    if(allocated(kmat_dir))         kmat_dir         = trim(kmat_dir)
-    if(allocated(channels_dir))     channels_dir     = trim(channels_dir)
-    if(allocated(output_directory)) output_directory = trim(output_directory)
-
-    ! -- add trailing directory separator to directories if needed, make directories as needed
-    call add_trailing(output_directory, ds)
-    call add_trailing(kmat_dir,         ds)
-    call add_trailing(channels_dir,     ds)
-
-    write(stdout, '(A)') "--------------------------------------------------------------------------------------------------------"
-    write(stdout, *)
-    write(stdout, control_namelist)
-    write(stdout, *)
-    if(use_kmat .eqv. .true.) then
-      write(stdout, kmat_namelist)
-      write(stdout, *)
-    endif
-    if(use_CB .eqv. .true.) then
-      write(stdout, coulomb_namelist)
-      write(stdout, *)
-    endif
-    write(stdout, '(A)') "--------------------------------------------------------------------------------------------------------"
-    write(stdout, *)
-
-    ! -- checks
-    if(Nmin .gt. Nmax) call die("Nmin > Nmax not allowed")
-    if(targcharge .eq. DEFAULT_INT) call die("Must set the charge of the target in namelist CONTROL !")
-
-    ! -- namelist: control
-    G%NMIN                  = nmin
-    G%NMAX                  = nmax
-    G%USE_KMAT              = use_kmat
-    G%USE_CB                = use_cb
-    G%SPIN_ISOMER_KIND      = spin_isomer_kind
-    G%FORBIDDEN_STATES_KIND = forbidden_states_kind
-    G%SYMTOP_REDUCE_PROJECTION = symtop_reduce_projection
-    G%OUTPUT_DIRECTORY      = output_directory
-    G%ROTOR_KIND            = rotor_kind
-    G%ROTOR_ZAXIS           = rotor_zaxis
-    G%ROTOR_C2AXIS          = rotor_c2axis
-    G%ABC                   = abc(:)
-    G%B_ROT                 = b_rot
-    G%D_ROT                 = d_rot
-    G%H_ROT                 = h_rot
-    G%TARGCHARGE            = targcharge
-    G%ADD_CD4               = add_cd4
-    G%ADD_CD6               = add_cd6
-    G%XS_ZERO_THRESHOLD     = xs_zero_threshold
-    G%PRINT_ELEC_CHANNELS   = print_elec_channels
-    if(add_cd4 .eqv. .true.) then
-      dn      = dn     / au2invcm
-      dnk     = dnk    / au2invcm
-      dk      = dk     / au2invcm
-      deltan  = deltan / au2invcm
-      deltak  = deltak / au2invcm
-      G%CD4 = cd4_type(dn = dn, dnk = dnk, dk = dk, deltan = deltan, deltak = deltak)
-    endif
-    if(add_cd6 .eqv. .true.) then
-      if(add_cd4 .eqv. .false.) call die("Don't add the sextic correction while omitting the quartic correction !")
-      hn    = hn    / au2invcm
-      hnk   = hnk   / au2invcm
-      hkn   = hkn   / au2invcm
-      hk    = hk    / au2invcm
-      etan  = etan  / au2invcm
-      etank = etank / au2invcm
-      etak  = etak  / au2invcm
-      G%CD6 = cd6_type(hn = hn, hnk = hnk, hkn = hkn, hk = hk, etan = etan, etank = etank, etak = etak)
-    endif
-
-    ! -- namelist: kmat
-    if(use_kmat .eqv. .true.) then
-      if(kmat_output_type .eq. "=======") then
-        call die("Must speficy KMAT_OUTPUT_TYPE. It should be one of "// UKRMOLX //" or "// MQDTR2K)
-      elseif(all(kmat_output_type .ne. [UKRMOLX, MQDTR2K])) then
-        call die("Poorly specified KMAT_OUTPUT_TYPE. It should be one of "// UKRMOLX //" or "// MQDTR2K)
-      endif
-      G%KMAT_DIR                      = kmat_dir
-      G%CHANNELS_DIR                  = channels_dir
-      G%LMAX_KMAT                     = lmax_kmat
-      G%POINT_GROUP                   = point_group
-      G%SPINMULTS                     = spinmults(:)
-      G%NUM_EGRID_SEGS                = num_egrid_segs
-      G%NUM_EGRID                     = num_egrid(:)
-      G%EGRID_SEGS                    = egrid_segs(:)
-      G%EGRID_SPACING                 = egrid_spacing
-      G%KMAT_EI                       = kmat_ei
-      G%KMAT_Ef                       = kmat_ef
-      G%EGRID_XTRAP_PRE               = lower(egrid_xtrap_pre)
-      G%EGRID_XTRAP_POST              = lower(egrid_xtrap_post)
-      G%REAL_SPHERICAL_HARMONICS      = real_spherical_harmonics
-      G%KMAT_ENERGY_CLOSEST           = kmat_energy_closest / au2ev
-      G%KMAT_OUTPUT_TYPE              = kmat_output_type
-      G%KMAT_ENERGY_UNITS_OVERRIDE    = kmat_energy_units_override
-      G%CHANNEL_ENERGY_UNITS_OVERRIDE = channel_energy_units_override
-      G%EDFT                          = edft
-      G%POST_RFT_SINCOS2S_IMAG_TOL    = post_rft_sincos2s_imag_tol
-    endif
-
-    ! -- namelist: coulomb
-    if(use_CB .eqv. .true.) then
-      if(do_quadrupole) call die("DO_QUADRUPOLE exists as an option, but I'm yet confident in its&
-        & implementation. Remove this call if you want and see what happens.")
-#ifndef USE_CDMSREADER
-      if(use_cdms_einsta .eqv. .true.) call die("User requested use of CDMS data, but the code is&
-        & not compiled with that capability. Build with 'USE_CDMSREADER=1' to change this.")
-#endif
-      G%USE_CDMS_EINSTA              = use_cdms_einsta
-      G%ANALYTIC_TOTAL_CB            = analytic_total_cb(:)
-      G%ETA_THRESH                   = eta_thresh
-      G%EF                           = ef
-      G%NE                           = ne
-      G%NE_XTRAP                     = ne_xtrap
-      G%EI_XTRAP                     = ei_xtrap
-      G%DO_XTRAP                     = do_xtrap
-      G%DO_DIPOLE                    = do_dipole
-      G%DO_QUADRUPOLE                = do_quadrupole
-      G%LMAX_PARTIAL                 = lmax_partial
-      G%LMAX_TOTAL                   = lmax_total
-      G%CARTESIAN_DIPOLE_MOMENTS     = cartesian_dipole_moments(:)     / au2deb
-      ! G%cartesian_quadrupole_moments = cartesian_quadrupole_moments(:) !/ au2deb
-      G%CDMS_FILE                    = cdms_file
-      G%ONLY_EINSTA                  = only_einsta
-    endif
-
-  end subroutine read_namelists
 
 ! ================================================================================================================================ !
 end module rotex__reading

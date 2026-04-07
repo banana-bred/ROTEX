@@ -204,7 +204,7 @@ contains
     !! or defaulting to the usual Taylor series
 
     use rotex__utils,     only: isin
-    use rotex__constants, only: ABC_THRESHOLD => HYPGEO_ABC_THRESHOLD
+    use rotex__globals,   only: ABC_THRESHOLD => HYPGEO_ABC_THRESHOLD
     use rotex__system,    only: die, stderr
 
     implicit none (type, external)
@@ -255,7 +255,7 @@ contains
     !! or defaulting to the usual Taylor series
 
     use rotex__utils,  only: isin
-    use rotex__constants, only: ABC_THRESHOLD => HYPGEO_ABC_THRESHOLD
+    use rotex__globals, only: ABC_THRESHOLD => HYPGEO_ABC_THRESHOLD
     use rotex__system, only: die, stderr
 
     implicit none (type, external)
