@@ -1,0 +1,105 @@
+! =============================================================================================
+$control_namelist
+! =============================================================================================
+
+  output_directory = "example/output/H2O"
+  Nmin = 0
+  Nmax = 1
+  use_kmat = .true.
+  use_CB = .true.
+  rotor_kind = "a"
+  targcharge = 0
+  spin_isomer_kind = 0
+  rotor_zaxis = "b"
+  rotor_c2axis = "b"
+  ABC = 20.76492, 11.05564,7.21450 !! A,B,C (cm⁻¹) (Muller+2016)
+  xs_zero_threshold = 1e-20
+  ! -- 4th order centrifugal distortion (Muller+2016)
+  add_cd4 = .false.
+  DN     =  0.9893e-3  ! ΔN
+  DNK    = -5.18023e-3 ! ΔNK
+  DK     = 45.875e-3   ! ΔK
+  deltan =  0.37846e-3 ! δN
+  deltak =  1.728e-3   ! δK
+  ! -- 6th order centrifugal distortion (Muller+2016)
+  add_cd6 = .false.
+  HN    =  0.477e-06 ! ΦN
+  HNK   = -7.64e-06  ! ΦNN
+  HKN   = -10.9e-06  ! ΦKN
+  HK    = 0.265e-3   ! ΦK
+  etan  =  0.225e-06 ! φN
+  etank = 0.0
+  etak  = 0.0
+/
+
+! =============================================================================================
+$kmat_namelist
+! =============================================================================================
+  kmat_dir     = "example/H2O/collected_scattering_data/K-matrices"
+  channels_dir = "example/H2O/collected_scattering_data/channels"
+  point_group = "C2v"
+  spinmults = 2
+    !! Array of spin multiplicities 2S+1 of the target + electron system.
+    !! This can be just one value if there is only one spinmult to consider
+  lmax_kmat = 5
+    !! Maximum value of l in the electronic K-matrices
+  kmat_output_type = "ukrmol+"
+  real_spherical_harmonics = .true.
+    !! If the input electronic K-matrices are in a basis of real-valued spherical harmonics,
+    !! this should be true. Otherwise, if they are already in a basis of complex-valued spherical
+    !! harmonics, this should be .false.
+  num_egrid_segs = 4
+    !! Number of segments for the electron energy grid used to calculate cross sections
+  num_egrid = 4*1000
+    !! Array of number of energies per grid segment (length num_egrid_segs)
+  egrid_segs = 1e-3, 1e-2, 1e-1, 1., 2.
+    !! Array of the bounds of the energy grid segments (length num_egrid_segs + 1)
+    !! (eV)
+  egrid_spacing = "lin"
+    !! How each energy grid segment is spaced. 'lin' for linear, 'log' for logarithmic
+  edft_chunk_target_mb = 6000
+    !! Target S-matrix chunk size (MB) for the EDFT. Reduce to potentially split the
+    !! EDFT+MQDT into multiple chunks to save memory.
+  edft = .true.
+    !! Use an energy dependent frame transformation ? This will read in a matrix at each input energy
+    !! supplied in the K-matrix files. Otherwise, the program will just use one matrix
+  allow_edft_egrid_out_of_bounds = .true.
+    !! Allow the electron energy grid to go beyond the bounds of the input matrix evaluation grid ?
+    !! If so, the matrices will be clamped; the closest matrix will be used if E < Egrid or Egrid < E
+    !! Only considered when EDFT is .true.
+  ! kmat_ei = 2.7e-4
+  kmat_ei = 4.5e-4
+/
+
+! =============================================================================================
+$coulomb_namelist
+! =============================================================================================
+  use_CDMS_einstA = .false.
+  do_dipole = .true.
+  do_quadrupole = .false.
+  cartesian_dipole_moments = 0., 0., 2.0389771707974704
+  eta_thresh = 50 ! au
+  Ef = 2 ! eV
+  nE = 100
+  do_xtrap= .true.
+  Ei_xtrap = 1e-8
+  nE_xtrap = 100
+  analytic_total_cb = .true., .false.
+  lmax_partial = 5
+  ! lmax_partial = 5
+  lmax_total = 1
+/
+
+! =============================================================================================
+$info_namelist
+! =============================================================================================
+  print_rot_states    = .false.
+    !! Print the rotational target states to stdout ?
+  print_elec_channels = .true.
+    !! Print the electronic scattering channels to stdout ?
+  print_meminfo       = .false.
+    !! Print information on the memory usage when chunking the S-matrix during the EDRFT+MQDT step ?
+  print_chunkinfo     = .true.
+    !! Print information on each S-matrix chunk during the EDRFT+MQDT step ?
+
+/

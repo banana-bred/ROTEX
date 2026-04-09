@@ -4,6 +4,7 @@ module rotex__globals
   !! all the time
   use rotex__kinds, only: dp
   use rotex__types, only: cd4_type, cd6_type
+  use rotex__system, only: stdin, stdout, stderr, die
 
   implicit none (type, external)
 
@@ -82,6 +83,8 @@ module rotex__globals
       !! Whether to print electronic channels once they are defined and ordered
     logical :: PRINT_MEMINFO
       !! Whether to print memory storage information during the EDFT/MQDT step
+    logical :: PRINT_CHUNKINFO
+      !! Whether to print chunk information during the EDFT/MQDT step
 
     integer :: SJ_MODE
       !! The calculation mode for the frame-transformed S-matrix. The general structure is
@@ -281,7 +284,7 @@ contains
     !! Reads user parameters and puts them into the config derived type
     use rotex__kinds,      only: dp
     use rotex__arrays,     only: append, remove_value
-    use rotex__system,     only: stdin, stdout, ds => directory_separator, die
+    use rotex__system,     only: ds => directory_separator
     use rotex__constants,  only: au2invcm, au2ev, macheps => macheps_dp, au2cm, au2deb
     use rotex__characters, only: add_trailing, to_lower, lower
 
@@ -293,7 +296,6 @@ contains
     logical :: use_kmat
     logical :: use_CB
     logical :: symtop_reduce_projection = .true.
-    logical :: print_rot_states = .true.
     integer :: spin_isomer_kind = 0
     integer :: forbidden_states_kind = 0
     character(:), allocatable :: output_directory
@@ -326,8 +328,6 @@ contains
     logical :: real_spherical_harmonics = .true.
     logical :: allow_edft_egrid_out_of_bounds  = .false.
     logical :: edft = .false.
-    logical :: print_elec_channels = .true.
-    logical :: print_meminfo = .false.
     integer :: lmax_kmat = DEFAULT_INT
     integer :: num_egrid_segs
     integer :: edft_chunk_target_mb = 2048
@@ -366,78 +366,75 @@ contains
     character(1) :: egrid_xtrap_pre, egrid_xtrap_post
     character(:), allocatable :: CDMS_file
 
-    namelist / control_namelist /                            &
+    namelist / control_namelist /           &
       !! Contains parameters and values that are necessary to run the program
-                         output_directory                    &
-                       , spin_isomer_kind                    &
-                       , forbidden_states_kind               &
-                       , symtop_reduce_projection            &
-                       , nmin                                &
-                       , nmax                                &
-                       , use_kmat                            &
-                       , use_cb                              &
-                       , rotor_zaxis                         &
-                       , rotor_c2axis                        &
-                       , rotor_kind                          &
-                       , targcharge                          &
-                       , abc                                 &
-                       , B_rot                               &
-                       , D_rot                               &
-                       , H_rot                               &
-                       , add_cd4                             &
-                       , add_cd6                             &
-                       , dn, dnk, dk, deltan, deltak         &
-                       , hn, hnk, hkn, hk, etan, etank, etak &
-                       , print_rot_states                    &
-                       , xs_zero_threshold
+        output_directory                    &
+      , spin_isomer_kind                    &
+      , forbidden_states_kind               &
+      , symtop_reduce_projection            &
+      , nmin                                &
+      , nmax                                &
+      , use_kmat                            &
+      , use_cb                              &
+      , rotor_zaxis                         &
+      , rotor_c2axis                        &
+      , rotor_kind                          &
+      , targcharge                          &
+      , abc                                 &
+      , B_rot                               &
+      , D_rot                               &
+      , H_rot                               &
+      , add_cd4                             &
+      , add_cd6                             &
+      , dn, dnk, dk, deltan, deltak         &
+      , hn, hnk, hkn, hk, etan, etank, etak &
+      , xs_zero_threshold
 
-    namelist / kmat_namelist /                       &
+    namelist / kmat_namelist /         &
       !! Parameters regarding the K-matrces used for (de-excitation)
-                      kmat_dir                       &
-                    , channels_dir                   &
-                    , lmax_kmat                      &
-                    , point_group                    &
-                    , num_egrid_segs                 &
-                    , num_egrid                      &
-                    , egrid_xtrap_pre                &
-                    , egrid_xtrap_post               &
-                    , egrid_segs                     &
-                    , edft                           &
-                    , kmat_ei                        &
-                    , kmat_ef                        &
-                    , egrid_spacing                  &
-                    , spinmults                      &
-                    , kmat_output_type               &
-                    , kmat_energy_closest            &
-                    , real_spherical_harmonics       &
-                    , channel_energy_units_override  &
-                    , post_rft_sincos2s_imag_tol     &
-                    , SJ_mode                        &
-                    , allow_edft_egrid_out_of_bounds &
-                    , edft_chunk_target_mb           &
-                    , print_elec_channels            &
-                    , print_meminfo                  &
-                    , kmat_energy_units_override
+        kmat_dir                       &
+      , channels_dir                   &
+      , lmax_kmat                      &
+      , point_group                    &
+      , num_egrid_segs                 &
+      , num_egrid                      &
+      , egrid_xtrap_pre                &
+      , egrid_xtrap_post               &
+      , egrid_segs                     &
+      , edft                           &
+      , kmat_ei                        &
+      , kmat_ef                        &
+      , egrid_spacing                  &
+      , spinmults                      &
+      , kmat_output_type               &
+      , kmat_energy_closest            &
+      , real_spherical_harmonics       &
+      , channel_energy_units_override  &
+      , post_rft_sincos2s_imag_tol     &
+      , SJ_mode                        &
+      , allow_edft_egrid_out_of_bounds &
+      , edft_chunk_target_mb           &
+      , kmat_energy_units_override
 
     namelist / coulomb_namelist /                 &
       !! Parameters regarding the Coulomb-Born approximation
       !! used for (de-)excitation
-                         use_CDMS_einstA          &
-                       , only_einsta              &
-                       , cdms_file                &
-                       , eta_thresh               &
-                       , ef                       &
-                       , ne                       &
-                       , ne_xtrap                 &
-                       , do_xtrap                 &
-                       , ei_xtrap                 &
-                       , cartesian_dipole_moments &
-                       ! , cartesian_quadrupole_moments &
-                       , do_dipole                &
-                       , do_quadrupole            &
-                       , analytic_total_cb        &
-                       , lmax_partial             &
-                       , lmax_total
+        use_CDMS_einstA          &
+      , only_einsta              &
+      , cdms_file                &
+      , eta_thresh               &
+      , ef                       &
+      , ne                       &
+      , ne_xtrap                 &
+      , do_xtrap                 &
+      , ei_xtrap                 &
+      , cartesian_dipole_moments &
+      ! , cartesian_quadrupole_moments &
+      , do_dipole                &
+      , do_quadrupole            &
+      , analytic_total_cb        &
+      , lmax_partial             &
+      , lmax_total
 
     !!!!!!!!!!!!!!!!!!!!!! CONTROL_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     allocate(character(1000) :: output_directory)
@@ -576,8 +573,6 @@ contains
       write(stdout, coulomb_namelist)
       write(stdout, *)
     endif
-    write(stdout, '(A)') "--------------------------------------------------------------------------------------------------------"
-    write(stdout, *)
 
     ! -- checks
     if(Nmin .gt. Nmax) call die("Nmin > Nmax not allowed")
@@ -603,7 +598,6 @@ contains
     G%ADD_CD4               = add_cd4
     G%ADD_CD6               = add_cd6
     G%XS_ZERO_THRESHOLD     = xs_zero_threshold
-    G%PRINT_ROT_STATES      = print_rot_states
     if(add_cd4 .eqv. .true.) then
       dn      = dn     / au2invcm
       dnk     = dnk    / au2invcm
@@ -652,9 +646,7 @@ contains
       G%EDFT                           = edft
       G%POST_RFT_SINCOS2S_IMAG_TOL     = post_rft_sincos2s_imag_tol
       G%ALLOW_EDFT_EGRID_OUT_OF_BOUNDS = ALLOW_EDFT_EGRID_OUT_OF_BOUNDS
-      G%EDFT_CHUNK_TARGET_MB          = EDFT_CHUNK_TARGET_MB
-      G%PRINT_ELEC_CHANNELS   = print_elec_channels
-      G%PRINT_MEMINFO                  = print_meminfo
+      G%EDFT_CHUNK_TARGET_MB           = EDFT_CHUNK_TARGET_MB
     endif
 
     ! -- namelist: coulomb
@@ -683,7 +675,38 @@ contains
       G%ONLY_EINSTA                  = only_einsta
     endif
 
+    call read_info_namelist(stdin)
+
   end subroutine read_namelists
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine read_info_namelist(funit)
+    implicit none (type, external)
+    integer, intent(in) :: funit
+    ! -- namelist: info
+    logical :: print_elec_channels = .true.
+    logical :: print_rot_states    = .true.
+    logical :: print_meminfo       = .false.
+    logical :: print_chunkinfo     = .true.
+    namelist / info_namelist / &
+      !! Parameters used to control the printing of information
+      !! during program execution
+        print_elec_channels    &
+      , print_rot_states       &
+      , print_meminfo          &
+      , print_chunkinfo
+    read(funit, info_namelist)
+    rewind(funit)
+    G%PRINT_ROT_STATES      = print_rot_states
+    G%PRINT_ELEC_CHANNELS   = print_elec_channels
+    G%PRINT_MEMINFO         = print_meminfo
+    G%PRINT_CHUNKINFO       = print_chunkinfo
+    write(stdout, '(A)') "--------------------------------------------------------------------------------------------------------"
+    write(stdout, *)
+    write(stdout, info_namelist)
+    write(stdout, *)
+    write(stdout, '(A)') "--------------------------------------------------------------------------------------------------------"
+  end subroutine read_info_namelist
 
 
 ! ================================================================================================================================ !

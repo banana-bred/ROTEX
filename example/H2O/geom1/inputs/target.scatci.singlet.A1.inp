@@ -1,0 +1,13 @@
+&input
+  megul = 710, ! input from module CONGEN
+  nfte = 810, ! Hamiltonian scratch file
+/
+&cinorn
+  name = 'H2O CI calculation - singlet A1',
+  nstat = 1, ! number of CI eigenvalues
+  nftw = 26,
+  nciset = 1, ! index of calculated CI vectors within output file (0 = automatic indexing, but first must be 1)
+!  vecstore = 5,
+!  memp = 2.5,
+!igh = 1,
+/

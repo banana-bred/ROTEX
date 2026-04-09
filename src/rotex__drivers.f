@@ -643,7 +643,6 @@ contains
 
 
       !@@@TODO clean this up a bit
-      write(stdout, '(11X, 2(A5, " /"),A5,X)') "Jmin", "J", "Jmax"
       Jloop: do J=Jmin, Jmax
 
         call collect_j_channels_indices(J, all_rotational_channels, idxmap)
@@ -709,12 +708,12 @@ contains
 
       enddo Jloop
 
-      deallocate(csin_elec)
-      deallocate(ccos_elec)
       deallocate(elec_channels)
-      if(allocated(sin_elec))   deallocate(sin_elec)
-      if(allocated(cos_elec))   deallocate(cos_elec)
-      if(allocated(smat_elec))  deallocate(smat_elec)
+      if(allocated(csin_elec)) deallocate(csin_elec)
+      if(allocated(ccos_elec)) deallocate(ccos_elec)
+      if(allocated(sin_elec))  deallocate(sin_elec)
+      if(allocated(cos_elec))  deallocate(cos_elec)
+      if(allocated(smat_elec)) deallocate(smat_elec)
 
       channels_file_this_spin = G%OUTPUT_DIRECTORY // SPINMULT_NAMES(G%SPINMULTS(ispin)) // ".channels"
 
@@ -851,6 +850,8 @@ contains
     use rotex__arrays, only: realloc
     use rotex__rft,    only: do_edrft_chunk
     use rotex__mqdtxs, only: get_smat_probs_chunk
+    use rotex__characters, only: i2c => int2char
+    use rotex__constants, only: au2ev
 #ifdef USE_FORBEAR
     use rotex__progress,   only: progressbar_type
 #endif
@@ -878,93 +879,117 @@ contains
     type(prob_vector_type),            intent(inout) :: transition_probs(:)
       !! Probability at each scattering energy for pairs of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
 
-    integer :: nflat_rot, nrot_current, ne_mat, ne_this_chunk
+    logical :: is_first_chunk, is_last_chunk
+    integer :: nflat_rot, nrot_current, ne_mat, ne_this_chunk, ne_tot
     integer :: ichunk, nchunks
-    integer :: ie0, ie1
+    integer :: ie0, ie1, ietot0, ietot1, iloc
+    real(dp) :: E0, E1, Etot0, Etot1
     complex(dp), allocatable :: smat_rot_flat_chunk(:,:)
 
-    character(31) :: prefix_string
-
-#ifdef USE_FORBEAR
-    ! -- forbear variables
-    integer  :: iprogress, iprogress_last
-    real(dp) :: rprogress, rprogress_inc
-    type(progressbar_type) progressbar
-#endif
+    ! character(23) :: prefix_string
+    character(23), parameter :: BLANK = " "
 
     ne_mat       = size(kmat_eval_energies, 1)
+    ne_tot       = size(total_energy_grid, 1)
     nrot_current = size(current_rotational_channels, 1)
     nflat_rot    = (nrot_current*(nrot_current+1))/2
 
-   write(prefix_string, '("EDFT+MQDT", 2X, 2(I5," /"),I5,2X)') Jmin, J, Jmax
-#ifdef USE_FORBEAR
-    call progressbar % initialize( &
-        filled_char_string = "|" &
-      , empty_char_string = " " &
-      , bracket_left_string = "[" &
-      , prefix_string = prefix_string &
-      , suffix_string = "] " &
-      , add_progress_percent = .true. &
-    )
-    call progressbar % start
-    call progressbar % update(current = 0.0_dp)
-    rprogress = 0.0_dp
-    iprogress_last = 0
-    nchunks = (ne_mat + ne_per_chunk - 1) / ne_per_chunk
-    rprogress_inc = 1.0_dp / real(nchunks, kind=dp)
-#else
-    write(stdout, '(A)') prefix_string//".."
-#endif
+    if(ne_per_chunk .lt. 2) &
+      call die("Cannot proceed with a chunk size of "//i2c(ne_per_chunk)//" < 2 energies")
+
+    write(stdout, '(X, 2(A5, " /"),A5,X)') "Jmin", "J", "Jmax"
+    write(stdout, '(X, 2(I5," /"),I5,":",2X)') Jmin, J, Jmax
 
     call realloc(smat_rot_flat_chunk, nflat_rot, ne_per_chunk)
     smat_rot_flat_chunk = (0.0_dp, 0.0_dp)
 
+    ! -- test energy grids to see if they meet the out-of-bounds requirements
+    !    that may be set
+    if(G%ALLOW_EDFT_EGRID_OUT_OF_BOUNDS .eqv. .false.) then
+      if(minval(total_energy_grid) .lt. kmat_eval_energies(1)) then
+        call die("TOTAL_ENERGY_GRID extends below the EDFT evaluation grid and strict EDFT interpolation is requested")
+      endif
+      if(maxval(total_energy_grid) .gt. kmat_eval_energies(ne_mat)) then
+        call die("TOTAL_ENERGY_GRID extends above the EDFT evaluation grid and strict EDFT interpolation is requested")
+      endif
+    endif
+
     ! -- loop over chunks
-    ichunk = 0
-    chunks: do ie0 = 1, ne_mat, ne_per_chunk
+    ie0     = 1
+    ichunk  = 0
+    chunks: do
+
+      ichunk = ichunk + 1
       ie1 = min(ne_mat, ie0 + ne_per_chunk - 1)
       ne_this_chunk = ie1 - ie0 + 1
 
-      call do_edrft_chunk(                        &
-          csin_elec                               &
-        , ccos_elec                               &
-        , kmat_eval_energies                      &
-        , ie0, ie1                                &
-        ! -- may have fewer energies in a chunk; pass 1:ne_this_chunk and keep it contiguous
-        , smat_rot_flat_chunk(:, 1:ne_this_chunk) &
-        , J                                       &
-        , N_states                                &
-        , elec_channels                           &
-        , current_rotational_channels             &
-      )
+      E0 = kmat_eval_energies(ie0)
+      E1 = kmat_eval_energies(ie1)
+      is_first_chunk = ichunk .eq. 1
+      is_last_chunk  = ie1    .eq. ne_mat
 
-      call get_smat_probs_chunk(      &
-          total_energy_grid           &
-        , transition_probs            &
-        , transitions_this_spin       &
-        , smat_rot_flat_chunk(:, 1:ne_this_chunk) &
-        , kmat_eval_energies(ie0:ie1) &
-        , J                           &
-        , current_rotational_channels &
-      )
+      ! -- total energy grid lbound
+      iloc = findloc(total_energy_grid .ge. E0, .true., 1)
+      ietot0 = merge(1, iloc, is_first_chunk)
+      if(ietot0 .eq. 0) exit chunks
 
-#ifdef USE_FORBEAR
-      ichunk = ichunk + 1
-      rprogress = real(ichunk, kind=dp) / real(nchunks, kind=dp)
-      iprogress = floor(rprogress * 100)
-      if(iprogress .eq. iprogress_last) cycle chunks
-      if(iprogress .eq. 100) cycle chunks
-      iprogress_last = iprogress
-      call progressbar % update(current = rprogress)
-#endif
+      ! -- total energy grid rbound
+      iloc   = findloc(total_energy_grid .ge. E1, .true., 1)
+      if(is_last_chunk .OR. iloc .eq. 0) then
+        ietot1 = ne_tot
+      else
+        ietot1 = iloc - 1
+      endif
+
+      Etot0 = total_energy_grid(ietot0)
+      Etot1 = total_energy_grid(ietot1)
+
+      if(G%PRINT_CHUNKINFO) then
+        if((is_first_chunk .AND. is_last_chunk) .eqv. .false.) write(stdout, '(4X, "Chunk ", I0)') ichunk
+        write(stdout, '(6X, "RFT evaluation energies (eV):   [", ES10.4, "..", ES10.4,"]")') E0*au2ev,    E1*au2ev
+        write(stdout, '(6X, "Total scattering energies (eV): [", ES10.4, "..", ES10.4,"]")') Etot0*au2ev, Etot1*au2ev
+      endif
+      if(ietot0 .le. ietot1) then
+        write(stdout, '(6x, "EDFT..")', advance="no")
+        call do_edrft_chunk(                        &
+            csin_elec                               &
+          , ccos_elec                               &
+          , kmat_eval_energies                      &
+          , ie0, ie1                                &
+          ! -- may have fewer energies in a chunk; pass 1:ne_this_chunk and keep it contiguous
+          , smat_rot_flat_chunk(:, 1:ne_this_chunk) &
+          , J                                       &
+          , N_states                                &
+          , elec_channels                           &
+          , current_rotational_channels             &
+        )
+        write(stdout, '("done !")')
+
+        print*, ietot0, ietot1, shape(total_energy_grid)
+        write(stdout, '(6x, "MQDT..")', advance="no")
+        call get_smat_probs_chunk(      &
+            total_energy_grid           &
+          , ietot0, ietot1              &
+          , transition_probs            &
+          , transitions_this_spin       &
+          , smat_rot_flat_chunk(:, 1:ne_this_chunk) &
+          , kmat_eval_energies(ie0:ie1) &
+          , J                           &
+          , current_rotational_channels &
+          , is_first_chunk              &
+          , is_last_chunk               &
+        )
+        write(stdout, '("done !")')
+      else
+        write(stdout, '(6X, "No energies detected; skipping chunk ", I0)') ichunk
+      endif
+
+      if(is_last_chunk) exit chunks
+
+      ! -- update lbound
+      ie0 = ie1
 
     enddo chunks
-
-#ifdef USE_FORBEAR
-    call progressbar % update(current = 1.0_dp)
-#else
-    write(stdout, '(" done !")')
-#endif
 
   end subroutine do_edrft_get_probs
 
@@ -2140,8 +2165,8 @@ contains
     write(funit, '(A60, I0)') "Number of non-redundant rotational matrix elements: ", nrot_flat
     write(funit, '(A60, I0, " bytes")') "Elemental storage size for flattened rotational S-matrix: ", storage_size(obj)/8
     write(funit, '(A60, I0, " MB")') "Target chunk size: ", G%EDFT_CHUNK_TARGET_MB
-    write(funit, '(A60, I0)')  "Calculated number of energies per chunk: ", ne_per_chunk
-    write(funit, '(A60, I0)') "Number of chunks: ", nchunks
+    write(funit, '(A60, I0)')  "Calculated number of matrix evaluation energies per chunk: ", ne_per_chunk
+    write(funit, '(A60, I0)') "Estimated number of chunks: ", nchunks
     write(funit, '(A60, F0.1, X, A)') "Estimated memory consumption for each chunk: ", storage, trim(units)
     write(funit, *)
   end subroutine print_chunk_meminfo

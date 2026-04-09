@@ -414,9 +414,9 @@ contains
         kmat_energies(iemin)*au2ev, kmat_energies(iemax)*au2ev
     else
       ! -- find the lowest energy if energy independent
-      iemin = 1
-      iemax = ne
       ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
+      iemin = ie_closest
+      iemax = ie_closest
       if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
       write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST          * au2ev
       write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev

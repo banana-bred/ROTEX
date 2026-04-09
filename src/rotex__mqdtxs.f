@@ -45,7 +45,7 @@ contains
       !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
     type(asymtop_rot_transition_type), intent(in), allocatable :: transitions(:)
       !! Array of transitions that will be considered for (de-)excitation
-    complex(dp), intent(in) :: smat_rot_flat(:,:)
+    complex(dp), intent(in), contiguous :: smat_rot_flat(:,:)
       !! Flattened array of S-matrix sub-block for this J
     real(dp), intent(in) :: smat_eval_energies(:)
       !! Array of evaluation energies of the S-matrix
@@ -54,14 +54,30 @@ contains
     type(asymtop_rot_channel_l_type), intent(in) :: channels_this_j(:)
       !! The array of channels for THIS J
 
-    call get_smat_probs_chunk( &
-        total_energy_grid      &
-      , transition_probs       &
-      , transitions            &
-      , smat_rot_flat          &
-      , smat_eval_energies     &
-      , J                      &
-      , channels_this_J        &
+    integer :: ne_mat
+
+    ne_mat = size(smat_eval_energies, 1)
+
+    if(G%ALLOW_EDFT_EGRID_OUT_OF_BOUNDS .eqv. .false.) then
+      if(minval(total_energy_grid) .lt. smat_eval_energies(1)) then
+        call die("TOTAL_ENERGY_GRID extends below the EDFT evaluation grid and strict EDFT interpolation is requested")
+      endif
+      if(maxval(total_energy_grid) .gt. smat_eval_energies(ne_mat)) then
+        call die("TOTAL_ENERGY_GRID extends above the EDFT evaluation grid and strict EDFT interpolation is requested")
+      endif
+    endif
+
+    call get_smat_probs_chunk(       &
+        total_energy_grid            &
+      , lbound(total_energy_grid, 1) &
+      , ubound(total_energy_grid, 1) &
+      , transition_probs             &
+      , transitions                  &
+      , smat_rot_flat                &
+      , smat_eval_energies           &
+      , J                            &
+      , channels_this_J              &
+      , .true., .true.               &
     )
 
   end subroutine get_smat_probs
@@ -69,12 +85,15 @@ contains
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine get_smat_probs_chunk( &
         total_energy_grid           &
+      , ietot0, ietot1              &
       , transition_probs            &
       , transitions                 &
       , smat_rot_flat_chunk         &
       , smat_eval_energies_chunk    &
       , J                           &
       , channels_this_J             &
+      , is_first_chunk              &
+      , is_last_chunk               &
     )
     !! Given a rotationally resolved S-matrix, calculate rotational (de-)excitation
     !! cross section probabilities for the supplied transitions.
@@ -90,6 +109,8 @@ contains
 
     real(dp),                          intent(in)             :: total_energy_grid(:)
       !! The total energy grid on which the S-matrix will be evaluated
+    integer,                           intent(in)             :: ietot0, ietot1
+      !! Total energy grid boundary points for the current chunk
     type(prob_vector_type),            intent(inout)          :: transition_probs(:)
       !! Probability at each pair of channels (n,N,Ka,Kc) ←→ (n',N',Ka',Kc')
     type(asymtop_rot_transition_type), intent(in)             :: transitions(:)
@@ -102,6 +123,10 @@ contains
       !! The current J
     type(asymtop_rot_channel_l_type),  intent(in)             :: channels_this_j(:)
       !! The array of channels for THIS J
+    logical,                           intent(in)             :: is_first_chunk, is_last_chunk
+      !! True if this is the first/last chunk to process; false otherwise
+
+    logical :: allow_left_oob, allow_right_oob
 
     integer :: neleclo, nlo, kalo, kclo
     integer :: nelecup, nup, kaup, kcup
@@ -184,10 +209,15 @@ contains
     enddo
     deallocate(idx_tmp)
 
+    ! -- determine energy grid boundary conditions
+    allow_left_oob  = is_first_chunk
+    allow_right_oob = is_last_chunk
+
     ! -- loop over the total enrgy grid
     !$omp parallel default(none) &
     !$omp& shared(ne_tot, channels_this_J, transition_probs, transitions, J, nchans_J, G, total_energy_grid &
-    !$omp&   , smat_eval_energies_chunk, smat_rot_flat_chunk, idx_lo, idx_up, n_idx_up, n_idx_lo, idx_trans) &
+    !$omp&   , smat_eval_energies_chunk, smat_rot_flat_chunk, idx_lo, idx_up, n_idx_up, n_idx_lo, idx_trans &
+    !$omp&   , allow_left_oob, allow_right_oob, ietot0, ietot1) &
     !$omp& private(ie, Etot, Sphys, beta, nopen, nclosed, lo, up, itrans&
     !$omp&   , q,  neleclo, nelecup, Nlo, Nup, Kalo, Kaup, Kclo, Kcup, Elo, Eup, prob_term &
     !$omp&   , S, S_flat)
@@ -205,14 +235,14 @@ contains
     endif
 
     !$omp do schedule(static)
-    nrg: do ie=1,ne_tot
+    nrg: do ie=ietot0, ietot1
 
       Etot = total_energy_grid(ie)
       q    = fg_norm_coeff_q(channels_this_J, Etot)
 
       ! -- linear interpolation of S-matrix. OpenMP will use local copies of the matrices
       if(G%EDFT) then
-        call interp_array_at_energy(Etot, smat_eval_energies_chunk, smat_rot_flat_chunk, S_flat, G%ALLOW_EDFT_EGRID_OUT_OF_BOUNDS)
+        call interp_array_at_energy(Etot, smat_eval_energies_chunk, smat_rot_flat_chunk, S_flat, allow_left_oob, allow_right_oob)
         call unpackmat(s_flat(:), s)
       endif
 

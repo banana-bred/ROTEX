@@ -387,8 +387,8 @@ contains
           ! -- take the evaluation energy of the right-hand channel, and interpolate the
           !    matrices to get the corresponding value
           E_elec_rhs = kmat_eval_energies(ie) - rot_channels(jrot) % E
-          call interp_array_at_energy(E_elec_rhs, kmat_eval_energies, sin_elec, sinE)
-          call interp_array_at_energy(E_elec_rhs, kmat_eval_energies, cos_elec, cosE)
+          call interp_array_at_energy(E_elec_rhs, kmat_eval_energies, sin_elec, sinE, .true., .true.)
+          call interp_array_at_energy(E_elec_rhs, kmat_eval_energies, cos_elec, cosE, .true., .true.)
 
           ! -- U {sin(E),cos(E)} U⁺
           sin_rot(:, jrot) = sin_rot(:, jrot) + matmul( U, matmul(sinE, Udagg(:, jrot)) )

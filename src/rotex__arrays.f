@@ -1094,16 +1094,15 @@ contains
   end subroutine linear_interpolation_re_cs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine interp_cvector_at_energy(E, Egrid, Vgrid, V, allow_out_of_bounds)
+  pure module subroutine interp_cvector_at_energy(E, Egrid, Vgrid, V, aloob, aroob)
     implicit none (type, external)
     real(dp),    intent(in)  :: E, Egrid(:)
     complex(dp), intent(in)  :: Vgrid(:,:)
     complex(dp), intent(out) :: V(:)
-    logical, intent(in), optional :: allow_out_of_bounds
-    logical :: aoob
+    logical, intent(in) :: aloob, aroob
+      !! Allow left/right out of bounds ?
     integer :: i, i1, i2, nE, nV
     integer :: ib(2)
-    aoob = .true. ; if(present(allow_out_of_bounds)) aoob = allow_out_of_bounds
     nE = size(Egrid, 1)
     nV = size(Vgrid, 1)
     call size_check(Vgrid, [nV, nE], "VGRID")
@@ -1115,11 +1114,11 @@ contains
       V = Vgrid(:,1)
     elseif(i1.eq. 0 .AND. i2 .eq. 1) then
       ! -- E < Egrid
-      if(aoob .eqv. .false.) call die("E < Egrid disallowed")
+      if(aloob .eqv. .false.) call die("E < Egrid disallowed")
       V = Vgrid(:,1)
     elseif(i1 .eq. nE .AND. i2 .eq. 0) then
-      ! -- E > Egrid
-      if(aoob .eqv. .false.) call die("E > Egrid disallowed")
+      ! -- Egrid < E
+      if(aroob .eqv. .false.) call die("Egrid < E disallowed")
       V = Vgrid(:,nE)
     elseif(i1 .eq. i2) then
       ! -- an exact grid point, just take that value
@@ -1135,16 +1134,14 @@ contains
   end subroutine interp_cvector_at_energy
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine interp_cmatrix_at_energy(E, Egrid, Mgrid, M, allow_out_of_bounds)
+  pure module subroutine interp_cmatrix_at_energy(E, Egrid, Mgrid, M, aloob, aroob)
     implicit none (type, external)
     real(dp),    intent(in)  :: E, Egrid(:)
     complex(dp), intent(in)  :: Mgrid(:,:,:)
     complex(dp), intent(out) :: M(:,:)
-    logical, intent(in), optional :: allow_out_of_bounds
-    logical :: aoob
+    logical, intent(in), optional :: aloob, aroob
     integer :: i, j, i1, i2, ne, nM1,  nM2
     integer :: ib(2)
-    aoob = .true. ; if(present(allow_out_of_bounds)) aoob = allow_out_of_bounds
     nE  = size(Egrid, 1)
     nM1 = size(Mgrid, 1)
     nM2 = size(Mgrid, 2)
@@ -1158,11 +1155,11 @@ contains
       M = Mgrid(:,:,1)
     elseif(i1.eq. 0 .AND. i2 .eq. 1) then
       ! -- E < Egrid
-      if(aoob .eqv. .false.) call die("E < Egrid disallowed")
+      if(aloob .eqv. .false.) call die("E < Egrid disallowed")
       M = Mgrid(:,:,1)
     elseif(i1 .eq. ne .AND. i2 .eq. 0) then
-      ! -- E > Egrid
-      if(aoob .eqv. .false.) call die("E > Egrid disallowed")
+      ! -- Egrid < E
+      if(aroob .eqv. .false.) call die("Egrid < E disallowed")
       M = Mgrid(:,:,ne)
     elseif(i1 .eq. i2) then
       ! -- an exact grid point, just take that value
