@@ -763,7 +763,7 @@ contains
       c = real(lf_,kind=dp) + 3.0_dp/2.0_dp
       x = (kf/ki)**2
 
-      res(li)%re = pi/(2.0_dp**eta) * kf**lf / ki**(lf-eta+3) &
+      res(li)%re = pi/(2.0_dp**eta) * kf**lf_ / ki**(lf_-eta+3) &
                  * gamma(a)/gamma(1._dp-b)/gamma(c)           &
                  * f21(a, b, c, x)
 
