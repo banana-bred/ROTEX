@@ -329,7 +329,7 @@ contains
 
     integer  :: iostat, ne, ne_inlcude, i, ichan, ie, ie_closest, l, ml, nelec, nchans, iflat
     integer  :: ie_include, ne_include, iemin, iemax
-    integer  :: funit, nchans_max, nskip, nskip_header, iline, icol, nlines, nchans_flat
+    integer  :: funit, nchans_max, nskip, nskip_header, iline, icol, nlines, nchans_flat, nchans_flat_keep
     real(dp) :: E
     real(dp), allocatable :: kmat_flat(:, :)
     type(elec_channel_type) :: chan
@@ -368,6 +368,7 @@ contains
     do
       read(funit, *, iostat = iostat) nchans, i, nchans_flat, E
       if(iostat .eq. IOSTAT_END) exit
+
       E = E*kmat_e_convert ! store in au
       ne = ne + 1
       nskip = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind = dp))
@@ -377,9 +378,6 @@ contains
       if(E .lt. G%KMAT_EI .OR. (E .gt. G%KMAT_EF .AND. G%KMAT_EF .gt. 0._dp)) cycle
       ne_include = ne_include + 1
     enddo
-
-    call realloc(kmat_flat, nchans_flat, ne_include)
-    kmat_flat = 0._dp
 
     ! -- read in the K-matrix energies (including those we won't use)
     rewind(funit)
@@ -409,18 +407,54 @@ contains
     if(G%EDFT) then
       ! -- minimum and maximum evaluation energies to consider for EDFT
       iemin = findloc(kmat_energies .ge. G%KMAT_EI, .true., 1)
-      iemax = merge(ne, findloc(kmat_energies .le. G%KMAT_EF, .true., 1), G%KMAT_EF .eq. 0._dp)
+      if(G%KMAT_EF .gt. 0._dp) then
+        iemax = findloc(kmat_energies .gt. G%KMAT_EF, .true., 1)
+        iemax =merge(ne, iemax-1, iemax .eq. 0)
+      else
+        iemax = ne
+      endif
       write(stdout, '(4x, "user requested k-matrix energies between ", es10.3, " and ", es10.3, " ev")') &
         kmat_energies(iemin)*au2ev, kmat_energies(iemax)*au2ev
     else
       ! -- find the lowest energy if energy independent
-      ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
+      if(G%KMAT_ENERGY_CLOSEST .le. 0._dp) then
+        ie_closest = 1
+        write(stdout, '(4X, "KMAT_ENERGY_CLOSEST <= 0 detected; taking the first K-matrix")')
+        write(stdout, '(4X, "Found Kmatrix at energy ", ES17.10, " eV")') kmat_energies(ie_closest) * au2ev
+      else
+        ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
+        write(stdout, '(4X, "User requested K-matrix at ", ES17.10, " eV")') G%KMAT_ENERGY_CLOSEST          * au2ev
+        write(stdout, '(4X, "Found Kmatrix at energy ",    ES17.10, " eV")') kmat_energies(ie_closest) * au2ev
+      endif
       iemin = ie_closest
       iemax = ie_closest
       if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
-      write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST          * au2ev
-      write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev
     endif
+
+    if(G%EDFT .eqv. .false.) then
+      rewind(funit)
+      call read_blank(funit, nskip_header)
+      ie = 0
+      do
+        read(funit, *, iostat = iostat) nchans, i, nchans_flat, E
+        if(iostat .eq. IOSTAT_END) call die("Could not recover selected K-matrix size")
+        ie = ie + 1
+        nskip = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
+        call read_blank(funit, nskip)
+        if(ie .ne. ie_closest) cycle
+        nchans_this_irrep = nchans
+        exit
+      enddo
+    endif
+
+    if(nchans_this_irrep .lt. 1) then
+      write(stderr, '("NCHANS_THIS_IRREP (", I0, ") must be at least 1")') nchans_this_irrep
+      call die("Could not determine a valid K-matrix size")
+    endif
+
+    nchans_flat_keep = (nchans_this_irrep * (nchans_this_irrep+1)) / 2
+    call realloc(kmat_flat, nchans_flat_keep, ne_include)
+    kmat_flat = 0._dp
 
     ! -- Now, actually go and read that (those) K-matrix (K-matrices)
     rewind(funit)
@@ -446,23 +480,28 @@ contains
         ! -- skip the remaining K-matrices if we've reached our max energy
         if(ie .gt. iemax) exit kmat_read
 
+        if(nchans .ne. nchans_this_irrep) then
+          write(stderr, '("NCHANS_THIS_IRREP = ", I0)') nchans_this_irrep
+          write(stderr, '("NCHAN = ", I0)') nchans
+          write(stderr, '("Kmat energy (eV): ", ES17.10)') E * kmat_e_convert * au2ev
+          call die("K-matrix size has changed within selected EDFT window")
+        endif
+
         ! -- at this point, we have found a K-matrix that we want to add.
         ie_include = ie_include + 1
         ! -- iterate through the lines and columns of the flattened K-matrix
         !    in the file
         iflat = 0
-        nlines = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
+        nlines = ceiling(nchans_flat_keep / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
         do iline = 1, nlines
           do icol = 1, UKRMOL_KMAT_ELEMENTS_PER_LINE
             iflat = iflat + 1
 
-            ! -- ignore the rest of the elements if the number of channels has increased
-            if(iflat .gt. size(kmat_flat, 1)) cycle
-
             read(funit, UKRMOL_KMAT_ELEMENTS_FMT, advance = 'no') kmat_flat(iflat, ie_include)
-            if(iflat .eq. nchans_flat) cycle
+            if(iflat .eq. nchans_flat_keep) exit
           enddo
           read(funit, *)
+          if(iflat .eq. nchans_flat_keep) exit
         enddo
 
       enddo
@@ -489,6 +528,12 @@ contains
           call read_blank(funit, nskip)
         else
           ! -- found it
+          if(nchans .ne. nchans_this_irrep) then
+            write(stderr, '("NCHANS_THIS_IRREP = ", I0)') nchans_this_irrep
+            write(stderr, '("NCHANS = ", I0)') nchans
+            write(stderr, '("Kmat energy (eV): ", ES17.10)') E * kmat_e_convert * au2ev
+            call die("Selected K-matrix size does not match retained size")
+          endif
           nlines = ceiling(nchans_flat / real(UKRMOL_KMAT_ELEMENTS_PER_LINE, kind=dp))
           iflat = 0
           ! -- iterate through the lines and columns of the flattened K-matrix
@@ -526,7 +571,7 @@ contains
 
     ! -- time to read the channels
     open(newunit = funit, file = channels_filename)
-    write(stdout, '(A)') "Reading channels file at " // channels_filename
+    write(stdout, '(4X, A)') "Reading channels file at " // channels_filename
 
     call read_blank(funit, 2)
     ! -- read number of electronic states and number of electronic channels
@@ -605,7 +650,7 @@ contains
     integer  :: ie_include, ne_include, iemin, iemax
     integer  :: nchans_irrep_flat
     real(dp) :: E
-    real(dp), allocatable :: kmat_flat(:,:)
+    real(dp), allocatable :: kmat_flat(:,:), kmat_energies_full(:)
 
     skip_this_irrep = .false.
 
@@ -652,7 +697,7 @@ contains
 
     rewind(funit)
     ! -- skip header and channels; read K-matrix evaluation energies
-    call realloc(kmat_energies, ne)
+    call realloc(kmat_energies_full, ne)
     call read_blank(funit, 2+nchans_this_irrep)
     ie = 0
     do
@@ -660,25 +705,53 @@ contains
       read(funit, *, iostat = iostat) E
       if(iostat .eq. IOSTAT_END) exit
       ie = ie + 1
-      kmat_energies(ie) = E * kmat_e_convert
+      kmat_energies_full(ie) = E * kmat_e_convert
     enddo
 
     ! -- min and max energies to consider, inform user of energy selection
     if(G%EDFT) then
-      iemin = findloc(kmat_energies .ge. G%KMAT_EI, .true., 1)
-      iemax = merge(ne, findloc(kmat_energies .le. G%KMAT_EF, .true., 1), G%KMAT_EF .eq. 0._dp)
+
+      iemin = findloc(kmat_energies_full .ge. G%KMAT_EI, .true., 1)
+      if(iemin .eq. 0) call die("No K-matrix energyes ≥ KMAT_EI found")
+
+      if(G%KMAT_EF .gt. 0._dp) then
+        iemax = findloc(kmat_energies_full .gt. G%KMAT_EF, .true., 1)
+        iemax = merge(ne, iemax-1, iemax .eq. 0)
+      else
+        iemax = ne
+      endif
+
+      if(iemax .lt. iemin) call die("Requested EDFT matrix evaluation energy window is empty !")
+
+      ne_include = iemax - iemin + 1
+      ne_skip    = iemin - 1
+
+      call realloc(kmat_energies, ne_include)
+      kmat_energies = kmat_energies_full(iemin:iemax)
+
       write(stdout, '(4x, "user requested k-matrix energies between ", es10.3, " and ", es10.3, " ev")') &
-        kmat_energies(iemin)*au2ev, kmat_energies(iemax)*au2ev
-      ne_skip = iemin - 1
+        kmat_energies(1)*au2ev, kmat_energies(ne_include)*au2ev
+
     else
-      iemin = 1
-      iemax = ne
+
       ! -- find the closest energy
-      ie_closest = minloc(abs(kmat_energies - G%KMAT_ENERGY_CLOSEST), 1)
-      if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
-      ne_skip = ie_closest - 1
-      write(stdout, '(4X, "User requested K-matrix at ", E20.10, " eV")') G%KMAT_ENERGY_CLOSEST            * au2ev
-      write(stdout, '(7X, "Found Kmatrix at energy ",    E20.10, " eV")') kmat_energies(ie_closest) * au2ev
+      if(G%KMAT_ENERGY_CLOSEST .le. 0._dp) then
+        ie_closest = 1
+        write(stdout, '(4X, "KMAT_ENERGY_CLOSEST ≤ 0 detected; taking the (first) K-matrix at ", ES17.10, " eV")') &
+          kmat_energies_full(1) * au2ev
+      else
+        ie_closest = minloc(abs(kmat_energies_full - G%KMAT_ENERGY_CLOSEST), 1)
+        if(ie_closest .lt. 1) call die("Somehow, IE_CLOSEST returned a non-positive integer !")
+        write(stdout, '(4X, "User requested K-matrix at ", ES17.10, " eV")') G%KMAT_ENERGY_CLOSEST          * au2ev
+        write(stdout, '(4X, "Found Kmatrix at energy ",    ES17.10, " eV")') kmat_energies_full(ie_closest) * au2ev
+      endif
+
+      ne_include = 1
+      ne_skip    = ie_closest - 1
+
+      call realloc(kmat_energies, 1)
+      kmat_energies(1) = kmat_energies_full(ie_closest)
+
     endif
 
     ! -- skip header, read channels for this irrep

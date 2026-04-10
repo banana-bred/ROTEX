@@ -693,6 +693,11 @@ contains
 
           deallocate(smat_rot)
 
+          if(J .eq. Jmin) then
+            write(stdout, '("MQDT: ", 2(A5," /"),A5)') "Jmin", "J", "Jmax"
+          else
+            write(stdout, '("      ", 2(I5," /"),I5)') Jmin, J, Jmax
+          endif
           call get_smat_probs(         &
               egrid_tot_smat           &
             , transition_probs         &

@@ -67,8 +67,13 @@ $kmat_namelist
     !! Allow the electron energy grid to go beyond the bounds of the input matrix evaluation grid ?
     !! If so, the matrices will be clamped; the closest matrix will be used if E < Egrid or Egrid < E
     !! Only considered when EDFT is .true.
-  ! kmat_ei = 2.7e-4
   kmat_ei = 4.5e-4
+    !! The leftmost matrix evaluation energy to consider for the EDFT window.
+    !! Does not have to match up exactly with an available energy
+  kmat_energy_closest = 1e-3
+    !! In case EDFT is .false., evaluate the K-matrix that is the closest to this energy.
+    !! If it is 0 (default value when omitted), just take the first K-matrix.
+    !! Not used when EDFT is .true.
 /
 
 ! =============================================================================================
