@@ -210,10 +210,12 @@ module rotex__globals
       !! The molecular axis (a, b, or c) along which the z-axis is oriented
       !! For asymmetric tops, this should be the main symmetry axis
       !! For symmetric tops, this should be highest symmetry axis
-    character(1) :: ROTOR_C2AXIS
-      !! The C₂ symmetry axis. UKRMol+ calculations for certain point groups require z to be
-      !! along the C₂ axis, in which case we'll need to rotate our rotational eigenvectors.
-      !! Probably mostly relevant for symmetric tops
+    character(1) :: SCATTERING_ZAXIS
+      !! The z-axis of the scattering calculations: one of "A", "B", "C"
+    character(1) :: SCATTERING_YAXIS
+      !! The y-axis of the scattering calculations: one of "A", "B", "C"
+    character(1) :: SCATTERING_XAXIS
+      !! The x-axis of the scattering calculations: one of "A", "B", "C"
     character(1) :: CHANNEL_ENERGY_UNITS_OVERRIDE
       !! The units of the channel energies in the file that holds channels. Options are :
       !!  - "r" for Rydberg, "h" for hartree, "e" for eV
@@ -238,8 +240,10 @@ module rotex__globals
       !! that are above the evaluation energy grid that we read.
       !! "l"inear
       !! "c"onstant
-    character(:), allocatable :: POINT_GROUP
+    character(:), allocatable :: SCATTERING_POINT_GROUP
       !! The point group in which the K-matrices were calculated
+    character(:), allocatable :: TARGET_POINT_GROUP
+      !! The point group of the target molecule
     character(:), allocatable :: KMAT_DIR
       !! Path for the file containing the K-matrix to be read. Absolute or relative
     character(:), allocatable :: CHANNELS_DIR
@@ -301,7 +305,9 @@ contains
     character(:), allocatable :: output_directory
     character(1) :: rotor_kind = DEFAULT_CHAR1
     character(1) :: rotor_zaxis = DEFAULT_CHAR1
-    character(1) :: rotor_c2axis = DEFAULT_CHAR1  !TODO should not have to be set if it won't be used. if not set, then its fine ?
+    character(1) :: scattering_zaxis = DEFAULT_CHAR1  !TODO should not have to be set if it won't be used. if not set, then its fine ?
+    character(1) :: scattering_xaxis = DEFAULT_CHAR1  !TODO should not have to be set if it won't be used. if not set, then its fine ?
+    character(1) :: scattering_yaxis = DEFAULT_CHAR1  !TODO should not have to be set if it won't be used. if not set, then its fine ?
     real(dp) :: abc(3) = 0.0_dp
     real(dp) :: B_rot = 0.0_dp
     real(dp) :: H_rot = 0.0_dp
@@ -340,7 +346,8 @@ contains
     character(1) :: kmat_energy_units_override    = DEFAULT_CHAR1
     character(3) :: egrid_spacing
     character(7) :: kmat_output_type = "======="
-    character(:), allocatable :: point_group
+    character(:), allocatable :: scattering_point_group
+    character(:), allocatable :: target_point_group
     character(:), allocatable :: kmat_dir
     character(:), allocatable :: channels_dir
 
@@ -377,7 +384,7 @@ contains
       , use_kmat                            &
       , use_cb                              &
       , rotor_zaxis                         &
-      , rotor_c2axis                        &
+      , scattering_zaxis                    &
       , rotor_kind                          &
       , targcharge                          &
       , abc                                 &
@@ -395,7 +402,8 @@ contains
         kmat_dir                       &
       , channels_dir                   &
       , lmax_kmat                      &
-      , point_group                    &
+      , scattering_point_group         &
+      , target_point_group             &
       , num_egrid_segs                 &
       , num_egrid                      &
       , egrid_xtrap_pre                &
@@ -446,7 +454,9 @@ contains
     if(rotor_kind    .eq. DEFAULT_CHAR1) call die("Must specify ROTOR_KIND in CONTROL_NAMELIST")
     if(targcharge .eq. DEFAULT_INT)   call die("Must specify TARGCHARGE in CONTROL_NAMELIST")
     if(rotor_zaxis         .eq. DEFAULT_CHAR1) call die("Must specify ZAXIS in CONTROL_NAMELIST")
-    if(rotor_c2axis        .eq. DEFAULT_CHAR1) call die("Must specify C2AXIS in CONTROL_NAMELIST")
+    if(scattering_zaxis    .eq. DEFAULT_CHAR1) call die("Must specify scattering_zaxis in CONTROL_NAMELIST")
+    if(scattering_xaxis    .eq. DEFAULT_CHAR1) call die("Must specify scattering_xaxis in CONTROL_NAMELIST")
+    if(scattering_yaxis    .eq. DEFAULT_CHAR1) call die("Must specify scattering_yaxis in CONTROL_NAMELIST")
     if(lower(rotor_kind) .eq. "l") then
       if(B_rot .le. 0.0_dp) call die("Must have a positive rotational constant B_rot for a linear molecule")
     else
@@ -462,7 +472,8 @@ contains
       allocate(character(1000) :: channels_dir)
       allocate(num_egrid(100))
       allocate(egrid_segs(101))
-      allocate(character(10)   :: point_group)
+      allocate(character(10)   :: scattering_point_group)
+      allocate(character(10)   :: target_point_group)
       allocate(spinmults(10))
       spinmults = DEFAULT_INT
       kmat_dir(1:1)     = DEFAULT_CHAR1
@@ -531,7 +542,9 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     call to_lower(rotor_zaxis)
-    call to_lower(rotor_c2axis)
+    call to_lower(scattering_zaxis)
+    call to_lower(scattering_xaxis)
+    call to_lower(scattering_yaxis)
 
     ! -- convert to atomic units
     Ef                = Ef                / au2ev
@@ -546,15 +559,17 @@ contains
 
     ! -- convert to lower case
     call to_lower(rotor_kind)
-    if(use_kmat .eqv. .true.) call to_lower(point_group)
+    if(use_kmat .eqv. .true.) call to_lower(scattering_point_group)
+    if(use_kmat .eqv. .true.) call to_lower(target_point_group)
     call to_lower(kmat_energy_units_override)
     call to_lower(channel_energy_units_override)
 
     ! -- remove spaces
-    if(allocated(point_group))      point_group      = trim(point_group)
-    if(allocated(kmat_dir))         kmat_dir         = trim(kmat_dir)
-    if(allocated(channels_dir))     channels_dir     = trim(channels_dir)
-    if(allocated(output_directory)) output_directory = trim(output_directory)
+    if(allocated(scattering_point_group)) scattering_point_group = trim(scattering_point_group)
+    if(allocated(target_point_group))     target_point_group     = trim(target_point_group)
+    if(allocated(kmat_dir))               kmat_dir               = trim(kmat_dir)
+    if(allocated(channels_dir))           channels_dir           = trim(channels_dir)
+    if(allocated(output_directory))       output_directory       = trim(output_directory)
 
     ! -- add trailing directory separator to directories if needed, make directories as needed
     call add_trailing(output_directory, ds)
@@ -589,7 +604,9 @@ contains
     G%OUTPUT_DIRECTORY      = output_directory
     G%ROTOR_KIND            = rotor_kind
     G%ROTOR_ZAXIS           = rotor_zaxis
-    G%ROTOR_C2AXIS          = rotor_c2axis
+    G%SCATTERING_ZAXIS      = scattering_zaxis
+    G%SCATTERING_XAXIS      = scattering_xaxis
+    G%SCATTERING_YAXIS      = scattering_yaxis
     G%ABC                   = abc(:)
     G%B_ROT                 = b_rot
     G%D_ROT                 = d_rot
@@ -628,7 +645,8 @@ contains
       G%KMAT_DIR                       = kmat_dir
       G%CHANNELS_DIR                   = channels_dir
       G%LMAX_KMAT                      = lmax_kmat
-      G%POINT_GROUP                    = point_group
+      G%SCATTERING_POINT_GROUP         = scattering_point_group
+      G%target_POINT_GROUP             = target_point_group
       G%SPINMULTS                      = spinmults(:)
       G%NUM_EGRID_SEGS                 = num_egrid_segs
       G%NUM_EGRID                      = num_egrid(:)

@@ -28,10 +28,16 @@ module rotex__types
   public :: cd4_type
   public :: cd6_type
   public :: prob_vector_type
+  public :: xyz_type
 
   ! -- ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
   ! -- ↓↓↓↓↓↓↓↓ type definitions ↓↓↓↓↓↓↓↓
   ! -- ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+
+  type xyz_type
+    character(1) :: x, y, z
+      !! Take the values "A", "B", or "C"
+  end type xyz_type
 
   type eigenH_type
     !! Contains the eigenvectors and eigenvalues of a hamiltonian

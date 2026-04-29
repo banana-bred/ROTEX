@@ -72,7 +72,7 @@ contains
     type(ivector_type), allocatable :: index_map(:)
     type(r3rarr_type), allocatable :: kmat_irrep(:)
 
-    nirreps = group_size(G%POINT_GROUP)
+    nirreps = group_size(G%SCATTERING_POINT_GROUP)
     allocate(nchans_irrep(nirreps))
 
     write(stdout, '(A)')     "----------------------------------------"
@@ -102,11 +102,11 @@ contains
 
     nchans_total = 0
 
-    write(stdout, '("Point group: ", A)') G%POINT_GROUP
+    write(stdout, '("Point group: ", A)') G%SCATTERING_POINT_GROUP
 
     ! -- read the K-matrices and electronic channels
     irrep_loop_kmats: do irrep = 1, nirreps
-      irrepname = irrep_name(irrep, G%POINT_GROUP)
+      irrepname = irrep_name(irrep, G%SCATTERING_POINT_GROUP)
       write(stdout, '(2X, "Irrep: ", A)') irrepname
       filename = G%KMAT_DIR // int2char(spinmult) // irrepname // ".kmat"
 
@@ -130,7 +130,7 @@ contains
       case(MQDTR2K)
 
         ! -- the kmat file is expected to have the channels in this format, so no need for a channels file
-        kmat_filename = G%KMAT_DIR // int2char(spinmult) // irrep_name(irrep, G%POINT_GROUP) // ".kmat"
+        kmat_filename = G%KMAT_DIR // int2char(spinmult) // irrep_name(irrep, G%SCATTERING_POINT_GROUP) // ".kmat"
 
         call get_kmat_and_channels_mqdtr2k( &
             kmat_filename                   &
@@ -215,7 +215,7 @@ contains
       !! The K-matrices for all energies. nchan × nchan × nE
     integer :: iloc, jloc, kloc, itot, jtot, ktot, irrep, nirreps, ie
     call size_check(kmat, [nchans_total, nchans_total, ne], "KMAT")
-    nirreps = group_size(G%POINT_GROUP)
+    nirreps = group_size(G%SCATTERING_POINT_GROUP)
     do irrep=1,nirreps
       kloc = 0
       do concurrent(iloc=1:nchans_irrep(irrep), jloc=1:nchans_irrep(irrep), ie=1:ne)

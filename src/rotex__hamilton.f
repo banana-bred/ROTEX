@@ -361,7 +361,7 @@ contains
     use rotex__characters, only: lower
     use rotex__constants,  only: pi, im
     use rotex__system,     only: stderr, die
-    use wignerd,           only: wigner_big_D, wigner_little_d
+    use rotex__wigner,     only: wigner_big_D, wigner_little_d
     implicit none (type, external)
     integer,      intent(in)    :: N
       !! The rotational angular moment quantum number

@@ -472,13 +472,13 @@ contains
     use rotex__channel_ops, only: findloc_transitions, sort_channels_by_energy
     use rotex__types,     only: n_states_type, r3carr_type, elec_channel_type &
                            , asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
-                           , asymtop_rot_transition_type, rvector_type, prob_vector_type
+                           , asymtop_rot_transition_type, rvector_type, prob_vector_type, xyz_type
     use rotex__system,    only: die, DS => DIRECTORY_SEPARATOR, stdout
     use rotex__globals, only: SPINMULT_NAMES
     use rotex__rft,       only: do_eirft, do_edrft_chunk, real2complex_ylm, K2sincos, K2S_cayley
     use rotex__arrays,    only: append_uniq, realloc, packmat
     use rotex__mqdtxs,    only: get_smat_probs
-    use rotex__characters, only: i2c => int2char
+    use rotex__characters, only: i2c => int2char, lower
     use rotex__reading,   only: read_kmats
     use rotex__writing,   only: write_smat_xs_to_file, write_channels_to_file, write_smat_xs_to_file &
                               , write_Smat_J_elems_to_file
@@ -514,10 +514,12 @@ contains
     real(dp), allocatable :: sin_elec(:,:,:), cos_elec(:,:,:)
     complex(dp), allocatable :: smat_elec(:,:), smat_rot(:,:), smat_rot_flat(:,:)
     complex(dp), allocatable :: csin_elec(:,:,:), ccos_elec(:,:,:)
+    copmlex(dp), allocatable :: ckmat(:,:,:)
     character(1) :: kmat_eval_E_units, channel_e_units
     character(:), allocatable :: smat_output_directory_this_spin, smat_output_directory_all_spins
     character(:), allocatable :: channels_file_this_spin
 
+    type(xyz_type) :: xyz
     type(elec_channel_type),                 allocatable :: elec_channels(:)
     type(rvector_type),                      allocatable :: xs_xcite(:), xs_dxcite(:)
     type(prob_vector_type),                  allocatable :: transition_probs(:)
@@ -573,6 +575,30 @@ contains
         call die("ROTOR_KIND  must be (l)inear, (s)ymmetric top, or (a)symmetric top")
       end select
 
+      write(stdout, *)
+      write(stdout, '("Scattering calculation z-axis: ", A)') G%ROTOR_C2AXIS
+      write(stdout, '("Desired rotor z-axis:          ", A)') G%ROTOR_ZAXIS
+      write(stdout, *)
+
+      ! -- ensure that the K-matrix frame and the rotational wavefunction frame align and are
+      !    in the highest feasible symmetry.
+      !    This is done somewhat manually via user input because the z-axis for the scattering
+      !    calculations may not align with the z-axis used for diagonalizing the rotational
+      !    Hamiltonian. This is done HERE because of the following restrictions imposed on scattering
+      !    calculations in codes like UKRmol+:
+      !
+      !      Only Abelian point groups are used to describe the target symmetry. Molecules like
+      !      H₃⁺, belonging to the D3h point group, are calculated in an Abelian subgroup
+      !      (C2v in this example). To enforce ortho/para symmetry, the rotational wavefunction
+      !      frame and the scattering frame must be the same so that we can then reconstruct
+      !      the *actual* D3h symmetry that will be used in the RFT
+      xyz = xyz_type(lower(G%SCATTERING_XAXIS), lower(G%SCATTERING_YAXIS), lower(G%SCATTERING_ZAXIS))
+
+      ! -- complex-valued K-matrix for rotations
+      @@@ figure this out. keep a fast and real K-matrix path or just do complex for everything ?
+      ckmat = cmplx(kmat, kind=dp) ; deallocate(kmat)
+      call transcend_K(ckmat, elec_channels, , G%ROTOR_ZAXIS)
+
       ! -- min and max values of total J
       jmin = max(0, G%NMIN - G%LMAX_KMAT)
       jmax = abs(G%NMAX + G%LMAX_KMAT)
@@ -602,7 +628,7 @@ contains
       if(G%EDFT) then
 
         ! -- correct for branch cuts to get a smooth S-matrix
-        nchans_elec = size(kmat, 1)
+        nchans_elec = size(ckmat, 1)
         write(stdout, '("Energy dependent frame transformation requested")')
         write(stdout, '("Allocating electronic sine and cosine matrices of dimension: ", I0, "×", &
           & I0, "×", I0, "..")') nchans_elec, nchans_elec, ne_mat
@@ -610,8 +636,8 @@ contains
         allocate(sin_elec(nchans_elec, nchans_elec, ne_mat), source=0._dp)
         allocate(cos_elec(nchans_elec, nchans_elec, ne_mat), source=0._dp)
         write(stdout, '("Converting K(E) -> {sin(E), cos(E)}..")')
-        call K2sincos(kmat, kmat_eval_energies, sin_elec, cos_elec, elec_channels, G%SPINMULTS(ispin))
-        deallocate(kmat)
+        call K2sincos(ckmat, kmat_eval_energies, sin_elec, cos_elec, elec_channels, G%SPINMULTS(ispin))
+        deallocate(ckmat)
 
         write(stdout, '("Populating complex sin, cos matrices in case of spherical harmonics transformation..")')
         csin_elec = cmplx(sin_elec, kind=dp) ; deallocate(sin_elec)
@@ -642,7 +668,7 @@ contains
       endif
 
 
-      !@@@TODO clean this up a bit
+      ! TODO clean this up a bit
       Jloop: do J=Jmin, Jmax
 
         call collect_j_channels_indices(J, all_rotational_channels, idxmap)
@@ -1300,7 +1326,7 @@ contains
 
         ! -- if C₂ axis is the z-axis of the scattering calculations and is different than
         !    the rotational z-axis, rotate eigenvectors so that the z-axis lines up with the C₂ axis
-        if(lower(G%ROTOR_C2AXIS) .eq. lower(G%ROTOR_ZAXIS)) cycle
+        if(lower(G%SCATTERING_ZAXIS) .eq. lower(G%ROTOR_ZAXIS)) cycle
         current_axis = G%ROTOR_ZAXIS
         call rotate_eigvecs(N, current_axis, G%ROTOR_C2AXIS, N_states(i_N)%eigenH%eigvecs)
 
@@ -2149,6 +2175,145 @@ contains
     if(ne_per_chunk .gt. ne_mat) ne_per_chunk = ne_mat
 
   end function determine_edrft_chunk_size_mb
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine transcend_K(kmat, channels, xyz_from, zto, pgfrom, pgto)
+    !! Take K-matrices in the point group `pgfrom` and the reference frame `xyz` and reconstruct them in a
+    !! higher symmetry point group `pgto` with reference zaxis `zto`
+    use rotex__types,    only: elec_channel_type, xyz_type
+    use rotex__frames,   only: xyz_is_valid, xyz_from_z, operator(.ne.)
+    use rotex__symmetry, only: is_subroup
+    implicit none (type, external)
+    complex(dp), intent(inout) :: kmat(:,:,:)
+      !! The K-matrices
+    type(elec_channel_type), intent(in) :: channels(:)
+      !! The K-matrix channel basis
+    type(xyz_type), intent(in) :: xyz_from
+      !! The K-matrix frame of pgfrom
+    character(1), intent(in) :: zto
+      !! The target z-axis of pgto
+    character(*), intent(in) :: pgfrom, pgto
+      !! The point groups
+
+    type(xyz_type) ::  xyz_to
+
+    ! -- get the new reference frame
+    xyz_to = xyz_from_z(zto)
+
+    if(is_subgroup(pgfrom, pgto) .eqv. .false.) call die("The point group "//pgfrom//" is not a subgroup of "//pgto)
+
+    if(xyz_from .ne. xyz_to) then
+
+      write(stoud, *)
+      write(stdout, '("Initial scattering reference frame in terms of inertial axes: ")')
+      write(stdout, '(4X, "x: ", A)') xyz_from%x
+      write(stdout, '(4X, "y: ", A)') xyz_from%y
+      write(stdout, '(4X, "z: ", A)') xyz_from%z
+      write(stdout, '("Target scattering reference frame in terms of inertial axes: ")')
+      write(stdout, '(4X, "x: ", A)') xyz_to%x
+      write(stdout, '(4X, "y: ", A)') xyz_to%y
+      write(stdout, '(4X, "z: ", A)') xyz_to%z
+      write(stoud, *)
+
+      if(G%EDFT) then
+        write(stdout, '(A)') "Rotating K-matrices.. "
+      else
+        write(stdout, '(A)') "Rotating K-matrix.. "
+      endif
+
+      call rotate_kmat(kmat, xyz_from, xyz_to)
+
+      write(stdout, '(A)') " done !"
+    endif
+
+  end subroutine transcend_K
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine rotate_kmat(kmat, channels, xyz_from, xyz_to)
+    !! Rotate the K-matrices from one from one frame to another
+    !!   Knew = D⁺ K D
+    !! `kmat` is complex the rotations, depending on the channel basis, may
+    !! introduce complex phases
+    use rotex__types,   only: xyz_type, elec_channel_type
+    use rotex__frames,  only: operator(.eq.)
+    use rotex__arrays,  only: size_check, adjoint
+    implicit none(type, external)
+    complex(dp),             intent(inout) :: kmat(:,:,:)
+    type(elec_channel_type), intent(in) :: channels(:)
+    type(xyz_type),          intent(in) :: xyz_from, xyz_to
+
+    integer :: nchan, ne, ie
+    complex(dp), allocatable :: U(:,:), Udagg(:,:)
+    complex(dp),    allocatable :: tmp(:,:), knew(:,:)
+
+    if(xyz_from .eq. xyz_to) return
+
+    ne    = size(kmat, 3)
+    nchan = size(channels, 1)
+
+    call size_check(kmat, [nchan, nchan, ne], "KMAT")
+
+    allocate(U(nchan,    nchan))
+    allocate(Udagg(nchan, nchan))
+    call build_kmat_rotation_matrix(U, channels, xyz_from, xyz_to)
+    Udagg = adjoint(U)
+
+    allocate(tmp(nchan, nchan))
+    allocate(knew(nchan, nchan))
+
+    !$omp parallel default(none) shared(ne, U, kmat) private(ie)
+    !$omp do schedule(static)
+    do concurrent (ie=1:ne)
+      tmp = matmul(kmat(:,:,ie), U)
+      knew(:, :) = matmul(Udagg, tmp)
+      kmat(:, :, ie) = knew
+    enddo
+    !$omp enddo
+    !$omp end parallel
+
+  end subroutine rotate_kmat
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine build_kmat_rotation_matrix(U, channels, xyz_from, xyz_to)
+    !! Build the xyz_from -> xyz_to rotation matrix for a K-matrix in the basis of
+    !! complex-valued spherical harmonics Y_lλ
+    use rotex__types,  only: elec_channel_type, xyz_type
+    use rotex__arrays, only: size_check
+    use rotex__frames, only: get_euler_angles
+    use rotex__wigner, only:
+    implicit none(type, external)
+    complex(dp),                intent(inout) :: U(:,:)
+    type(elec_channel_type), intent(in) :: channels(:)
+    type(xyz_type),          intent(in) :: xyz_from, xyz_to
+
+    integer :: nchan
+    real(dp) :: a, b, g
+
+    nchan = size(channels, 1)
+    call size_check(U, [nchan, nchan], "U")
+
+    U = cmplx(0.0, 0.0, kind=dp)
+
+    call get_euler_angles(xyz_from, xyz_to, a, b, g)
+
+    do i = 1, nchan
+
+      li = channels(i) % l
+      mi = channels(i) % m
+
+      do j = 1, nchan
+
+        lj = channels(j) % l
+        mj = channels(j) % m
+
+        if(li .ne. lj) cycle
+
+        U(i, j) = wigner_big_D(li, mi, mj, a, b, g)
+
+      enddo
+    enddo
+
+  end subroutine build_kmat_rotation_matrix
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine print_chunk_meminfo(funit, obj, nrot_current, ne_mat, ne_per_chunk)

@@ -89,7 +89,6 @@ contains
   end subroutine do_eirft
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  !TODO @@@ replace this with chunk
   !module subroutine do_edrft(           &
   !      sin_elec                 &
   !    , cos_elec                 &
@@ -210,7 +209,6 @@ contains
   !  call realloc(cosE,     nchans_elec, nchans_elec)
 
   !  !$omp do schedule(static)
-  !  !TODO: flattened matrices here, take up less space
   !  nrg: do ie=1, ne
 
   !    sin_rot  = (0.0_dp, 0.0_dp)
@@ -790,16 +788,13 @@ contains
   !      allocate(smat_elec(nchans_elec, nchans_elec), source=(0._dp, 0._dp))
   !    endif
 
-  !    !TODO omp
   !    nrg: do ie=1, ne
 
 
   !      ! -- loop over symmetries
   !      ! do isym=1, nsyms
 
-  !      !TODO: symmetry loop. loop over symmetries in the RFT. This is not needed if the electronic
   !      ! calculations are in the full symmetry. expand to full symmetry beforehand if needed
-  !      ! TODO: get rid of symmetry stuff
   !      sym = uniq_syms(isym)
 
   !      ! -- map all J -> this sym

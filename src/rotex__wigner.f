@@ -1,6 +1,7 @@
 ! ================================================================================================================================ !
 module rotex__wigner
   !! Calculate the Wigner 3j symbols
+  use wignerd, only: wigner_big_D, wigner_little_d
 
   implicit none (type, external)
 
@@ -8,6 +9,8 @@ module rotex__wigner
 
   public :: wigner3j
   public :: clebsch
+  public :: wigner_big_D
+  public :: wigner_little_D
 
 ! ================================================================================================================================ !
 contains

@@ -16,6 +16,7 @@ module rotex__symmetry
   public :: is_spin_forbidden
   public :: symtop_rotstate_is_allowed
   public :: rotstate_is_allowed
+  public :: is_subgroup
 
   interface is_spin_allowed
     module procedure :: is_spin_allowed_chan
@@ -403,6 +404,68 @@ contains
     end select
   end function rotstate_is_allowed
 
+  ! ------------------------------------------------------------------------------------------------------------------------------- !
+  pure function is_subgroup(pg1, pg2) result(res)
+    !! Test if pg1 ⊆ pg2
+    use rotex__characters, only: lower
+    implicit none (type, external)
+    character(*), intent(in) :: pg1, pg2
+      !! The point groups
+    logical :: res
+    character(:), allocatable :: pg1_, pg2_
+    pg1_ = lower(pg1)
+    pg2_ = lower(pg2)
+    associate(pg1 => pg1_, pg2 => pg2_)
+
+      if(lower(pg1) .eq. lower(pg2)) then
+        res = .true.
+        return
+      endif
+
+      select case(pg2)
+
+      case("d3h")
+
+        select case(pg1)
+        case("c1", "cs", "c2", "c2v", "c3", "c3v", "d3")
+          res = .true.
+        case default
+          res = .false.
+        end select
+
+      case("c3v")
+
+        select case(pg1)
+        case("c1", "cs", "c3")
+          res = .true.
+        case default
+          res = .false.
+        end select
+
+      case("c2v")
+
+        select case(pg1)
+        case("c1", "cs", "c2")
+          res = .true.
+        case default
+          res = .false.
+        end select
+
+      case("cs")
+
+        select case(pg1)
+        case("c1")
+          res = .true.
+        case default
+          res = .false.
+        end select
+
+      case default
+        res = .false.
+
+      end select
+    end associate
+  end function is_subgroup
 
 ! ================================================================================================================================ !
 end module rotex__symmetry
