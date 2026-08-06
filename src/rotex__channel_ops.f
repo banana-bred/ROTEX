@@ -1,11 +1,12 @@
 ! ================================================================================================================================ !
 module rotex__channel_ops
   !! Various channel operators
-  use rotex__kinds, only: dp
-  use rotex__types, only: channel_type, elec_channel_type &
-                        , asymtop_rot_channel_type        &
-                        , asymtop_rot_channel_l_type      &
-                        , asymtop_rot_transition_type
+  use rotex__kinds,   only: dp
+  use rotex__system,  only: die
+  use rotex__types,   only: channel_type, elec_channel_type &
+                          , asymtop_rot_channel_type        &
+                          , asymtop_rot_channel_l_type      &
+                          , asymtop_rot_transition_type
 
   implicit none (type, external)
 
@@ -21,6 +22,7 @@ module rotex__channel_ops
   public :: sort_channels_by_energy
   public :: trim_channel_l
   public :: get_channel_index
+  public :: assert_channel_validity
 
   interface operator(.eq.)
     module procedure :: channel_iseq
@@ -90,12 +92,13 @@ contains
     type is (asymtop_rot_channel_l_type)
       select type (right => channel_in)
       type is (asymtop_rot_channel_l_type)
-        left % N   = right % N
-        left % Ka  = right % Ka
-        left % Kc  = right % Kc
-        left % l   = right % l
-        left % iq  = right % iq
-        left % sym = right % sym
+        left % N     = right % N
+        left % Ka    = right % Ka
+        left % Kc    = right % Kc
+        left % l     = right % l
+        left % iq    = right % iq
+        left % sym   = right % sym
+        left % rchar = right % rchar
       class default
         call die("Trying to assign rotation+l channel to a different kind of channel.")
       end select
@@ -104,10 +107,11 @@ contains
     type is (asymtop_rot_channel_type)
       select type (right => channel_in)
       type is (asymtop_rot_channel_type)
-        left % N   = right % N
-        left % Ka  = right % Ka
-        left % Kc  = right % Kc
-        left % sym = right % sym
+        left % N     = right % N
+        left % Ka    = right % Ka
+        left % Kc    = right % Kc
+        left % sym   = right % sym
+        left % rchar = right % rchar
       class default
         call die("Trying to assign rotational channel (no l) to a different kind of channel.")
       end select
@@ -237,6 +241,7 @@ contains
     idxtarg = IDX_NOT_FOUND
     mask = search .eq. targ
     idxsearch = pack([(isearch, isearch=1, nsearch)], mask)
+    if(size(idxsearch) .eq. 0) return
     idxtarg = idxsearch(1) ! take first match
   end function findloc_transitions_scl
   ! ------------------------------------------------------------------------------------------------------------------------------- !
@@ -295,15 +300,16 @@ contains
     implicit none (type, external)
     type(asymtop_rot_channel_l_type), intent(in) :: channel_with_l
     type(asymtop_rot_channel_type) :: channel_without_l
-    integer :: nelec, N, Ka, Kc, sym
+    integer :: nelec, N, Ka, Kc, sym, rchar
     real(dp) :: E
     nelec = channel_with_l % nelec
     N     = channel_with_l % N
     Ka    = channel_with_l % Ka
     Kc    = channel_with_l % Kc
     sym   = channel_with_l % sym
+    rchar = channel_with_l % rchar
     E     = channel_with_l % E
-    channel_without_l = asymtop_rot_channel_type(nelec = nelec, N = N, Ka = Ka, Kc = Kc, E = E, sym = sym)
+    channel_without_l = asymtop_rot_channel_type(nelec = nelec, N = N, Ka = Ka, Kc = Kc, E = E, sym = sym, rchar=rchar)
   end function trim_channel_l
 
   ! ------------------------------------------------------------------------------------------------------------------------------- !
@@ -421,6 +427,23 @@ contains
     channels(jchan) = tmp
     deallocate(tmp)
   end subroutine swap_channels
+
+  ! ------------------------------------------------------------------------------------------------------------------------------- !
+  pure subroutine assert_channel_validity(ch, rotor_kind, loc)
+    implicit none(type, external)
+    class(channel_type), intent(in) :: ch
+    character(1), intent(in) :: rotor_kind
+    character(*), intent(in) :: loc
+    select type(ch)
+    class is (asymtop_rot_channel_type)
+      select case(rotor_kind)
+      case("s","S")
+        if(abs(ch%rchar) .ne. 1) call die("Invalid rchar (must be ±1 for a symtop) at "//loc)
+      case default
+        if(ch%rchar .ne. 0) call die("rchar should be 0 for a non-symtop rotor at "//loc)
+      end select
+    end select
+  end subroutine assert_channel_validity
 
 ! ================================================================================================================================ !
 end module rotex__channel_ops

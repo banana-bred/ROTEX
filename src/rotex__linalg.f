@@ -14,6 +14,7 @@ module rotex__linalg
 
   public :: dsyev
   public :: zgesv
+  public :: zheev
   public :: operator(.matmul.)
 
   public :: right_divide
@@ -119,6 +120,22 @@ module rotex__linalg
       integer,      intent(out)   :: info
       real(dp),     intent(out)   :: w(*), work(*)
     end subroutine dsyev
+  end interface
+
+  interface
+    subroutine zheev(jobz, uplo, n, A, lda, w, work, lwork, rwork, info)
+      import dp
+      implicit none(type, external)
+      character(1), intent(in)    :: jobz, uplo
+      integer,      intent(in)    :: n
+      complex(dp),  intent(inout) :: A(lda, *)
+      integer,      intent(in)    :: lda
+      real(dp),     intent(out)   :: w(*)
+      complex(dp),  intent(out)   :: work(*)
+      integer,      intent(in)    :: lwork
+      real(dp),     intent(out)   :: rwork(*)
+      integer,      intent(out)   :: info
+    end subroutine zheev
   end interface
 
   interface

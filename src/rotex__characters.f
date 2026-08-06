@@ -21,8 +21,18 @@ module rotex__characters
   public :: to_lower
   public :: sup
   public :: sub
+  public :: join
+  public :: rational2char
+  public :: state_label
 
   integer, parameter :: big_char = 100
+
+  interface state_label
+    module procedure :: state_label_linear
+    module procedure :: state_label_symtop
+    module procedure :: state_label_asymtop
+    module procedure :: state_label_channel
+  end interface state_label
 
   interface s2hms
     !! convert seconds to hours, minutes, seconds
@@ -40,7 +50,7 @@ contains
 ! =================================================================================================================================!
 
   ! ---------------------------------------------------------------------------------------------------------------------------------!
-  pure module function int_s2hms(s) result(time)
+  pure function int_s2hms(s) result(time)
     !! Given an integer 's' in seconds, convert to the format hh:mm:ss.
 
     implicit none (type, external)
@@ -63,7 +73,7 @@ contains
   end function int_s2hms
 
   ! ---------------------------------------------------------------------------------------------------------------------------------!
-  pure module function real_s2hms(s_re) result(time)
+  pure function real_s2hms(s_re) result(time)
     !! Given an integer in seconds, convert to the format hh:mm:ss. Input is a real, gets converted to int
     implicit none (type, external)
 
@@ -132,7 +142,7 @@ contains
   end function vector_int2char
 
   ! ---------------------------------------------------------------------------------------------------------------------------------!
-  pure module subroutine add_trailing(chr, trail)
+  pure subroutine add_trailing(chr, trail)
     !! Add a trailing character `trail` to the character `chr` if it is not already the
     !! last character
 
@@ -157,7 +167,7 @@ contains
   end subroutine add_trailing
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function dJ2char(dJ) result(res)
+  pure function dJ2char(dJ) result(res)
     !! Takes an integer dJ and results the character representing half of it.
     !! dJ2char(2) -> "1"
     !! dJ2char(3) -> "3/2"
@@ -307,6 +317,149 @@ contains
     enddo
   end function sup
 
+  ! ---------------------------------------------------------------------------------------------------------------------------------!
+  pure function rational2char(numer, denom, numextra, denextra) result(char)
+    implicit none(type, external)
+    integer, intent(in)       :: numer, denom
+    character(*), intent(in), optional :: numextra
+    character(*), intent(in), optional :: denextra
+    character(:), allocatable :: char
+
+    ! -- 0 -> 0
+    if(numer .eq. 0) then
+      char = "0"
+      return
+    endif
+
+    ! -- build numerator
+    if(present(numextra)) then
+      select case(numer)
+      case(1)
+        char = numextra
+      case(-1)
+        char = "-"//numextra
+      case default
+        char = int2char(numer) // numextra
+      end select
+    else
+      char = int2char(numer)
+    endif
+
+    ! -- just the numerator
+    if(denom .eq. 1 .AND. .not. present(denextra)) return
+
+    char = char // "/"
+
+    ! -- build denominator
+    if(present(denextra)) then
+      if(denom .eq. 1)  then
+        char = char // denextra
+      else
+        char = char // int2char(denom) // denextra
+      endif
+    else
+      char = char // int2char(denom)
+    endif
+
+  end function rational2char
+
+  ! ---------------------------------------------------------------------------------------------------------------------------------!
+  pure function state_label_asymtop(N, Ka, Kc, sepstr) result(res)
+    integer, intent(in) :: N, Ka, Kc
+    character(*), intent(in), optional :: sepstr
+    character(:), allocatable :: res
+    character(:), allocatable :: sepstr_
+    res = int2char(N)
+    sepstr_ = "_" ; if(present(sepstr)) sepstr_ = sepstr
+    associate(sepstr => sepstr_)
+      res = res // sepstr // int2char(Ka) // sepstr // int2char(Kc)
+    end associate
+  end function state_label_asymtop
+  ! ---------------------------------------------------------------------------------------------------------------------------------!
+  pure function state_label_symtop(N, K, sepstr) result(res)
+    integer, intent(in) :: N, K
+    character(*), intent(in), optional :: sepstr
+    character(:), allocatable :: res
+    character(:), allocatable :: sepstr_
+    res = int2char(N)
+    sepstr_ = "_" ; if(present(sepstr)) sepstr_ = sepstr
+    associate(sepstr => sepstr_)
+      res = res // sepstr // int2char(K)
+    end associate
+  end function state_label_symtop
+  ! ---------------------------------------------------------------------------------------------------------------------------------!
+  pure function state_label_linear(N) result(res)
+    integer, intent(in) :: N
+    character(:), allocatable :: res
+    res = int2char(N)
+  end function state_label_linear
+  ! ---------------------------------------------------------------------------------------------------------------------------------!
+  pure function state_label_channel(channel, rotor_kind, symaxis, sepstr) result(res)
+    use rotex__types, only: asymtop_rot_channel_type
+    type(asymtop_rot_channel_type), intent(in) :: channel
+    character(1), intent(in) :: rotor_kind, symaxis
+    character(*), intent(in), optional :: sepstr
+    character(:), allocatable :: res
+    character(:), allocatable :: sepstr_
+    integer :: ksym
+    res = int2char(channel%N)
+    sepstr_ = "_" ; if(present(sepstr)) sepstr_ = sepstr
+    associate(sepstr => sepstr_)
+      select case(rotor_kind)
+      case("l","L")
+        return
+      case("a","A")
+        res = res // sepstr // int2char(channel%Ka) // sepstr // int2char(channel%Kc)
+      case("s","S")
+        select case(symaxis)
+        case("a","A")
+          ksym = channel%Ka
+        case("c","C")
+          ksym = channel%Kc
+        case("b","B")
+          ksym = -1
+        end select
+        if(ksym .eq. -1) then
+          res = "INVALID_SYMAXIS"
+          return
+        endif
+        res = res // sepstr // int2char(ksym)
+      case default
+        res = "INVALID_ROTOR_KIND"
+      end select
+    end associate
+  end function state_label_channel
+
+  ! ---------------------------------------------------------------------------------------------------------------------------------!
+  pure function join(chararr, sepstr, dotrim) result(char)
+    !! Joins the elements of chararr into a string, with each element separated by sepstr,
+    !! while optionally trimming elements
+    !! When omitted, dotrim defaults to false
+    !! When omitted, sepstr defaults ", " (comma and a space).
+    implicit none(type, external)
+    character(*), intent(in) :: chararr(:)
+    character(*), intent(in), optional :: sepstr
+    logical,      intent(in), optional :: dotrim
+    character(:), allocatable :: char
+    integer :: i, nelem
+    logical :: dotrim_
+    character(:), allocatable :: sepstr_
+    char=""
+    nelem = size(chararr, 1)
+    sepstr_ = ", " ; if(present(sepstr)) sepstr_ = sepstr
+    dotrim_ = .false. ; if(present(dotrim)) dotrim_ = dotrim
+    associate(sepstr => sepstr_, dotrim => dotrim_)
+      do i=1, nelem
+        if(dotrim) then
+          char = char // trim(chararr(i))
+        else
+          char = char // chararr(i)
+        endif
+        if(i .eq. nelem) return
+        char = char // sepstr
+      enddo
+    end associate
+  end function
 
 ! =================================================================================================================================!
 end module rotex__characters

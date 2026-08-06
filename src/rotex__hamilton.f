@@ -1,8 +1,9 @@
 ! ================================================================================================================================ !
 module rotex__hamilton
   !! Module containing procedures to construct and diagonalize rotational Hamiltonians
-  use rotex__kinds, only: dp
-  use rotex__types, only: eigenH_type, N_states_type
+  use rotex__kinds,  only: dp
+  use rotex__types,  only: eigenH_type, N_states_type
+  use rotex__system, only: stderr, die
 
   implicit none (type, external)
 
@@ -13,20 +14,20 @@ module rotex__hamilton
   public :: H_sym
   public :: assign_projections
   public :: rotate_eigvecs
-  ! public :: get_different_K_projections
+  public :: wangify_symtop_eigvecs
+  public :: resolve_c2prime_phi
 
 ! ================================================================================================================================ !
 contains
 ! ================================================================================================================================ !
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine H_sym(N, eigenH, Bpara, Bperp, cd4, cd6)
+  subroutine H_sym(N, eigenH, Bpara, Bperp, cd4, cd6)
     !! Get the 2N+1 rotational states for a symmetric top, optionally adding
     !! diagonal centrifugal distortion (CD) terms
     !!   E(N,K) = Bperp*N*(N+1) + (Bpara-Bperp)*K² + centrifugal distortion terms
 
     use rotex__types,    only: cd4_type, cd6_type
-    use rotex__symmetry, only: symtop_rotstate_is_allowed
 
     implicit none (type, external)
 
@@ -60,7 +61,6 @@ contains
 
       ! -- diagonal eigvecs for symmetric top
       eigenH%eigvecs(iK, iK) = (1.0_dp, 0.0_dp)
-      ! eigenH%eigvecs(iK, iK) = merge(1, 0, symtop_rotstate_is_allowed(N, K))
 
       KK = real(K*K, kind=dp)
       E = Bperp*NNp1 + (Bpara-Bperp)*KK
@@ -84,14 +84,13 @@ contains
   end subroutine H_sym
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine H_asym(N, eigenH, Bx, By, Bz, cd4, cd6)
+  subroutine H_asym(N, eigenH, Bx, By, Bz, cd4, cd6)
     !! Construct the \(2N + 1 \times 2N + 1\) symmetric top rigid-rotor Hamiltonian
     !!   \(H = Bx N_x^2 + By N_y^2 + Bz N_z^2\)
 
     use rotex__utils,     only: assert
     use rotex__arrays,    only: realloc, is_symmetric
     use rotex__types,     only: cd4_type, cd6_type
-    use rotex__system,    only: die, stderr
     use rotex__arrays,    only: eye
     use rotex__constants, only: zero, two, four
 
@@ -307,7 +306,7 @@ contains
   end subroutine add_cd6
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine assign_projections(N, eigvecs, absKvals, sort_eigvecs)
+  subroutine assign_projections(N, eigvecs, absKvals, sort_eigvecs)
     use rotex__arrays, only: realloc
     !! Using the eigenvectors and energies from a diagonalized rotational Hamiltonian,
     !! determine which projection is maximal. The eigenvectors can be in the Ka or Kc basis.
@@ -346,9 +345,9 @@ contains
   end subroutine assign_projections
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  module subroutine rotate_eigvecs(N, from_axis, to_axis, eigvecs)
+  subroutine rotate_eigvecs(N, from_axis, to_axis, eigvecs)
     !! Rotate the rigid rotor eigenvectors from one of the principal axes A,B,C to another
-    !! principal axis A,B,C using the Wigner D-matrix, while ensureing that the coordinate
+    !! principal axis A,B,C using the Wigner D-matrix, while ensuring that the coordinate
     !! system remains right-handed and that each of A,B,C get one of x,y,z.
     !! The three coordinate systems are:
     !!   ABC = zxy
@@ -360,13 +359,12 @@ contains
     use rotex__arrays,     only: adjoint
     use rotex__characters, only: lower
     use rotex__constants,  only: pi, im
-    use rotex__system,     only: stderr, die
     use rotex__wigner,     only: wigner_big_D, wigner_little_d
     implicit none (type, external)
     integer,      intent(in)    :: N
       !! The rotational angular moment quantum number
-    character(1), intent(inout) :: from_axis
-      !! On input, the starting z-axis. On output, the new z-axis
+    character(1), intent(in) :: from_axis
+      !! The starting z-axis
     character(1), intent(in)    :: to_axis
       !! The target z-axis to which we rotate
     complex(dp),  intent(inout) :: eigvecs(:,:)
@@ -419,10 +417,7 @@ contains
 
     eigvecs = matmul(adjoint(D), eigvecs)
 
-    if(is_unitary(eigvecs)) then
-      from_axis = to_axis
-      return
-    endif
+    if(is_unitary(eigvecs)) return
 
     write(stderr, '("From axis: ", A)') from_axis
     write(stderr, '("To axis: ", A)') to_axis
@@ -431,83 +426,113 @@ contains
 
   end subroutine rotate_eigvecs
 
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! pure function axes_abc(zaxis) result(frame)
-  !   !! Define the right-handed frame given the quantization axis axis
-  !   use rotex__kinds,  only: dp
-  !   use rotex__system, only: die
-  !   character(1), intent(in) :: zaxis
-  !   real(dp) :: frame(3,3)
-  !   frame = 0
-  !   select case(zaxis)
-  !   case("a","A")
-  !     frame(:, 1) = [0, 1, 0] ! x=b
-  !     frame(:, 2) = [0, 0, 1] ! y=c
-  !     frame(:, 3) = [1, 0, 0] ! z=a
-  !   case("b","B")
-  !     frame(:, 1) = [0, 0, 1] ! x=c
-  !     frame(:, 2) = [1, 0, 0] ! y=a
-  !     frame(:, 3) = [0, 1, 0] ! z=b
-  !   case("c","C")
-  !     frame(:, 1) = [1, 0, 0] ! x=a
-  !     frame(:, 2) = [0, 1, 0] ! y=b
-  !     frame(:, 3) = [0, 0, 1] ! z=c
-  !   case default
-  !     call die("Untolerated axis "//zaxis//". Must be one of 'A' 'B' 'C'")
-  !   end select
-  !
-  ! end function axes_abc
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  function resolve_c2prime_phi(use_kmat, phi_override_deg) result(phi)
+    !! Get the azimuthal angle φ of the C2' axis in the frame the rotor eigenvectors live in
+    !! (after any RR_DIAG_AXIS -> SYMAXIS stuff). This is here to fix Wang phases (exp[-2iK*phi])
+    !! and Wigner D-matrix rotations used to calculate rchar.
+    !! If the S-matrix afterwards had forbidden elements that are allowed, this φ is probably wrong.
+    !! The C2' axis must be the C2 axis that, e.g., the C2v scattering frame contains.
+    !! For equilibrium H₃⁺ this is φ=π/2
+    use rotex__constants, only: pi
+    use rotex__globals,   only: G, is_unset
+    implicit none(type, external)
+    logical,  intent(in)           :: use_kmat
+    real(dp), intent(in), optional :: phi_override_deg !! If present and set, override the inferred value
+    real(dp) :: phi
+    over: if(present(phi_override_deg)) then
+      if(is_unset(phi_override_deg)) exit over
+      phi = phi_override_deg * pi / 180.0_dp
+      return
+    endif over
+    if(use_kmat) then
+      phi = 0.5_dp * pi
+    else
+      phi = 0.0_dp ! don't do any extra rotation; not needed when using only multipoles
+    endif
+  end function resolve_c2prime_phi
 
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! pure function frame2frame(from_axis, to_axis) result(R)
-  !   !! Return the rotation matrix R that maps coordinates between frames
-  !   use rotex__kinds, only: dp
-  !   implicit none (type, external)
-  !   character(*), intent(in) :: from_axis, to_axis
-  !   real(dp) :: R(3,3)
-  !   real(dp) :: from_frame(3,3), to_frame(3,3)
-  !   from_frame = axes_abc(from_axis)
-  !   to_frame   = axes_abc(to_axis)
-  !   R = matmul(to_frame, transpose(from_frame))
-  ! end function frame2frame
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine wangify_symtop_eigvecs(N, eigvecs, irchar, phi)
+    !! Rotate the symmetric-top rigid-rotor eigenvectors into the Wang basis, tagging each state
+    !! with its C₂' character IRCHAR.
+    !!
+    !! H_SYM is diagonal in the signed-K basis -> its eigenvectors are the identity.
+    !! Within each exactly degenerate ±K pair, any unitary mixture is an equally valid eigenbasis.
+    !! The Wang combinations are the ones that ALSO diagonalize C₂', the operation carrying the
+    !! information on nuclear permutation symmetry.
+    !!
+    !! Row ordering of the primitive |N,K⟩ basis (K = -N..N) is unchanged, so the RFT and CB
+    !! routines work as expected, given that they were designed with asymtops in mind and, from that
+    !! perspective, the only thing that really changes are the eigenvector expansion coefficients.
 
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! pure subroutine zyz2rotmat(R, a, b, g)
-  !   !! Convert the Euler angles α(a) β(b) γ(g) to the rotation matrix
-  !   !!   R = Rz(α)*Ry(β)*Rz(γ)
-  !   use rotex__kinds, only: dp
-  !   implicit none (type, external)
-  !   real(dp), intent(out) :: R(3,3)
-  !   real(dp), intent(in) :: a, b, g
-  !   real(dp) :: sa, sb, sg
-  !   real(dp) :: ca, cb, cg
-  !   sa = sin(a) ; sb = sin(b) ; sg = sin(g)
-  !   ca = cos(a) ; cb = cos(b) ; cg = cos(g)
-  !   R(1, 1:3) = [ ca*cb*cg - sa*sg, -cg*sa - ca*cb*sg, ca*sb ]
-  !   R(2, 1:3) = [ ca*sg + cb*cg*sa,  ca*cg - cb*sa*sg, sa*sb ]
-  !   R(3, 1:3) = [ -cg*sb,           sb*sg,             cb    ]
-  ! end subroutine zyz2rotmat
+    use rotex__arrays,    only: eye, is_unitary, unitary_defect
+    use rotex__constants, only: pi
+    use wignerd,          only: wigner_big_D
 
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! pure subroutine rotmat2zyz(R, a, b, g)
-  !   !! Convert a rotation matrix to the zyz Euler angles α(a) β(b) γ(g)
-  !   !! R = Rz(α)*Ry(β)*Rz(γ)
-  !   use rotex__kinds, only: dp
-  !   implicit none (type, external)
-  !   real(dp), intent(in) :: R(3,3)
-  !   real(dp), intent(out) :: a, b, g
-  !   real(dp), parameter :: EPS = 1000*epsilon(1._dp)
-  !   real(dp) :: sb
-  !   b = acos(max(-1._dp, min(1._dp, real(R(3,3), kind=dp))))
-  !   sb = sin(b)
-  !   if(abs(sb) .gt. EPS) then
-  !     a = atan2(R(2,3),  R(1,3))
-  !     g = atan2(R(3,2), -R(3,1))
-  !     return
-  !   endif
-  !   g = 0._dp
-  !   a = atan2(R(2,1), R(1,1))
-  ! end subroutine rotmat2zyz
+    implicit none(type, external)
+
+    integer,      intent(in)               :: N            !! Rotational quantum number
+    complex(dp),  intent(inout)            :: eigvecs(:,:) !! Eigenvectors for this N
+    integer,      intent(out), allocatable :: irchar(:)    !! Rotational character ±1
+    real(dp),     intent(in)               :: phi          !! Azimuthal angle φ of the C₂' axis in the SYMAXIS frame
+
+    real(dp), parameter :: MAX_IDENTITY_DEFECT = 1e-10_dp
+    real(dp), parameter :: invsq2 = 1.0_dp / sqrt(2.0_dp)
+
+    integer :: K, ip, im, i, numk
+    real(dp) :: identity_defect, r
+    complex(dp) :: ph
+    complex(dp), allocatable :: W(:,:) !! Wang matrix
+    complex(dp), allocatable :: RC2(:,:) !! C₂' rotation matrix
+    complex(dp), allocatable :: tmp(:,:)
+
+    numk = 2*N + 1
+
+    ! -- make sure the eigenvectors are unit vectors
+    identity_defect = maxval(abs(eigvecs - cmplx(eye(numk), kind=dp)))
+    if(identity_defect .gt. MAX_IDENTITY_DEFECT) then
+      write(stderr, '("identity_defect: ", ES20.12)') identity_defect
+      call die("Attempt to Wangify non-unit eigenvectors")
+    endif
+
+    allocate(W(numk, numk), source=(0._dp,0._dp))
+    ! -- K=0
+    W(N+1, N+1) = (1.0_dp, 0.0_dp)
+    ! -- K≠0
+    do K=1, N
+      ip = K + N + 1
+      im =-K + N + 1
+      ph = exp(cmplx(0, -2*K*phi, kind=dp))
+      w(ip, ip) = invsq2
+      w(im, ip) = invsq2 * ph
+      w(ip, im) = invsq2
+      w(im, im) =-invsq2 * ph
+    enddo
+
+    eigvecs = w
+
+    if(is_unitary(eigvecs) .eqv. .false.) then
+      write(stderr, '("Unitary defect in Wang eigenvectors: ", ES20.12)') unitary_defect(eigvecs)
+      call die("Wang eigenvectors are not unitary !")
+    endif
+
+    ! -- C₂'(φ) = Rz(φ) Ry(π) Rz(-φ)
+    RC2 = wigner_big_D(N, phi, pi, -phi, use_analytic=.false.)
+
+    ! -- irchar(i) = <W_i|Rc2|W_i>
+    allocate(irchar(numk), source=0)
+    tmp = matmul(Rc2, eigvecs)
+    do i=1, numk
+      r = real(dot_product(eigvecs(:, i), tmp(:, i)), kind=dp)
+      if(abs(abs(r) - 1.0_dp) .gt. MAX_IDENTITY_DEFECT) then
+        write(stderr, '("N = ", I0, ", column ", I0, ": <w|C2p|w> = ", ES12.5)') N, i, r
+        call die("Wang state is not a C2' eigenstate. Check G%C2PRIME_AZIMUTH or D-matrix conventions.")
+      endif
+      irchar(i) = nint(sign(1.0_dp, r))
+    enddo
+
+  end subroutine wangify_symtop_eigvecs
 
 ! ================================================================================================================================ !
 end module rotex__hamilton

@@ -1,7 +1,7 @@
 ! ================================================================================================================================ !
 module rotex__reading
   !! Contains procedures used in reading data (K-matrices and namelist data)
-  use rotex__globals,   only: G, UKRMOLX, MQDTR2K
+  use rotex__globals, only: G, UKRMOLX, MQDTR2K
   use rotex__system, only: stdout, stderr, die
 
   implicit none (type, external)
@@ -26,16 +26,16 @@ contains
     )
     !! Reads in a K-matrix from a file with a very particular file format given by kmat_output_type
 
-    use rotex__kinds,      only: dp
-    use rotex__types,      only: elec_channel_type, rmatrix_type, ivector_type, r3rarr_type
+    use rotex__kinds,       only: dp
+    use rotex__types,       only: elec_channel_type, rmatrix_type, ivector_type, r3rarr_type
     use rotex__channel_ops, only: permsort_channels
-    use rotex__utils,      only: read_blank
-    use rotex__arrays,     only: append, is_symmetric, realloc
-    use rotex__system,     only: die, stdout, stderr, IOSTAT_END, IOSTAT_OK
-    use rotex__symmetry,   only: group_size, irrep_name
-    use rotex__constants,  only: au2ev
-    use rotex__globals,    only: spinmult_names, DEFAULT_INT
-    use rotex__characters, only: int2char
+    use rotex__utils,       only: read_blank
+    use rotex__arrays,      only: append, is_symmetric, realloc
+    use rotex__system,      only: die, stdout, stderr, IOSTAT_END, IOSTAT_OK
+    use rotex__pointgroups, only: group_size, irrep_name
+    use rotex__constants,   only: au2ev
+    use rotex__globals,     only: spinmult_names, DEFAULT_INT
+    use rotex__characters,  only: int2char
 
     implicit none (type, external)
 
@@ -196,10 +196,10 @@ contains
       , kmat                       &
     )
     !! Using index_map, put the elements of kmat_irrep into the full kmat
-    use rotex__kinds,    only: dp
-    use rotex__types,    only: r3rarr_type, ivector_type
-    use rotex__arrays,   only: ij2k, size_check
-    use rotex__symmetry, only: group_size
+    use rotex__kinds,       only: dp
+    use rotex__types,       only: r3rarr_type, ivector_type
+    use rotex__arrays,      only: ij2k, size_check
+    use rotex__pointgroups, only: group_size
     implicit none (type, external)
     type(r3rarr_type), intent(in)   :: kmat_irrep(:)
       !! Array of K-matrices for each irrep
@@ -296,6 +296,7 @@ contains
       , skip_this_irrep)
     !! Return the K-matrix that is closest to the desired evaluation energy
     !! given by G%KMAT_ENERGY_CLOSEST
+    use rotex__globals,   only: PACKMAT_TRIANGLE
     use rotex__constants, only: au2ev
     use rotex__kinds,     only: dp
     use rotex__arrays,    only: realloc, size_check, append, unpackmat
@@ -620,6 +621,7 @@ contains
     !! Return the K-matrix that is closest to the desired evaluation energy
     !! given by G%KMAT_ENERGY_CLOSEST where the K-matrix channels format is that of MQDTR2K
 
+    use rotex__globals,   only: PACKMAT_TRIANGLE
     use rotex__constants, only: au2ev
     use rotex__kinds,     only: dp
     use rotex__arrays,    only: realloc, size_check, unpackmat

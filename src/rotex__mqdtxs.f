@@ -2,7 +2,7 @@
 module rotex__MQDTXS
   !! Routines to calculate cross sections with MQDT + S-matrix
 
-  use rotex__globals, only: G
+  use rotex__globals, only: G, PACKMAT_TRIANGLE
   use rotex__kinds, only: dp
   use rotex__system, only: stdout, stderr, die
 
@@ -33,7 +33,7 @@ contains
     use rotex__types,      only: prob_vector_type, asymtop_rot_channel_l_vector_type, asymtop_rot_channel_l_type &
                                , asymtop_rot_channel_type, r3carr_type, n_states_type, asymtop_rot_transition_type
     use rotex__channel_ops, only: operator(.ne.), operator(.eq.), operator(.isin.), trim_channel_l, get_channel_index
-    use rotex__arrays,     only: append, size_check, realloc, interp_array_at_energy, unpackmat
+    use rotex__arrays,     only: append, size_check, realloc, interp_array_at_energy
     use rotex__symmetry,   only: is_spin_forbidden
     use rotex__characters, only: i2c => int2char
 
@@ -101,7 +101,7 @@ contains
     use rotex__types,      only: asymtop_rot_channel_l_type, prob_vector_type, asymtop_rot_channel_type &
                                , n_states_type, asymtop_rot_transition_type
     use rotex__channel_ops, only: operator(.ne.), operator(.eq.), operator(.isin.), trim_channel_l, get_channel_index
-    use rotex__arrays,     only: append, size_check, realloc, interp_array_at_energy, unpackmat
+    use rotex__arrays,     only: append, size_check, realloc, interp_array_at_energy, unpackmat_ch
     use rotex__symmetry,   only: is_spin_forbidden
     use rotex__characters, only: i2c => int2char
 
@@ -229,7 +229,7 @@ contains
     ! -- make nthreads copies of the energy independent S-matrix, or allocate nthreads
     !    vectors for each energy's flattened S-matrix
     if(G%EDFT .eqv. .false.) then
-      call unpackmat(smat_rot_flat_chunk(:,1), S)
+      call unpackmat_ch(smat_rot_flat_chunk(:,1), S, PACKMAT_TRIANGLE)
     else
       call realloc(s_flat, (nchans_J*(nchans_J+1))/2)
     endif
@@ -243,7 +243,7 @@ contains
       ! -- linear interpolation of S-matrix. OpenMP will use local copies of the matrices
       if(G%EDFT) then
         call interp_array_at_energy(Etot, smat_eval_energies_chunk, smat_rot_flat_chunk, S_flat, allow_left_oob, allow_right_oob)
-        call unpackmat(s_flat(:), s)
+        call unpackmat_ch(s_flat(:), s, PACKMAT_TRIANGLE)
       endif
 
       nclosed = count(channels_this_J % E .gt. Etot)

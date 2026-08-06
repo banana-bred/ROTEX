@@ -1,22 +1,21 @@
 ! ================================================================================================================================ !
 module rotex__symmetry
-  !! All things related to symmetry
-  use rotex__globals,   only: G
+  !! All things related to symmetry that aren't point just groups
+
+  use rotex__globals,     only: G
+  use rotex__system,      only: die
+  use rotex__pointgroups, only: pg_nrot
 
   implicit none (type, external)
 
   private
 
-  public :: irrep_name
-  public :: get_group_irreps
-  public :: group_size
   public :: spin_symmetry
-  public :: possible_spin_symmetries
   public :: is_spin_allowed
   public :: is_spin_forbidden
   public :: symtop_rotstate_is_allowed
   public :: rotstate_is_allowed
-  public :: is_subgroup
+  public :: sigma_v_class
 
   interface is_spin_allowed
     module procedure :: is_spin_allowed_chan
@@ -28,293 +27,73 @@ module rotex__symmetry
     module procedure :: is_spin_forbidden_qnums
   end interface is_spin_forbidden
 
-  ! integer, allocatable, public, save :: m_parity(:)
-    !! Array containing the parity (even or /odd) of an electronic channel
-    !! based on its label m. This array is indexed by m directly. This is only
-    !! for calculation in the Cs point group
-  integer, public, save :: elecstate_parity
-    !! The parity of the electronic state. May become an array if we ever move to multiple electronic states
-  logical, public, save :: elecstate_parity_set = .false.
-
-  character(33), parameter :: abelian_point_groups = "C1, Cs, C2, Ci, C2v, C2h, D2, D2h"
-
-  ! ---------------------------------------- !
-  ! The integer labels of the various irreps !
-  ! ---------------------------------------- !
-  ! -- Cs
-  integer, parameter, public :: Ap  = 1
-  integer, parameter, public :: App = 2
-  ! -- Ci, C2h
-  integer, parameter, public :: Ag = 1
-  integer, parameter, public :: Au = 2
-  integer, parameter, public :: Bg = 3
-  integer, parameter, public :: Bu = 4
-  ! -- C1, C2, C2v, D2, D2h
-  integer, parameter, public :: A  = 1
-  integer, parameter, public :: A1 = 1
-  integer, parameter, public :: A2 = 4
-  integer, parameter, public :: B  = 2
-  integer, parameter, public :: B1 = 2
-  integer, parameter, public :: B2 = 3
-  integer, parameter, public :: B3 = 4
-  integer, parameter, public :: B1g = 3
-  integer, parameter, public :: B1u = 4
-  integer, parameter, public :: B2g = 5
-  integer, parameter, public :: B2u = 6
-  integer, parameter, public :: B3g = 7
-  integer, parameter, public :: B3u = 8
-
-  integer, parameter, public :: even = 1
-  integer, parameter, public :: odd  =-1
-
 ! ================================================================================================================================ !
 contains
 ! ================================================================================================================================ !
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function group_size(point_group) result(n)
-    !! Return the number of elements in point_group
-    use rotex__system,     only: die
-    use rotex__characters, only: to_upper
-    implicit none (type, external)
-    character(*), intent(in) :: point_group
-    integer :: n
-    character(:), allocatable :: pg
-    pg = trim(point_group)
-    call to_upper(pg)
-    select case(pg)
-      case("C1")
-        n = 1
-      case("CS", "C2", "CI")
-        n = 2
-      case("C2V", "C2H", "D2")
-        n = 4
-      case("D2H")
-        n = 8
-      case default
-        call die("Bad point group (" // pg // ") supplied. Please choose one of " // abelian_point_groups)
-    end select
-  end function group_size
-
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine get_group_irreps(point_group, irreps)
-    !! Given the point group, output an array containing the names of the irreps in the supplied point_group.
-    !! Only Abelian point groups are considered. Irreps in the code will be referred to by their indicies
-
-    use rotex__system,     only: die
-    use rotex__characters, only: to_upper
+  pure elemental function spin_symmetry(n, ka, kc) result(res)
+    !! Returns the nuclear spin symmetry class of the current N, Ka, Kc state.
+    !! Two states with the same return value of this function can interconvert via electron collisions.
+    !! Two states with different return values cannot. If G%ENFORCE_SPIN_ISOMER is .false., then
+    !! this function always returns 0. Nuclear spin symmetry should still be recoverable numerically,
+    !! if the scattering calculations were performed in highest possible Abelian point group, but this
+    !! function can be used with G%ENFORCE_SPIN_ISOMER=.true. to force symmetry class separation if this
+    !! is not enough.
+    !!
+    !!   Linear rotors: N mod 2 (centrosymmetry; linear molecules that are, e.g., D∞h )
+    !!   Asymmetric rotors: K mod pg_nrot(target_pg)
+    !!     K is Ka, Ka+Kc, or Kc depending on if G%SYMAXIS is A, B, or C
+    !!   Symmetric rotors: K mod pg_nrot(target_pg)
+    !!     K is Ka or Kc depending on if G%SYMAXIS is A or C (B disallowed)
 
     implicit none (type, external)
 
-    character(*), intent(in) :: point_group
-    character(:), intent(out), allocatable :: irreps(:)
-
-    integer :: nirreps
-    character(:), allocatable :: pg
-
-    pg = trim(point_group)
-    call to_upper(pg)
-    nirreps = group_size(pg)
-
-    select case(pg)
-
-      case("C1")
-        allocate(character(1) :: irreps(nirreps))
-        irreps(A) = "A"
-
-      case("CS")
-        allocate(character(3) :: irreps(nirreps))
-        irreps(Ap)  = "Ap"
-        irreps(App) = "App"
-
-      case("C2")
-        allocate(character(1) :: irreps(nirreps))
-        irreps(A) = "A"
-        irreps(B) = "B"
-
-      case("CI")
-        allocate(character(2) :: irreps(nirreps))
-        irreps(Ag) = "Ag"
-        irreps(Au) = "Au"
-
-      case("C2V")
-        allocate(character(2) :: irreps(nirreps))
-        irreps(A1) =  "A1"
-        irreps(B1) =  "B1"
-        irreps(B2) =  "B2"
-        irreps(A2) =  "A2"
-
-      case("C2H")
-        allocate(character(2) :: irreps(nirreps))
-        irreps(A)  = "Ag"
-        irreps(B1) = "Au"
-        irreps(B2) = "Bg"
-        irreps(B3) = "Bu"
-
-      case("D2")
-        allocate(character(2) :: irreps(nirreps))
-        irreps(A)  = "A"
-        irreps(B1) = "B1"
-        irreps(B2) = "B2"
-        irreps(B3) = "B3"
-
-      case("D2H")
-        allocate(character(3) :: irreps(nirreps))
-        irreps(Ag)  = "Ag"
-        irreps(Au)  = "Au"
-        irreps(B1g) = "B1g"
-        irreps(B1u) = "B1u"
-        irreps(B2g) = "B2g"
-        irreps(B2u) = "B2u"
-        irreps(B3g) = "B3g"
-        irreps(B3u) = "B3u"
-
-      case default
-        call die("Unacceptable point group '" // point_group // "' given. Please choose one of " // abelian_point_groups // ".")
-
-    end select
-
-  end subroutine get_group_irreps
-
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function irrep_name(irrep, point_group) result(output)
-    !! Given an irrep index in point_group, return the name of the corresponding irrep
-
-    use rotex__system,     only: die
-    use rotex__characters, only: to_upper
-
-    implicit none (type, external)
-
-    integer, intent(in) :: irrep
-    character(*), intent(in) :: point_group
-    character(:), allocatable :: output
-
-    character(:), allocatable :: pg
-
-    character(:), allocatable :: irreps(:)
-
-    pg     = trim(point_group)
-    call to_upper(pg)
-    call get_group_irreps(pg, irreps)
-    ! irreps = group_irreps(pg)
-    output = trim(irreps(irrep))
-
-  end function irrep_name
-
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function possible_spin_symmetries(kind) result(res)
-    !! Returns an array of possible spin symmetry values
-    use rotex__system, only: die
-    implicit none (type, external)
-    integer, intent(in) :: kind
-    integer, allocatable :: res(:)
-    select case(kind)
-    case(0) ; res = [0]
-    case(1) ; res = [0,1]
-    case(2) ; res = [0,1]
-    ! case(3)   ; res = [0,1]
-    case default
-      ! call die("Symmetry kind not supported. Must be one of 0,1,2,3")
-      call die("Symmetry kind not supported. Must be one of 0,1,2")
-    end select
-  end function possible_spin_symmetries
-
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure elemental module function spin_symmetry(n, ka, kc) result(res)
-    !! Returns the spin symmetry class of the current N, Ka, Kc state.
-    !!   Linear rotors: only N is used
-    !!   Asymmetric rotors: Ka, Kc, or Ka+Kc is used
-    !!   Symmetric rotors: Ka or Kc is used
-    !! G%SPIN_ISOMER_KIND:
-    !!   0: no symmetry
-    !!   1: linear only, N parity
-    !!   2: Kz (mod 2) (should only be relevant for asymmetric tops)
-    !!   3: Kz (mod n) (should only be relevant for  symmetric tops)
-    !!     - These kinds of rotors typically have ortho/para splitting based on
-    !!       whether Kz (mod n) is nonzero, but this is a reduction based on what's
-    !!       spectroscopically observable. Kz can be -1 or 1 [Kz (mod 3) is 2 or 1],
-    !!       which are different and should be uncoupled in the frame transformation.
-
-    use rotex__system, only: die
-
-    implicit none (type, external)
-
-    integer,      intent(in) :: n, ka, kc
-    integer :: ksym
+    integer, intent(in) :: n, ka, kc
     integer :: res
+    integer :: ksym
 
-    ! -- guard against ambiguous tops
-    if(G%ROTOR_KIND .eq. "s" .AND. G%ROTOR_ZAXIS .eq. "b") then
-      call die("Symmetric top with rotor zaxis = B detected. Pick one of A or C")
+    if(G%ENFORCE_SPIN_ISOMER .eqv. .false.) then
+      res = 0
+      return
     endif
 
-    select case(G%ROTOR_ZAXIS)
-    case("a", "A") ; Ksym = Ka
-    case("b", "B") ; Ksym = Ka+Kc
-    case("c", "C") ; Ksym = Kc
-    case default
-      call die("G%ROTOR_ZAXIS must be one of A B C")
-    end select
+    select case(G%ROTOR_KIND)
+    case("l", "L")
 
-    select case(G%SPIN_ISOMER_KIND)
-    case(0)
+      res = modulo(n,2)
 
-      ! -- no restriction
-      res = 0
+    case("s","S","a","A")
 
-    case(1)
-
-      select case(G%ROTOR_KIND)
-      case("s","S","A","a")
-        call die("Rotor kind 1 is not meaningful for a nonlinear molecule")
-      end select
-
-      ! -- linear: N-parity
-      res = modulo(n, 1)
-
-    case(2) ! K (mod 2)
-
-      ! -- water-like. asymtop, two identical nuclei. Ka and Kc are positive
-      !    exchange about C₂(Z): parity = |Kz| (mod 2)
-      select case(G%ROTOR_KIND)
-      case("l","L") ; call die("Spin isomer kind 2 is not meaningful for linear rotors")
-      case("s","S") ; call die("Symmetric top with spin isomer kind 2 is probably not meaningful")
-      case("a","A") ; res = modulo(Ksym, 2)
+      select case(G%SYMAXIS)
+      case("a","A") ; ksym = ka
+      case("b","B") ; ksym = ka+kc
+      case("c","C") ; ksym = kc
       case default
-        call die("Unexpected rotor kind: " // G%ROTOR_KIND)
+        ksym = 0
       end select
 
-    case(3:) ! K (mod n)
-
-      select case(G%ROTOR_KIND)
-        case("a", "A") ; call die("Asymmetric top with K (mod n) n>2 detected")
-        case("l", "L") ; call die("Linear rotor with K (mod n) rule is not meaningful")
-        case("s", "S") ; res = modulo(Ksym, 3) ! 0->0; 1->1; 2->2; 3->0; -1->2
-        ! case("s", "S") ; res = mod(Ksym, 3) ! 0->0; 1->1; 2->2; 3->0; -1->-1..
-        case default
-          call die("Unexpected rotor kind: " // G%ROTOR_KIND)
-      end select
+      res = sigma_v_class(ksym, pg_nrot(G%TARGET_POINT_GROUP))
 
     case default
 
-      call die("Illegal symmetry rule. Must be 0,1,2..")
+      res = 0
 
     end select
 
   end function spin_symmetry
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure elemental module function is_spin_allowed_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis) result(res)
+  pure elemental function is_spin_allowed_qnums(nlo, kalo, kclo, nup, kaup, kcup) result(res)
     !! Determine if the transition Nlo,Kalo,Kclo -> Nup,Kaup,Kcup is allowed by nuclear spin symmetry
     !! selection rules
     implicit none (type, external)
-    integer,      intent(in) :: nlo, kalo, kclo, nup, kaup, kcup, kind
-    character(1), intent(in) :: symaxis
+    integer,      intent(in) :: nlo, kalo, kclo, nup, kaup, kcup
     logical :: res
     res = spin_symmetry(nlo, kalo, kclo) .eq. spin_symmetry(nup, kaup, kcup)
   end function is_spin_allowed_qnums
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure elemental module function is_spin_allowed_chan(channel1, channel2) result(res)
+  pure elemental function is_spin_allowed_chan(channel1, channel2) result(res)
     !! Test if two rotational channels respect ortho/para symmetry
     use rotex__types, only: asymtop_rot_channel_type
     implicit none (type, external)
@@ -326,17 +105,16 @@ contains
   end function is_spin_allowed_chan
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure elemental module function is_spin_forbidden_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis) result(res)
+  pure elemental function is_spin_forbidden_qnums(nlo, kalo, kclo, nup, kaup, kcup) result(res)
     !! Determine if the transition Nlo,Kalo,Kclo -> Nup,Kaup,Kcup is forbidden by nuclear spin symmetry
     !! selection rules
     implicit none (type, external)
-    integer,      intent(in) :: nlo, kalo, kclo, nup, kaup, kcup, kind
-    character(1), intent(in) :: symaxis
+    integer,      intent(in) :: nlo, kalo, kclo, nup, kaup, kcup
     logical :: res
-    res = .not. is_spin_allowed_qnums(nlo, kalo, kclo, nup, kaup, kcup, kind, symaxis)
+    res = .not. is_spin_allowed_qnums(nlo, kalo, kclo, nup, kaup, kcup)
   end function is_spin_forbidden_qnums
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure elemental module function is_spin_forbidden_chan(channel1, channel2) result(res)
+  pure elemental function is_spin_forbidden_chan(channel1, channel2) result(res)
     !! Test if two rotational channels respect ortho/para symmetry
     use rotex__types, only: asymtop_rot_channel_type
     implicit none (type, external)
@@ -348,124 +126,89 @@ contains
   end function is_spin_forbidden_chan
 
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure elemental function symtop_rotstate_is_allowed(N, K) result(res)
-    !! Test whether the rotational state (N,K) is allowed, check special cases
-    use rotex__functions, only: isodd
-    use rotex__system,    only: die
+  pure elemental function symtop_rotstate_is_allowed(N, K, rchar) result(res)
+    !! Test whether the rotational state (N,K) is allowed, based on G%FORBIDDEN_STATES_KIND
+    !!   kind = 0: all states allowed
+    !!   kind = 1: all states allowed, except for even N, K=0 states. This is a legacy
+    !!             check, predating wangify_symtop_eigvecs. It should probably be disabled.
+    !!             The correct version is kind=2; this is basically half of kind=1
+    !!   kind = 2: based on character. States are forbidden if it transforms as A₁ w.r.t. both
+    !!             C_n (K = 0 mod n) and C₂' (rchar = +1).
+    use rotex__functions,   only: isodd
+    use rotex__pointgroups, only: pg_nrot
     implicit none (type, external)
-    integer, intent(in) :: N, K
+    integer, intent(in) :: N, K, rchar
     logical :: res
+    integer :: nrot
     select case(G%FORBIDDEN_STATES_KIND)
     case(0) ; res = .true.
     case(1) ; res = isodd(N) .OR. K .ne. 0
+    case(2)
+      nrot = pg_nrot(G%TARGET_POINT_GROUP)
+      res  = .true.
+      if(nrot .lt. 2) return
+      if(modulo(K, nrot) .ne. 0) return ! <-- E-class: both characters exist; fine
+      res = rchar .ne. +1               ! <-- A-class: drop A1 member
     case default
-      call die("Unexpected G%FORBIDDEN_STATES_KIND. Must be 0 or 1")
+      call die("Unexpected G%FORBIDDEN_STATES_KIND. Must be one of 0,1,2")
     end select
   end function symtop_rotstate_is_allowed
 
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure elemental function rotstate_is_allowed(N, Ka, Kc) result(res)
+  pure elemental function rotstate_is_allowed(N, Ka, Kc, rchar) result(res)
     !! Test whether the rotational state (N,K) is allowed, check special cases
     use rotex__functions, only: isodd
-    use rotex__system,    only: die
     implicit none (type, external)
-    integer, intent(in) :: N, Ka, Kc
+    integer, intent(in) :: N, Ka, Kc, rchar
     logical :: res
-    integer :: K, Ksym
+    integer :: Ksym
     select case(G%FORBIDDEN_STATES_KIND)
 
     case(0)
 
       res = .true.
 
-    case(1)
+    case(1,2)
 
       select case(G%ROTOR_KIND)
       case("s")
 
-        select case(G%ROTOR_ZAXIS)
+        select case(G%SYMAXIS)
         case("a") ; Ksym = Ka
         case("b") ; call die("Ksym = B is ambiguous; pick A or C")
         case("c") ; Ksym = Kc
         end select
 
-        res = symtop_rotstate_is_allowed(N, Ksym)
+        res = symtop_rotstate_is_allowed(N, Ksym, rchar)
 
       case("a", "l")
 
-        call die("G%FORBIDDEN_STATES_KIND = 1 is not meaningful for a non-symmetric-top rotor")
+        call die("G%FORBIDDEN_STATES_KIND ≠ 0 is not meaningful for a non-symmetric-top rotor")
 
       end select
 
     case default
 
-      call die("Unexpected G%FORBIDDEN_STATES_KIND. Must be 0 or 1")
+      call die("Unexpected G%FORBIDDEN_STATES_KIND. Must be one of 0,1,2")
 
     end select
   end function rotstate_is_allowed
 
-  ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure function is_subgroup(pg1, pg2) result(res)
-    !! Test if pg1 ⊆ pg2
-    use rotex__characters, only: lower
-    implicit none (type, external)
-    character(*), intent(in) :: pg1, pg2
-      !! The point groups
-    logical :: res
-    character(:), allocatable :: pg1_, pg2_
-    pg1_ = lower(pg1)
-    pg2_ = lower(pg2)
-    associate(pg1 => pg1_, pg2 => pg2_)
-
-      if(lower(pg1) .eq. lower(pg2)) then
-        res = .true.
-        return
-      endif
-
-      select case(pg2)
-
-      case("d3h")
-
-        select case(pg1)
-        case("c1", "cs", "c2", "c2v", "c3", "c3v", "d3")
-          res = .true.
-        case default
-          res = .false.
-        end select
-
-      case("c3v")
-
-        select case(pg1)
-        case("c1", "cs", "c3")
-          res = .true.
-        case default
-          res = .false.
-        end select
-
-      case("c2v")
-
-        select case(pg1)
-        case("c1", "cs", "c2")
-          res = .true.
-        case default
-          res = .false.
-        end select
-
-      case("cs")
-
-        select case(pg1)
-        case("c1")
-          res = .true.
-        case default
-          res = .false.
-        end select
-
-      case default
-        res = .false.
-
-      end select
-    end associate
-  end function is_subgroup
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental function sigma_v_class(m, n) result(class)
+    !! Returns the σ_v equivalence class of a projection quantum number m under an n-fold principal axis.
+    !!   n<2: no axis, returns 0
+    !!   n=2,3: {0,1,2}
+    !!   n=4,5: {0,1,2,3}
+    !!   etc.
+    implicit none(type, external)
+    integer, intent(in) :: m, n
+    integer :: class
+    class = 0
+    if(n .lt. 2) return
+    class = modulo(m, n)
+    class = min(class, n - class)
+  end function sigma_v_class
 
 ! ================================================================================================================================ !
 end module rotex__symmetry

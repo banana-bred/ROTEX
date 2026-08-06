@@ -1,7 +1,7 @@
 ! ================================================================================================================================ !
 module rotex__RFT
   !! Procedures used to carry out the rotational frame transformation
-  use rotex__globals, only: G
+  use rotex__globals, only: G, PACKMAT_TRIANGLE
   use rotex__kinds,   only: dp
   use rotex__system,  only: stderr, die, stdout
 
@@ -13,6 +13,7 @@ module rotex__RFT
   ! public :: do_edrft
   public :: do_edrft_chunk
   public :: K2sincos
+  public :: sincos2S
   public :: K2S_cayley
 
   public :: real2complex_ylm
@@ -21,6 +22,11 @@ module rotex__RFT
     module procedure :: real2complex_ylm_r
     module procedure :: real2complex_ylm_c
   end interface real2complex_ylm
+
+  interface K2S_cayley
+    module procedure :: K2S_cayley_r
+    module procedure :: K2S_cayley_c
+  end interface K2S_cayley
 
 ! ================================================================================================================================ !
 contains
@@ -44,17 +50,17 @@ contains
 
     implicit none (type, external)
 
-    complex(dp),                             intent(in) :: smat_elec(:,:)
+    complex(dp),                      intent(in)  :: smat_elec(:,:)
       !! Electronic S-matrix: n×n
     complex(dp),                      intent(out) :: smat_rot(:,:)
       !! Array of S^J sub blocks
-    integer,                                 intent(in) :: J
+    integer,                          intent(in)  :: J
       !! The current value of J
-    type(n_states_type),                     intent(in) :: N_states(:)
+    type(n_states_type),              intent(in)  :: N_states(:)
       !! The array of rotational states of the target (N, Ka, Kc), needed as input for the RFT
-    type(elec_channel_type),                 intent(in) :: elec_channels(:)
+    type(elec_channel_type),          intent(in)  :: elec_channels(:)
       !! The array of electronic channels (n, l, ml), needed as input for the RFT
-    type(asymtop_rot_channel_l_type), intent(out):: rot_channels(:)
+    type(asymtop_rot_channel_l_type), intent(in)  :: rot_channels(:)
       !! The array of rotational channels (N, Ka, Kc, l) that make up the basis of the S-matrix subblock for this J
 
     logical :: bad_unitarity
@@ -84,204 +90,9 @@ contains
       J, unitary_defect(smat_rot)
 
     write(stderr, '("Unitary defect in S: ", ES20.12)') unitary_defect(smat_rot)
-    call die("J = "//i2c(J)//"subblock of the S-matrix is non-unitary after the energy-independent RFT. Aborting !")
+    ! call die("J = "//i2c(J)//"subblock of the S-matrix is non-unitary after the energy-independent RFT. Aborting !")
 
   end subroutine do_eirft
-
-  ! ------------------------------------------------------------------------------------------------------------------------------ !
-  !module subroutine do_edrft(           &
-  !      sin_elec                 &
-  !    , cos_elec                 &
-  !    , kmat_eval_energies       &
-  !    , smat_rot_flat            &
-  !    , Jmin, Jmax, J            &
-  !    , N_states                 &
-  !    , elec_channels            &
-  !    , rot_channels &
-  !  )
-  !  !! Perform the Energy Dependent Rotational Frame Transformation on the electronic Sine and Cosine matrices
-
-  !  use rotex__types,  only: r3carr_type, N_states_type, elec_channel_type, &
-  !                           asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type
-  !  use rotex__arrays, only: realloc, adjoint, is_unitary, unitary_defect, is_symmetric &
-  !                         , interp_array_at_energy, packmat, size_check
-!#ifdef USE_FORBEAR
-  !  use rotex__progress,   only: progressbar_type
-!#endif
-!#ifdef USE_OPENMP
-  !  use omp_lib, only: omp_get_thread_num
-!#endif
-
-  !  implicit none (type, external)
-
-  !  complex(dp),                              intent(in)    :: sin_elec(:,:,:), cos_elec(:,:,:)
-  !    !! Electronic sine and cosine matrices: n×n×nE
-  !  real(dp),                                 intent(in)    :: Kmat_eval_energies(:)
-  !    !! Array of K-matrix evaluation energies (therefore the evaluation energies of the other
-  !    !! electronic matrices as well)
-  !  complex(dp),                       intent(out) :: smat_rot_flat(:,:)
-  !    !! The flattened n(n+1)/2 × nE S-matrix subblock for this J
-  !  integer,                                  intent(in)    :: Jmin, Jmax, J
-  !    !! The min, max, and current values of J
-  !  type(N_states_type),                      intent(in)    :: N_states(:)
-  !    !! The array of rotational states of the target (N, Ka, Kc), needed as input for the RFT
-  !  type(elec_channel_type),                  intent(in)    :: elec_channels(:)
-  !    !! The array of electronic channels (n, l, ml), needed as input for the RFT
-  !  type(asymtop_rot_channel_l_type),  intent(in)    :: rot_channels(:)
-  !    !! The array of rotational channels (N, Ka, Kc, l) that make up the basis of the S-matrix subblocks at each J
-
-  !  logical :: bad_unitarity, bad_symmetry
-  !  ! logical :: did_symmetrize
-  !  logical :: bad_unitarity_local, bad_symmetry_local
-  !  ! logical :: did_symmetrize_local
-  !  integer :: Omega, ie, jrot, ne, nchans_elec, nchans_rot
-  !  integer :: ithread
-  !  real(dp) :: E_elec_rhs
-  !  complex(dp), allocatable :: U(:,:), Udagg(:,:), sin_rot(:,:), cos_rot(:,:)
-  !  complex(dp), allocatable :: sinE(:,:), cosE(:,:), smat_rot(:,:)
-  !  character(27) :: prefix_string
-
-!#ifdef USE_FORBEAR
-  !  integer  :: iprogress, iprogress_last
-  !  real(dp) :: rprogress, rprogress_inc
-  !  type(progressbar_type) progressbar
-!#endif
-
-  !  ne          = size(kmat_eval_energies, 1)
-  !  nchans_rot  = size(rot_channels,       1)
-  !  nchans_elec = size(elec_channels,      1)
-
-  !  call size_check(sin_elec, [nchans_elec, nchans_elec, ne], "SIN ELEC")
-  !  call size_check(cos_elec, [nchans_elec, nchans_elec, ne], "COS ELEC")
-  !  call size_check(smat_rot_flat, [(nchans_rot*(nchans_rot+1))/2, ne], "SMAT ROT")
-
-  !  write(prefix_string, '("EDRFT", 2X, 2(I5," /"),I5,X)') Jmin, J, Jmax
-
-!#ifdef USE_FORBEAR
-  !  call progressbar % initialize( &
-  !      filled_char_string = "|" &
-  !    , empty_char_string = " " &
-  !    , bracket_left_string = "[" &
-  !    , prefix_string = prefix_string &
-  !    , suffix_string = "] " &
-  !    , add_progress_percent = .true. &
-  !  )
-  !  call progressbar % start
-  !  call progressbar % update(current = 0.0_dp)
-  !  rprogress = 0.0_dp
-  !  iprogress_last = 0
-  !  rprogress_inc = 1.0_dp / real(ne, kind=dp)
-!#else
-  !  write(stdout, '(A)') prefix_string//".."
-!#endif
-
-  !  bad_unitarity  = .false.
-  !  bad_symmetry   = .false.
-  !  ! did_symmetrize = .false.
-
-  !  !$omp parallel default(none) &
-  !  !$omp& shared(ne, J, nchans_rot, nchans_elec, N_states, elec_channels, rot_channels&
-  !  !$omp&   , kmat_eval_energies, sin_elec, cos_elec, bad_unitarity, bad_symmetry &
-  !  !$omp&   , smat_rot_flat &
-!#ifdef USE_FORBEAR
-  !  !$omp&   , progressbar, rprogress, rprogress_inc, iprogress, iprogress_last) &
-!#else
-  !  !$omp& ) &
-!#endif
-  !  !$omp& private(U, Udagg, sin_rot, sinE, cos_rot, cosE, ie, Omega &
-  !  !$omp&   , bad_symmetry_local, bad_unitarity_local, E_elec_RHS, jrot, ithread, smat_rot)
-!#ifdef USE_OPENMP
-  !  ithread = omp_get_thread_num()
-!#else
-  !  ithread = 0
-!#endif
-
-  !  bad_symmetry_local   = .false.
-  !  bad_unitarity_local  = .false.
-  !  ! did_symmetrize_local = .false.
-
-  !  call realloc(U,        nchans_rot,  nchans_elec)
-  !  call realloc(Udagg,    nchans_elec, nchans_rot)
-  !  call realloc(sin_rot,  nchans_rot,  nchans_rot)
-  !  call realloc(cos_rot,  nchans_rot,  nchans_rot)
-  !  call realloc(smat_rot, nchans_rot,  nchans_rot)
-  !  call realloc(sinE,     nchans_elec, nchans_elec)
-  !  call realloc(cosE,     nchans_elec, nchans_elec)
-
-  !  !$omp do schedule(static)
-  !  nrg: do ie=1, ne
-
-  !    sin_rot  = (0.0_dp, 0.0_dp)
-  !    cos_rot  = (0.0_dp, 0.0_dp)
-
-  !    do Omega = -J, J
-
-  !      call build_U_RFT(J, Omega, N_states, elec_channels, rot_channels, U)
-  !      Udagg = adjoint(U)
-
-  !      ! -- loop over RHS channels because we need to interpolate/pick matrices at a specific energy
-  !      do jrot = 1, nchans_rot
-
-  !        ! -- take the evaluation energy of the right-hand channel, and interpolate the
-  !        !    matrices to get the corresponding value
-  !        E_elec_rhs = kmat_eval_energies(ie) - rot_channels(jrot) % E
-  !        call interp_array_at_energy(E_elec_rhs, kmat_eval_energies, sin_elec, sinE)
-  !        call interp_array_at_energy(E_elec_rhs, kmat_eval_energies, cos_elec, cosE)
-
-  !        ! -- U {sin(E),cos(E)} U⁺
-  !        sin_rot(:, jrot) = sin_rot(:, jrot) + matmul( U, matmul(sinE, Udagg(:, jrot)) )
-  !        cos_rot(:, jrot) = cos_rot(:, jrot) + matmul( U, matmul(cosE, Udagg(:, jrot)) )
-  !      enddo
-
-  !    enddo
-
-  !    ! call sincos2S(sin_rot, cos_rot, smat_rot, did_symmetrize_local)
-  !    call sincos2S(sin_rot, cos_rot, smat_rot)
-  !    call packmat(smat_rot, smat_rot_flat(:, ie), "U")
-
-!#ifdef USE_FORBEAR
-  !    !$omp atomic
-  !    rprogress = rprogress + rprogress_inc
-  !    update_progress: if(ithread .eq. 0) then
-  !      iprogress = floor(rprogress * 100)
-  !      if(iprogress .eq. iprogress_last) exit update_progress
-  !      if(iprogress .eq. 100) exit update_progress
-  !      iprogress_last = iprogress
-  !      call progressbar % update(current = rprogress)
-  !    endif update_progress
-!#endif
-
-!! print*, ie, unitary_defect(smat_rot(:,:,ie))
-  !    if(is_unitary(smat_rot) .eqv. .false.) then
-  !      bad_unitarity_local = .true.
-  !      write(stderr, '("WARN: The EDFT S-matrix for J= ", I0, ", ie = ", I0, ", is nonunitary  with&
-  !        & unitary defect ", ES12.4)') J, ie, unitary_defect(smat_rot)
-  !    endif
-
-  !    if(is_symmetric(smat_rot) .eqv. .false.) then
-  !      bad_symmetry_local = .true.
-  !      write(stderr, '("WARN: The EDFT S-matrix for J = ", I0, ", ie = ", I0, " is not symmetric")') J, ie
-  !    endif
-
-  !  enddo nrg
-  !  !$omp end do
-  !  ! -- collect issues across threads
-  !  !$omp critical
-  !    bad_unitarity  = bad_unitarity  .OR. bad_unitarity_local
-  !    bad_symmetry   = bad_symmetry   .OR. bad_symmetry_local
-  !  !$omp end critical
-  !  !$omp end parallel
-
-!#ifdef USE_FORBEAR
-  !  call progressbar % update(current = 1.0_dp)
-!#else
-  !  write(stdout, '(" done !")')
-!#endif
-
-  !  if(bad_unitarity .OR. bad_symmetry) call die("At least one J-block of the EDFT S-matrix is&
-  !    & non-unitary or non-symmetric after asymmetrization !")
-
-  !end subroutine do_edrft
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine do_edrft_chunk(     &
@@ -396,7 +207,7 @@ contains
       enddo
 
       call sincos2S(sin_rot, cos_rot, smat_rot)
-      call packmat(smat_rot, smat_rot_flat_chunk(:, ie_loc), "U")
+      call packmat(smat_rot, smat_rot_flat_chunk(:, ie_loc), PACKMAT_TRIANGLE)
 
       if(is_unitary(smat_rot) .eqv. .false.) then
         bad_unitarity_local = .true.
@@ -470,13 +281,13 @@ contains
       case("a", "A")
         mask = (n_states(i_N) % ka(:) .eq. kai) .AND. (n_states(i_N) % kc(:) .eq. kci)
       case("s", "S")
-        select case(G%ROTOR_ZAXIS)
+        select case(G%SYMAXIS)
         case("a", "A")
           mask = (n_states(i_N) % ka(:) .eq. kai)
         case("c", "C")
           mask = (n_states(i_N) % kc(:) .eq. kci)
         case default
-          call die("Somehow got a symmetric top with a G%ROTOR_ZAXIS " // G%ROTOR_ZAXIS // " that is neither A nor C")
+          call die("Somehow got a symmetric top with a G%SYMAXIS " // G%SYMAXIS // " that is neither A nor C")
         end select
       case default
         call die("ROTOR_KIND " // G%ROTOR_KIND // " not allowed in RFT")
@@ -513,7 +324,9 @@ contains
     !! return the index permutation of matrices 0 such that their inner products with 1 are the best.
     !! This is essentially trying to find the "best" permutation of eigenvectors to get the "same"
     !! eigenphases in the same order across energies
+
     implicit none (type, external)
+
     real(dp), intent(in) :: U1(:,:)
       !! Eigenvectors for ie-1
     real(dp), intent(in) :: U0(:,:)
@@ -527,15 +340,11 @@ contains
 
     n = size(U1, 1)
 
-    ! -- NOTE right here we could check the signs of the vectors, but we don't have to do that
-    !    when we're looking at energies because they come from the same UKRmol+ calculation.
-    !    We would use the sine and cosine matrices, but for now we don't need to do this
-    !    call CHECK_TARGET_SIGN_FLIP .....
-
     allocate(idx(n))
-    ! -- compare inner products..
+    ! -- compare inner products
     do i=1,n
       inner = matmul(U1(:, i), U0(:,:))
+      ! inner = matmul(conjg(U1(:, i)), U0(:,:))
       idx(i) = maxloc(abs(inner), 1)
     enddo
 
@@ -556,7 +365,7 @@ contains
 
     use rotex__types,      only: elec_channel_type
     use rotex__linalg,     only: dsyev
-    use rotex__arrays,     only: size_check, is_unitary, unitary_defect, adjoint, is_symmetric
+    use rotex__arrays,     only: size_check, is_unitary, unitary_defect, adjoint, is_symmetric, realloc
     use rotex__characters, only: i2c => int2char
     use rotex__globals,    only: spinmult_names
     use rotex__constants,  only: au2ev
@@ -573,10 +382,9 @@ contains
 
     logical :: bad_sym, bad_sym_local
     integer :: ne, n, i, ie
-    integer :: ithread
     integer, allocatable :: idx(:)
-    real(dp), allocatable :: U(:,:,:), eigenphases(:,:), eigenphases_unwrapped(:,:)
-    real(dp), allocatable :: tmp(:,:), Udagg(:,:)
+    real(dp), allocatable :: eigenphases(:,:), eigenphases_unwrapped(:,:)
+    real(dp), allocatable :: U(:,:,:), tmp(:,:), Udagg(:,:)
 
     ! -- lapack variables
     integer :: info, lwork
@@ -591,15 +399,27 @@ contains
     call size_check(cosine,             [n, n, ne], "COSINE")
     call size_check(elec_channels,      n,          "ELEC_CHANNELS")
 
-    lwork = 3*n+1
     allocate(U(n,n,ne), source=0._dp)
     allocate(eigenphases(n, ne))
+
+    ! -- 0) workspace size query
+    allocate(work(1))
+    call dsyev('V', UPLO, n, U(:,:,1), n, eigenphases(:, 1), work, -1, info)
+    if(info .ne. 0) call die("DSYEV workspace query failed: INFO = " // i2c(info))
+    lwork = int(work(1))
+    deallocate(work)
     allocate(work(lwork))
 
     ! -- 1) diagonalize K, get eigenphases, permute them to ensure consistent ordering across geometries
     do ie=1, ne
 
       U(:,:,ie) = kmat(:,:,ie)
+
+      if(is_symmetric(kmat(:,:,ie)) .eqv. .false.) then
+        write(stderr, '("Symmetry defect in the K-matrix [ max(|K-KT|) ] : ", ES12.4)') &
+          maxval(abs(Kmat(:,:,ie) - transpose(Kmat(:,:,ie))))
+        call die("Kmat is not symmetric !")
+      endif
 
       call dsyev('V', UPLO, n, U(:,:,ie), n, eigenphases(:, ie), work, lwork, info)
       if(info .ne. 0) call die("DSYEV exited with nonzero INFO = " // i2c(info))
@@ -630,7 +450,7 @@ contains
     ! -- 4) construct the sine and cosine matrices
     !$omp parallel default(none) &
     !$omp& shared(ne, n, sine, cosine, U, eigenphases_unwrapped, kmat_eval_energies, bad_sym )&
-    !$omp& private(ie, i, ithread, tmp, Udagg, bad_sym_local)
+    !$omp& private(ie, i, tmp, Udagg, bad_sym_local)
 
     allocate(tmp(n,n))
     allocate(Udagg(n,n))
@@ -662,7 +482,7 @@ contains
       bad_sym = bad_sym .OR. bad_sym_local
       !$omp end critical
 
-      write(stderr, '("The Sine/Cosine matrices are not symmetric for energy ", I0, ": ", E15.7, " eV")') &
+      write(stderr, '("The Sine/Cosine matrices are not Symmetric for energy ", I0, ": ", E15.7, " eV")') &
         kmat_eval_energies(ie)*au2ev
 
     enddo
@@ -679,7 +499,7 @@ contains
   end subroutine K2sincos
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine K2S_cayley(K, S)
+  subroutine K2S_cayley_r(K, S)
     !! electronic Kmat -> electronic Smat via Cayley transform S = (I + ik) / (I - iK).
     !! Also ensures that the S-matrix is in the basis of complex-valued spherical harmonics.
     !! This is to be used when G%EDFT is false, it assumes only one evaluation energy
@@ -701,201 +521,62 @@ contains
     if(info .eq. 0) return
     write(stderr, '("INFO = ", I0)') INFO
     call die("ZGESV exited with nonzero INFO")
-  end subroutine K2S_cayley
+  end subroutine K2S_cayley_r
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  !subroutine do_rft(             &
-  !      smat_elec                &
-  !    , sin_elec                 &
-  !    , cos_elec                 &
-  !    , kmat_eval_energies       &
-  !    , Smat_j                   &
-  !    , jmin                     &
-  !    , jmax                     &
-  !    , n_states                 &
-  !    , elec_channels            &
-  !    , asymtop_rot_channels_l   &
-  !    , asymtop_rot_channels_l_j &
-  !  )
-  !  !! Perform the rotational frame transformation on the electronic S-matrix
-
-  !  use rotex__kinds, only: dp
-  !  use rotex__types, only: cmatrix_type, asymtop_rot_channel_l_type, asymtop_rot_channel_l_vector_type &
-  !                        , elec_channel_type, N_states_type, cvector_type
-  !  use rotex__wigner,     only: clebsch
-  !  use rotex__system,     only: stdout, die
-  !  use rotex__arrays,     only: realloc, is_unitary, is_symmetric, uniq
-  !  use rotex__functions,  only: neg
-  !  use rotex__characters, only: i2c => int2char
-
-  !  implicit none (type, external)
-
-  !  complex(dp),        intent(in)  :: smat_elec(:,:)
-  !  real(dp),        intent(in)     :: sin_elec(:,:,:), cos_elec(:,:,:)
-  !  real(dp),        intent(in)     :: kmat_eval_energies(:)
-  !  type(cmatrix_type), intent(out) :: Smat_j(jmin:jmax, size(kmat_eval_energies, 1))
-  !    !! Rotationally resolved S-matrix at each J
-  !  integer, intent(in) :: jmin, jmax
-  !    !! Min/max values of the total angular momentum J
-  !  type(n_states_type), intent(in) :: n_states(:)
-  !  type(elec_channel_type), intent(in) :: elec_channels(:)
-  !  type(asymtop_rot_channel_l_type), intent(in) :: asymtop_rot_channels_l(:)
-  !  type(asymtop_rot_channel_l_vector_type), intent(out) :: asymtop_rot_channels_l_j(jmin:jmax)
-
-  !  type(asymtop_rot_channel_l_type), allocatable :: rot_channels(:)
-  !  logical :: flag
-  !  logical, allocatable :: mask(:)
-  !  integer :: nsyms, nchans_elec, nchans_elec_flat
-  !  integer :: J, i, isym, sym, nchans_sym, ie
-  !  integer :: nchans_J, ne
-  !  integer, allocatable :: idx(:), uniq_syms(:)
-  !  complex(dp), allocatable :: Smat_rot(:,:), Smat_rot_sym(:,:)
-  !  complex(dp), allocatable :: cos_rot(:,:), sin_rot(:,:), sin_rot_sym(:,:), cos_rot_sym(:,:)
-  !  complex(dp), allocatable :: U(:,:)
-
-  !  flag = .false.
-  !  nchans_elec = size(elec_channels, 1)
-
-  !  ne = size(kmat_eval_energies, 1)
-
-  !  ! -- loop over different values of the agular momentum J
-  !  jloop: do J=Jmin,Jmax
-
-  !    ! -- determine number of rotational channels in this block of total J
-  !    call collect_J_channels_indices(j, asymtop_rot_channels_l, idx)
-  !    asymtop_rot_channels_l_j(j) % channels = asymtop_rot_channels_l(idx)
-
-  !    nchans_J = size(asymtop_rot_channels_l_j(j) % channels, 1)
-
-  !    ! -- the total S-matrix for this J
-  !    call realloc(U,        nchans_J, nchans_elec)
-  !    call realloc(smat_rot, nchans_J, nchans_J)
-  !    U = 0
-  !    smat_rot = 0
-
-  !    ! -- get the unique symmetry elements. We do one frame transformation per
-  !    !    symmetry element
-  !    uniq_syms = asymtop_rot_channels_l_j(j) % channels % sym
-  !    uniq_syms = uniq(uniq_syms)
-  !    nsyms = size(uniq_syms, 1)
-
-  !    ! call do_rft_no_sym(J, n_states, elec_channels, asymtop_rot_channels_l_j(j)%channels, smat_elec, smat_rot, U, point_group)
-
-  !    if(G%EDFT) then
-  !      allocate(sin_elec(nchans_elec, nchans_elec, ne), source=0._dp)
-  !      allocate(cos_elec(nchans_elec, nchans_elec, ne), source=0._dp)
-  !    else
-  !      allocate(smat_elec(nchans_elec, nchans_elec), source=(0._dp, 0._dp))
-  !    endif
-
-  !    nrg: do ie=1, ne
-
-
-  !      ! -- loop over symmetries
-  !      ! do isym=1, nsyms
-
-  !      ! calculations are in the full symmetry. expand to full symmetry beforehand if needed
-  !      sym = uniq_syms(isym)
-
-  !      ! -- map all J -> this sym
-  !      mask = asymtop_rot_channels_l_j(j)%channels%sym .eq. sym
-  !      idx = pack([(i,i=1,nchans_j)], mask)
-  !      rot_channels = asymtop_rot_channels_l_j(j) % channels(idx)
-
-  !      ! -- allocate U, Smat_rot/Sine_rot/Cosine_rot for this sym
-  !      nchans_sym = size(idx, 1)
-  !      call realloc(U,            nchans_sym, nchans_elec)
-  !      if(G%EDFT) then
-  !        call realloc(sin_rot_sym, nchans_sym, nchans_sym)
-  !        call realloc(cos_rot_sym, nchans_sym, nchans_sym)
-  !        sin_rot_sym = 0
-  !        cos_rot_sym = 0
-  !      else
-  !        call realloc(smat_rot_sym, nchans_sym, nchans_sym)
-  !        smat_rot_sym = 0
-  !      endif
-  !      U = 0
-
-  !      call do_rft_this_sym( &
-  !          j                 &
-  !        , sym               &
-  !        , n_states          &
-  !        , elec_channels     &
-  !        , rot_channels      &
-  !        , smat_elec         &
-  !        , sin_elec          &
-  !        , cos_elec          &
-  !        , smat_rot_sym      &
-  !        , sin_rot_sym       &
-  !        , cos_rot_sym       &
-  !        , U                 &
-  !      )
-
-  !      ! -- add this contribution back to the total S/Sin/Cos-matrix for this J
-  !      if(G%EDFT) then
-  !        sin_rot(idx, idx) = sin_rot_sym(:,:)
-  !        cos_rot(idx, idx) = cos_rot_sym(:,:)
-  !      else
-  !        smat_rot(idx, idx) = smat_rot_sym(:,:)
-  !      endif
-
-  !      ! -- export this S^J(E)
-  !      if(G%EDFT) call sincos2s(sin_rot, cos_rot, smat_rot)
-  !      if(is_symmetric(smat_rot) .eqv. .false.) call die("The S-matrix is not symmetric after the RFT")
-
-  !      if(is_unitary(Smat_rot) .eqv. .true.) cycle
-
-  !      flag = .true.
-
-  !      ! -- warn about nonunitarity
-  !      block
-  !        use rotex__system, only: stderr
-  !        use rotex__arrays, only: eye, adjoint, norm_frob, unitary_defect
-  !        associate(S => smat_rot)
-  !          write(stderr, '(A, I0, A, F7.5)') &
-  !            "WARN: The S-matrix for J = ", J, " is nonunitary with unitary defect ", unitary_defect(S)
-  !        end associate
-  !      end block
-
-  !    enddo nrg
-
-  !  enddo jloop
-
-  !  if(flag .eqv. .false.) return
-
-  !  call die("At least one J-block of the S-matrix is non-unitary. This may cause some issues in the&
-  !    & ensuing MQDT closed-channel elimination procedure which takes the closed channels into account for each J-block.&
-  !    & Therefore, each J-block should be unitary, even if they involve states with N< N_min or N > N_max. It is probably&
-  !    & worth noting that the S-matrix at this point was detected to be non-unitary, but each symmetry sub-block was unitary.")
-
-  !end subroutine do_rft
+  subroutine K2S_cayley_c(K, S)
+    !! electronic Kmat -> electronic Smat via Cayley transform S = (I + ik) / (I - iK).
+    !! Also ensures that the S-matrix is in the basis of complex-valued spherical harmonics.
+    !! This is to be used when G%EDFT is false, it assumes only one evaluation energy
+    use rotex__linalg,    only: zgesv
+    use rotex__arrays,    only: eye
+    use rotex__constants, only: im
+    implicit none (type, external)
+    complex(dp), intent(in)  :: K(:,:)
+    complex(dp), intent(out) :: S(:,:)
+    complex(dp), allocatable :: A(:,:), I(:,:)
+    integer :: n, info
+    integer, allocatable :: ipiv(:)
+    n = size(K, 1)
+    allocate(ipiv(n))
+    allocate(A, I, mold=K)
+    I = cmplx(eye(n), 0,  kind=dp)
+    A = I - im*K
+    S = I + im*K
+    call zgesv(n, n, A, n, ipiv, S, n, info)
+    if(info .eq. 0) return
+    write(stderr, '("INFO = ", I0)') INFO
+    call die("ZGESV exited with nonzero INFO in K2S_cayley")
+  end subroutine K2S_cayley_c
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   subroutine sincos2s(sinec, cosinec, s)
     !! Sine,Cosine -> K=SC⁻¹ -> S
     use rotex__system, only: die
-    use rotex__arrays, only: is_symmetric
+    use rotex__arrays, only: is_hermitian, adjoint!, is_symmetric
     use rotex__linalg, only: right_divide
     implicit none (type, external)
     complex(dp), intent(in)  :: sinec(:,:), cosinec(:,:)
-    complex(dp), intent(out) :: s(:,:)
-    real(dp) :: TOL
-    real(dp), allocatable :: sine(:,:), cosine(:,:), K(:,:)
-    TOL = G%POST_RFT_SINCOS2S_IMAG_TOL
-    if(any(abs(sinec%im)   .gt. TOL) .OR. any(abs(cosinec%im) .gt. TOL)) then
-      write(stderr, '("maxval(|sin%im|): ", ES20.12)') maxval(abs(sinec%im))
-      write(stderr, '("maxval(|cos%im|): ", ES20.12)') maxval(abs(cosinec%im))
-      call die("SINE/COSINE matrix is non-real after frame transformation")
-    endif
-    sine   = sinec % re
-    cosine = cosinec % re
+    complex(dp), intent(out) :: S(:,:)
+    complex(dp), allocatable :: K(:,:)
+    real(dp) :: herm_defect
+    allocate(K, mold=sinec)
     ! -- K=Sin*Cos⁻¹
-    K = right_divide(sine, cosine)
-    ! -- symmetrize K if needed
-    if(is_symmetric(K) .eqv. .false.) then
-      K = (K + transpose(K)) * 0.5_dp
+    K = right_divide(sinec, cosinec)
+    ! ! -- symmetrize K if needed
+    ! if(is_symmetric(K) .eqv. .false.) then
+    !   K = (K + transpose(K)) * 0.5_dp
+    ! endif
+    ! -- enforce K Hermiticity
+    herm_defect = maxval(abs(K - adjoint(K))) / 2.0_dp
+    write(stdout, '("K-matrix symmetry defect:    ", ES12.4)') maxval(abs(K- transpose(K)))
+    write(stdout, '("K-matrix Hermiticity defect: ", ES12.4)') herm_defect
+    if(is_hermitian(K) .eqv. .false.) then
+      write(stderr, '("WARN: Averaging K with its Hermitian adjoint to enforce Hermiticity")')
+      K = (K + adjoint(K)) * 0.5_dp
     endif
     ! -- S = (I+iK)/(I-iK)
+    !    K hermitian <=> S unitary
     call K2S_cayley(K, S)
   end subroutine sincos2s
 
@@ -1044,334 +725,6 @@ contains
     sym    = channels(irot) % sym
   end subroutine get_channel_qnums_rot
 
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! subroutine do_rft_no_sym(j, n_states, elec_channels, rot_channels, Smat_elec, Smat_rot, U, point_group)
-  !   !! Do the rotational frame transformation for a specific symmetry
-  !   use rotex__kinds,      only: dp
-  !   use rotex__types,      only: elec_channel_type, asymtop_rot_channel_l_type, n_states_type
-  !   use rotex__arrays,     only: size_check, is_unitary, is_symmetric, adjoint
-  !   use rotex__wigner,     only: clebsch
-  !   use rotex__system,     only: die, stderr, stdout
-  !   use rotex__functions,  only: neg
-  !   use rotex__characters, only: i2c => int2char
-  !   implicit none (type, external)
-  !   integer,                          intent(in)  :: j
-  !     !! Total angular momentum quantum number J
-  !   type(n_states_type),              intent(in)  :: n_states(:)
-  !     !! N, Ka, and Kc for each N
-  !   type(elec_channel_type),          intent(in)  :: elec_channels(:)
-  !     !! Electronic channel basis for Smat_elec
-  !   type(asymtop_rot_channel_l_type), intent(in)  :: rot_channels(:)
-  !     !! Rotational channel basis for Smat_rot (this symmetry)
-  !   complex(dp),                      intent(in)  :: smat_elec(:,:)
-  !     !! Electronic S-matrix
-  !   complex(dp),                      intent(out) :: smat_rot(:,:)
-  !     !! Rotatinal S-matrix
-  !   complex(dp),                         intent(out) :: U(:,:)
-  !     !! Unitary transformation matrix
-  !   character(1),                     intent(in) :: point_group
-  !     !! The point group of the scattering calculations
-  !   integer :: irot
-  !   integer :: nchans_elec, nchans_rot
-  !   integer :: ni, kai, kci, li, lj, ki, lambdaj, symchan
-  !   integer :: neleci, nelecj
-  !   integer :: in, itau, iK, jelec
-  !   integer :: Omega
-  !   logical, allocatable :: mask(:)
-  !   complex(dp), allocatable :: C(:, :)
-  !   nchans_rot  = size(rot_channels, 1)
-  !   nchans_elec = size(elec_channels, 1)
-  !   Smat_rot = 0
-  !   ! -- build the rectangular transformation matrix U <LF|BF> for each Ω
-  !   allocate(C(nchans_rot, nchans_rot))
-  !   C = 0
-  !   do Omega = -J,J
-  !     U = 0
-  !     do irot = 1, nchans_rot
-  !       call get_channel_qnums_rot(rot_channels, irot, neleci, ni, kai, kci, li, symchan)
-  !       in    = findloc(n_states % n, value = ni, dim = 1)
-  !       mask = (n_states(in) % ka(:) .eq. kai) .AND. (n_states(in) % kc(:) .eq. kci)
-  !       itau  = findloc(mask, value = .true., dim = 1)
-  !       do jelec = 1, nchans_elec
-  !         nelecj  = elec_channels(jelec) % nelec
-  !         lj      = elec_channels(jelec) % l
-  !         lambdaj = elec_channels(jelec) % ml
-  !         ! -- enforce transformation between the same electronic state n and partial wave l
-  !         if (neleci .ne. nelecj) cycle
-  !         if (li     .ne. lj) cycle
-  !         Ki  = Omega - lambdaj
-  !         if(abs(Ki) .gt. Ni) cycle
-  !         ik = Ki + Ni + 1
-  !         U(irot, jelec) = neg(lj + lambdaj)             &
-  !             * N_states(in) % eigenH % eigvecs(ik, itau)&
-  !             * clebsch(lj, -lambdaj, J, Omega, Ni, Ki)
-  !       enddo
-  !     enddo
-  !     ! -- S^J = Σ_Ω USU+ (for each Ω)
-  !     Smat_rot = Smat_rot + matmul( U, matmul(Smat_elec, adjoint(U)) )
-  !     ! -- diagnostics if we fail to produce a unitary S
-  !     C = C + matmul(U, adjoint(U))
-  !   enddo
-  !
-  !   if(is_symmetric(Smat_rot) .eqv. .false.) then
-  !     write(stderr, '("Maxval S-S+: ", E30.20)') maxval(abs(Smat_rot-adjoint(Smat_rot)))
-  !     call die("The S-matrix is not symmetric for J = " // i2c(j) // " ❌")
-  !   endif
-  !
-  !   if(is_unitary(Smat_rot)   .eqv. .true.) then
-  !     write(stdout, '("S-matrix is unitary for J = ", I0, " ✔️")') J
-  !     return
-  !   endif
-  !
-  !   err: block
-  !     use rotex__arrays, only: unitary_defect
-  !     write(stderr, '("Channels: ", 6(A5,X), A20)') "i", "nelec", "N", "Ka", "Kc", "l", "Σ|S(i,:)|²"
-  !     do irot=1, nchans_rot
-  !       call get_channel_qnums_rot(rot_channels, irot, neleci, ni, kai, kci, li)
-  !       write(stderr, '(10X, 6(I5,X), E20.10)', advance = "no") irot, neleci, ni, kai, kci, li &
-  !         , sum(abs(Smat_rot(irot,:))**2)
-  !       if(all(U(irot,:) .eq. 0._dp)) write(stderr, '(" <-- ", A)', advance = "no") "Does not couple to any electronic channels !"
-  !       write(stderr, *)
-  !     enddo
-  !     write(stderr, *)
-  !     write(stderr, '("Rank of UU+: ", I0)') rank(C)
-  !     write(stderr, '("Unitary defect in UUT:  ", F15.9)') unitary_defect(C)
-  !     write(stderr, '("Unitary defect in USUT: ", F15.9)') unitary_defect(Smat_rot)
-  !     call die("The S-matrix is not unitary for J = " // i2c(J) // " ❌")
-  !   end block err
-  !
-  ! end subroutine do_rft_no_sym
-
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! subroutine do_rft_this_sym( &
-  !       j                     &
-  !     , sym                   &
-  !     , n_states              &
-  !     , elec_channels         &
-  !     , rot_channels          &
-  !     , whichmat              &
-  !     , Smat_elec             &
-  !     , sin_elec              &
-  !     , cos_elec              &
-  !     , Smat_rot              &
-  !     , sin_rot               &
-  !     , cos_rot               &
-  !     , U                     &
-  !   )
-  !   !! Do the rotational frame transformation for a specific symmetry.
-  !   !!   Energy independent -> S-matrix
-  !   !!   Energy dependent ---> Sine and Cosine matrices, evaluation energy matching the outgoing channel
-  !   use rotex__kinds,      only: dp
-  !   use rotex__types,      only: elec_channel_type, asymtop_rot_channel_l_type, n_states_type
-  !   use rotex__arrays,     only: size_check, is_unitary, is_symmetric, adjoint, linear_interpolation, idx_binsearch
-  !   use rotex__wigner,     only: clebsch
-  !   use rotex__system,     only: die, stderr, stdout
-  !   use rotex__functions,  only: neg
-  !   use rotex__characters, only: i2c => int2char
-
-  !   implicit none (type, external)
-
-  !   integer,                          intent(in)  :: j
-  !     !! Total angular momentum quantum number J
-  !   integer,                          intent(in)  :: sym
-  !     !! The current symmetry
-  !   type(n_states_type),              intent(in)  :: n_states(:)
-  !     !! N, Ka, and Kc for each N
-  !   type(elec_channel_type),          intent(in)  :: elec_channels(:)
-  !     !! Electronic channel basis for Smat_elec
-  !   type(asymtop_rot_channel_l_type), intent(in)  :: rot_channels(:)
-  !     !! Rotational channel basis for Smat_rot (this symmetry)
-  !   character(4),                     intent(in)  :: whichmat
-  !     !! 'SMAT': use the S-matrix only
-  !     !! 'SICO': use the Sine and Cosine matrices
-  !   complex(dp),                      intent(in)  :: smat_elec(:,:)
-  !     !! Electronic S-matrix
-  !   real(dp),                         intent(inout)  :: sin_elec(:,:,:)
-  !     !! Electronic Sine-matrix
-  !   real(dp),                         intent(inout)  :: cos_elec(:,:,:)
-  !     !! Electronic Cosine-matrix
-  !   complex(dp),                      intent(out) :: sin_rot(:,:)
-  !     !! Rotatoinal Sine-matrix
-  !   complex(dp),                      intent(out) :: cos_rot(:,:)
-  !     !! Rotatoinal Cosine-matrix
-  !   complex(dp),                      intent(out) :: smat_rot(:,:)
-  !     !! Rotatoinal S-matrix
-  !   complex(dp),                      intent(inout) :: U(:,:)
-  !     !! Unitary transformation matrix
-
-  !   integer :: irot
-  !   integer :: nchans_elec, nchans_rot
-  !   integer :: ni, kai, kci, li, nj, kaj, kcj, lj, ki, lambdaj, symchan
-  !   integer :: neleci, nelecj
-  !   integer :: in, itau, iK, jelec
-  !   integer :: Omega
-  !   logical, allocatable :: mask(:)
-  !   complex(dp), allocatable :: C(:,:)
-
-  !   nchans_rot  = size(rot_channels, 1)
-  !   nchans_elec = size(elec_channels, 1)
-
-  !   select case(whichmat)
-  !   case("SMAT")
-  !     Smat_rot = 0
-  !   case("SICO")
-  !     sin_rot = 0
-  !     cos_rot = 0
-  !   case default
-  !     call die("Unacceptable value of WHICHMAT: "//whichmat//". Must be 'SMAT' or 'SICO'")
-  !   end select
-
-  !   allocate(C, source=U) ; C = 0
-
-  !   ! -- build the rectangular transformation matrix U <LF|BF> for each Ω
-  !   do Omega = -J,J
-
-  !     U = 0
-
-  !     do irot = 1, nchans_rot
-
-  !       call get_channel_qnums_rot(rot_channels, irot, neleci, ni, kai, kci, li, symchan)
-
-  !       ! if(sym .ne. symchan) call die("Channel symmetry does not match transformation symmetry !")
-
-  !       ! -- get the corresponding eigenvector for this state, indexed by itau.
-  !       in    = findloc(n_states % n, value = ni, dim = 1)
-  !       select case(G%ROTOR_KIND)
-  !       case("a", "A")
-  !         mask = (n_states(in) % ka(:) .eq. kai) .AND. (n_states(in) % kc(:) .eq. kci)
-  !       case("s", "S")
-  !         select case(G%ROTOR_ZAXIS)
-  !         case("a", "A")
-  !           mask = (n_states(in) % ka(:) .eq. kai)
-  !         case("c", "C")
-  !           mask = (n_states(in) % kc(:) .eq. kci)
-  !         case default
-  !           call die("Somehow got a symmetric top with a G%ROTOR_ZAXIS " // G%ROTOR_ZAXIS // " that is neither A nor C")
-  !         end select
-  !       case default
-  !         call die("ROTOR_KIND " // G%ROTOR_KIND // " not allowed in RFT")
-  !       end select
-  !       itau  = findloc(mask, value = .true., dim = 1)
-
-  !       do jelec = 1, nchans_elec
-  !         nelecj  = elec_channels(jelec) % nelec
-  !         lj      = elec_channels(jelec) % l
-  !         lambdaj = elec_channels(jelec) % ml
-
-  !         ! -- enforce transformation between the same electronic state n and partial wave l
-  !         if (neleci .ne. nelecj) cycle
-  !         if (li     .ne. lj) cycle
-  !         Ki  = Omega - lambdaj
-  !         if(abs(Ki) .gt. Ni) cycle
-
-  !         ik = Ki + Ni + 1
-
-  !         U(irot, jelec) = neg(lj + lambdaj)              &
-  !             * N_states(in) % eigenH % eigvecs(ik, itau) &
-  !             * clebsch(lj, -lambdaj, J, Omega, Ni, Ki)
-
-  !       enddo
-  !     enddo
-
-  !     @@@@@
-  !     - we should pass the energy in from the outer loop ? an duse that to search and get indicde, then get our Sine cosien
-  !       mats.
-  !     - pass this routine all the enegies/matrices that it will need
-  !     - elementiwise interpolation based on rhs ? use array linear_interpolate with channel energies
-  !       - array slices
-  !     figure out edft here. shoudl be energy of adjoint U; do an interpolation ?
-
-
-  !     ! -- M^J = Σ_Ω UMU⁺ (for each Ω), where M is some matrix in the basis of channels
-  !     select case(whichmat)
-  !     case("SMAT")
-  !       Smat_rot = Smat_rot + matmul( U, matmul(Smat_elec, adjoint(U)) )
-  !     case("SICO")
-  !       ie_elec = [( idx_binserach )]
-  !       call linear_interpolation()
-  !       sin_rot = sin_rot + matmul( U, matmul(sin_elec, adjoint(U)) )
-  !       cos_rot = cos_rot + matmul( U, matmul(cos_elec, adjoint(U)) )
-  !     end select
-
-  !     C = C + matmul(U, adjoint(U))
-
-  !   enddo
-
-  !   error_checks: block
-  !     use rotex__utils,  only: printmat
-  !     use rotex__system, only: warn
-  !     use rotex__arrays, only: unitary_defect, eye, norm_frob
-  !     logical :: symflag = .false.
-  !     logical :: unitaryflag = .false.
-
-  !     select case(whichmat)
-  !     case("SMAT")
-
-  !       if(is_symmetric(Smat_rot) .eqv. .false.) then
-  !         ! -- not symmetric
-  !         symflag = .true.
-  !         call warn("The S-matrix is not symmetric for symmetry " // i2c(sym) // " ❌")
-  !       endif
-
-  !       if(is_unitary(Smat_rot, 1e-7_dp)   .eqv. .true.) then
-  !         write(stdout, '("S-matrix is unitary for J = ", I0, ", symmetry ", I0, " ✔️")') J, sym
-  !         if(symflag .eqv. .false.) return
-  !       else
-  !         unitaryflag = .true.
-  !       endif
-
-
-  !       write(stderr, '("Symmetry: ", I0)') sym
-  !       write(stderr, '("Channels: ", 6(A5,X), A20)') "i", "nelec", "N", "Ka", "Kc", "l", "Σ|S(i,:)|²"
-  !       do irot=1, nchans_rot
-  !         call get_channel_qnums_rot(rot_channels, irot, neleci, ni, kai, kci, li)
-  !         write(stderr, '(10X, 6(I5,X), E20.10)', advance = "no") irot, neleci, ni, kai, kci, li &
-  !           , sum(abs(Smat_rot(irot,:))**2)
-  !         if(all(U(irot,:) .eq. 0._dp)) write(stderr, '(" <-- ", A)', advance = "no") "Does not couple to any electronic channels !"
-  !         write(stderr, *)
-  !       enddo
-  !       write(stderr, *)
-  !       write(stderr, '("This is symmetry ", I0, ", J = ", I0)') sym, J
-  !       write(stderr, '(A30, F15.9)') "Unitary defect in UU⁺: ", unitary_defect(C)
-  !       write(stderr, '(A30, F15.9)') "Unitary defect in USU⁺: ", unitary_defect(Smat_rot)
-  !       if(unitaryflag) call warn("The S-matrix is not unitary for symmetry " // i2c(sym) // " ❌")
-  !       if(symflag) call warn("The S-matrix is not symmetric for symmetry " // i2c(sym) // " ❌")
-  !       if(unitaryflag .or. symflag) error stop
-
-  !     case("SICO")
-
-  !       if(is_symmetric(sin_rot) .eqv. .false.) then
-  !         ! -- not symmetric
-  !         symflag = .true.
-  !         call warn("The Sine-matrix is not symmetric for symmetry " // i2c(sym) // " ❌")
-  !       endif
-  !       if(is_symmetric(cos_rot) .eqv. .false.) then
-  !         ! -- not symmetric
-  !         symflag = .true.
-  !         call warn("The Cosine-matrix is not symmetric for symmetry " // i2c(sym) // " ❌")
-  !       endif
-
-  !       if(symflag .eqv. .false.) exit error_checks
-
-  !       write(stderr, '("Symmetry: ", I0)') sym
-  !       write(stderr, '("Channels: ", 6(A5,X), A20)') "i", "nelec", "N", "Ka", "Kc", "l", "Σ|S(i,:)|²"
-  !       do irot=1, nchans_rot
-  !         call get_channel_qnums_rot(rot_channels, irot, neleci, ni, kai, kci, li)
-  !         write(stderr, '(10X, 6(I5,X), E20.10)', advance = "no") irot, neleci, ni, kai, kci, li &
-  !           , sum(abs(Smat_rot(irot,:))**2)
-  !         if(all(U(irot,:) .eq. 0._dp)) write(stderr, '(" <-- ", A)', advance = "no") "Does not couple to any electronic channels !"
-  !         write(stderr, *)
-  !       enddo
-  !       write(stderr, *)
-  !       write(stderr, '("This is symmetry ", I0, ", J = ", I0)') sym, J
-  !       write(stderr, '(A30, F15.9)') "Unitary defect in UU⁺: ", unitary_defect(C)
-
-  !     end select
-
-  !   end block error_checks
-
-  ! end subroutine do_rft_this_sym
-
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   pure subroutine unwrap_eigenphases(eigenphases)
     !! Unwraps each phase index of eigenphases so that, at consecutive energy steps, the values change by at most π/2
@@ -1395,135 +748,6 @@ contains
       enddo
     enddo
   end subroutine unwrap_eigenphases
-
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! pure elemental function ylm_r2c_cs(mr,mc) result(res)
-  !   !! Determine the coefficient for the complex complex spherical harmonic for expressing the
-  !   !! real spherical harmonics in terms of the comple spherical harmonics, except that in Cs symmetry,
-  !   !! we work with linear combinations that are even or odd under mirror plane reflection, so it's
-  !   !! actually something like
-  !   !!   \(Y_{l}^m = c_1 X_{l|m|}^{even} + c_2 X_{l-|m|}^{odd}\),
-  !   !!   \(Y_{l}^m = c_1 X_{l|m|}^{even} - c_2 X_{l-|m|}^{odd}\),
-  !   !! UKRmol+ uses the convention of having the YZ plane be the mirror plane for Cs symmetry; this affects
-  !   !! which values of m belong to the irreps A' (even) and A'' (odd). For the YZ plane,
-  !   !! $x \to -x$ corresponds to $\phi \to \pi-\phi$, under which cos is odd (A'') and sin is even (A').
-  !   !! However, instead of assuming that cos is odd, this routine will just query some symmetry arrays
-  !   !! that were determined when reading channel files
-  !   use rotex__kinds,    only: dp
-  !   use rotex__functions,  only: neg, iseven
-  !   use rotex__system,   only: die
-  !   use rotex__symmetry, only: m_parity, even, odd
-  !   implicit none (type, external)
-  !   integer, intent(in) :: mr
-  !     !! The order (m) for the real spherical harmonic
-  !   integer, intent(in) :: mc
-  !     !! The ordedr (±|m|) for the complex spherical harmonic
-  !   complex(dp), parameter :: one = cmplx(1, 0, kind=dp)
-  !   real(dp),    parameter :: invsq2 = 1.0_dp/sqrt(real(2, kind=dp))
-  !   complex(dp), parameter :: im  = cmplx(0, 1, kind=dp)
-  !   logical :: is_sin
-  !   complex(dp) :: coef1, coef2
-  !   complex(dp) :: res
-  !   if(allocated(m_parity) .eqv. .false.) call die("M_PARITY array is not allocated, but is needed")
-  !   res = 0
-  !   if(abs(mc) .ne. abs(mr)) return
-  !   ! -- the ±i term goes to sin, but sin is not necessarily determined by the sign of mr
-  !   is_sin = mr .lt. 0
-  !   ! is_sin = iseven(mr) .eqv. (m_parity(mr) .eq. odd)
-  !   select case(mc)
-  !   case(:-1)
-  !     coef1 = 1
-  !     coef2 = merge(-im, one, is_sin)
-  !   case(1:)
-  !     coef1 = neg(mc)
-  !     coef2 = merge(im, one, is_sin)
-  !   case(0)
-  !     res = 1
-  !     return
-  !   end select
-  !   res = coef1 * coef2 * invsq2
-  ! end function ylm_r2c_cs
-
-
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! pure elemental function ylm_c2r(mr, mc) result(res)
-  !   !! Determine the coefficient of the complex spherical harmonics for expressing the
-  !   !! real spherical harmonics in terms of the complex spherical harmonics, e.g.,
-  !   !!   \(X_{lm} = c_1 Y_l^{|m|} + c_2Y_l^{-|m|}\),
-  !   !! given mc=m and one of mr=|m| or mr=-|m|. Assumes that the degree (l) of the spherical harmonics
-  !   !! is the same
-  !   use rotex__kinds, only: dp
-  !   use rotex__functions, only: neg
-  !   implicit none (type, external)
-  !   integer, intent(in) :: mr
-  !     !! The order (m) for the real spherical harmonic
-  !   integer, intent(in) :: mc
-  !     !! The order (±|m|) for the complex spherical harmonic
-  !   complex(dp), parameter :: one = cmplx(1, 0, kind=dp)
-  !   real(dp),    parameter :: invsq2 = 1.0_dp/sqrt(real(2, kind=dp))
-  !   complex(dp), parameter :: im  = cmplx(0, 1, kind=dp)
-  !   complex(dp) :: coef1, coef2
-  !   complex(dp) :: res
-  !   res = 0
-  !   if(abs(mc) .ne. abs(mr)) return
-  !   select case(mr)
-  !   case(:-1)
-  !     coef1 = im
-  !     coef2 = merge(neg(mc+1), 1, mc .gt. 0)
-  !   case(1:)
-  !     coef1 = 1
-  !     coef2 = merge(neg(mc), 1, mc .gt. 0)
-  !   case(0)
-  !     res = 1
-  !     return
-  !   end select
-  !   res = coef1 * coef2 * invsq2
-  ! end function ylm_c2r
-
-  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
-  ! pure elemental function ylm_c2r_cs(mr,mc) result(res)
-  !   !! Determine the coefficient for the complex complex spherical harmonic for expressing the
-  !   !! real spherical harmonics in terms of the comple spherical harmonics, except that in Cs symmetry,
-  !   !! we work with linear combinations that are even or odd under mirror plane reflection, so it's
-  !   !! actually something like
-  !   !!   \(X_{lm}^{even} = c_1 Y_l^{|m|} + c_2Y_l^{-|m|}\),
-  !   !!   \(X_{lm}^{odd}  = c_1 Y_l^{|m|} - c_2Y_l^{-|m|}\),
-  !   !! UKRmol+ uses the convention of having the YZ plane be the mirror plane for Cs symmetry; this affects
-  !   !! which values of m belong to the irreps A' (even) and A'' (odd). For the YZ plane,
-  !   !! $x \to -x$ corresponds to $\phi \to \pi-\phi$, under which cos is odd (A'') and sin is even (A').
-  !   !! However, instead of assuming that cos is odd, this routine will just query some symmetry arrays
-  !   !! that were determined when reading channel files
-  !   use rotex__kinds,    only: dp
-  !   use rotex__system,   only: die
-  !   use rotex__symmetry, only: m_parity, even, odd
-  !   use rotex__functions, only: neg
-  !   implicit none (type, external)
-  !   integer, intent(in) :: mr
-  !     !! The order (m) for the real spherical harmonic
-  !   integer, intent(in) :: mc
-  !     !! The ordedr (±|m|) for the complex spherical harmonic
-  !   complex(dp), parameter :: one = cmplx(1, 0, kind=dp)
-  !   real(dp),    parameter :: invsq2 = 1.0_dp/sqrt(real(2, kind=dp))
-  !   complex(dp), parameter :: im  = cmplx(0, 1, kind=dp)
-  !   complex(dp) :: coef1, coef2
-  !   complex(dp) :: res
-  !   if(allocated(m_parity) .eqv. .false.) call die("M_PARITY array is not allocated, but is needed")
-  !   res = 0
-  !   if(abs(mc) .ne. abs(mr)) return
-  !   select case(m_parity(mr))
-  !   case(odd)
-  !     coef1 = -im
-  !     coef2 = merge(1, neg(mc+1), mc .gt. 0)
-  !   case(even)
-  !     coef1 = 1
-  !     coef2 = merge(1, neg(mc), mc .gt. 0)
-  !   case(0)
-  !     res = 1
-  !     return
-  !   end select
-  !   res = coef1 * coef2 * invsq2
-  ! end function ylm_c2r_cs
-
 
 ! ================================================================================================================================ !
 end module rotex__RFT

@@ -13,11 +13,13 @@ module rotex__globals
   save
 
   public :: read_namelists
+  public :: is_unset
 
   ! public :: setglobals
   public :: config_type
 
   integer, parameter, public :: DEFAULT_INT      = huge(1)
+  real(dp), parameter, public :: DEFAULT_REAL = huge(1.0_dp)
   integer, parameter, public :: SJ_COMPUTE       = 0
     !! Value for SJ_mode: compute
   integer, parameter, public :: SJ_COMPUTE_WRITE = 1
@@ -32,12 +34,19 @@ module rotex__globals
     !! Threshold for warning the user about large values of a,b,c in
     !! ₂F₁(a,b;c;z)
 
+  character(1), parameter, public :: PACKMAT_TRIANGLE  = "L"
   character(*), parameter, public :: CHAR_CR           = achar(13)
   character(*), parameter, public :: DEFAULT_CHAR1     = "x"
   character(*), parameter, public :: UKRMOLX           = 'ukrmol+'
   character(*), parameter, public :: MQDTR2K           = 'mqdtr2k'
   character(*), parameter, public :: SPINMULT_NAMES(5) = &
     [ 'singlet', 'doublet', 'triplet', 'quartet', 'quintet' ]
+
+  interface is_unset
+    module procedure :: is_unset_i
+    module procedure :: is_unset_r
+    module procedure :: is_unset_char
+  end interface is_unset
 
   ! -- ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
   ! -- ↓↓↓↓↓↓↓↓↓↓↓↓↓ namelist variables declarations ↓↓↓↓↓↓↓↓↓↓↓↓↓
@@ -85,21 +94,25 @@ module rotex__globals
       !! Whether to print memory storage information during the EDFT/MQDT step
     logical :: PRINT_CHUNKINFO
       !! Whether to print chunk information during the EDFT/MQDT step
+    logical :: ENFORCE_SPIN_ISOMER
+      !! Whether do enforce symmetry with respect to nuclear spin. If the calculation is done
+      !! in an Abelian group with the highest possible symmetry, e.g., C2v for H3, then this should
+      !! be recoverable simply by specifying the symmetry axis, scattering, point group, and target
+      !! point group. This is .FALSE. by default
+    logical :: PROJECT_ELECMAT_ONTO_TARGET_PG
+      !! Sometimes the K-matrix is calculated in a lower symmetry than that of the target.
+      !! For example, H3+ would be a C2v calculation, but the target is a  D3h molecule.
+      !! This is because C2v is the highest Abelian subgroup of D3h. The K-matrix will be
+      !! rotated so that the z-axis is along the C3 symmetry axis. After the rotation, the K-matrix
+      !! can be projected onto this higher point group (consists of setting elements to 0 if they are
+      !! not in the same symmetry class in the higher point group; symmetry class determined by each
+      !! channel's spherical harmonic projection λ).
 
     integer :: SJ_MODE
       !! The calculation mode for the frame-transformed S-matrix. The general structure is
       !! 0 (SJ_COMPUTE): keep it all in memory (only one S^J subblock is stored at a time)
       !! 1 (SJ_COMPUTE_WRITE) write the transition probabilities to disk for each J
       !! 2 (SJ_READ): read the transition probabilities from disk for each J and DO NOT COMPUTE
-    integer :: SPIN_ISOMER_KIND
-      !! Whether and how to enforce ortho/para symmetry for molecules with identical nuclei.
-      !!   0: don't
-      !!   1: Dsh linear rotor; basically, homonuclear diatomics
-      !!   2: C2v rotor (H₂X-like): preserve Ka+Kc parity
-      !! Note that this just disables certain transitions from bein calculated
-      !! in the CB approx as well as from the S-matrix. This does not affect
-      !! the RFT because higher J-blocks of the S-matrix are more affected
-      !! by K-mixing (Ka and Kc are not exact quantum numbers)
     integer :: FORBIDDEN_STATES_KIND
       !! Some molecules have rotatinonal levels that are forbidden in certain vibrational states, e.g., H₃⁺
       !! In this case, do not construct certain levels:
@@ -146,6 +159,13 @@ module rotex__globals
       !! fduring the EDFT for a given J block. If this value is non-positive, chunking is disabled and the full
       !! evaluation energy grid is stored in memory.
 
+    real(dp) :: C2PRIME_PHI_DEG
+      !! The angle φ between the SYMAXIS z-axis and the C₂' z-axis. For example, this is π/2 in the
+      !! case of H₃⁺. This can be left unspecified, but is presented as an override. For calculations
+      !! making use of K-matrices where there is a SYMAXIS and a SCATTERING frame, the code will
+      !! attempt to determine this automatically. If it is somehow incorrect, the supplied value can
+      !! be used instead. In the case of multipole-only calculations (e.g., CB with no Kmat), then
+      !! this can be omitted and will default to φ=0. Degrees
     real(dp) :: XS_ZERO_THRESHOLD
       !! Any cross section with value only smaller than this (cm²) will
       !! be ignore and will not be printed
@@ -188,17 +208,16 @@ module rotex__globals
       !! in the expansion of the rotational energy :
       !!   E(N) = B N(N+1) - D[N(N+1)]² + H[N(N+1)]³ ...
       !! 0 by default
-    real(dp) :: CARTESIAN_DIPOLE_MOMENTS(3)
-      !! Array of cartesian dipole moments (Debye)
-      !! in the order dx, dy, dz
-    real(dp) :: CARTESIAN_QUADRUPOLE_MOMENTS(6)
-      !! Array of cartesian quadrupole moments (Debye)
-      !! in the order Qxx, Qxy, Qxz, Qyy, Qyz, Qzz
+    real(dp) :: DIPOLE_ABC(3)
+      !! Array of cartesian dipole moments (Debye) in the order dA, dB, dC.
+    real(dp) :: QUADRUPOLE_XYZ(6)
+      !! Array of cartesian quadrupole moments (Debye) in the order Qxx, Qxy, Qxz, Qyy, Qyz, Qzz.
+      !! Cannot be given with another QUADRUPOLE_??? array
+    ! real(dp) :: QUADRUPOLE_SPH(6)
+    !   !! Array of cartesian quadrupole moments (Debye) in the order Q(-2)..Q(2)
+    !   !! Cannot be given with another QUADRUPOLE_??? array
     real(dp), allocatable :: EGRID_SEGS(:)
       !! Array of the bounds (non-degenerate) of the energy grid segments (length num_egrid_segs + 1)
-    real(dp) :: POST_RFT_SINCOS2S_IMAG_TOL
-      !! After the energy dependent frame transformation, the sin and cosine matrices are expected
-      !! to have a imaginary values that is no larger than this in magnitude
 
     character(1) :: ROTOR_KIND
       !! The kind of rotor that describes the targer. Character(1).
@@ -206,10 +225,10 @@ module rotex__globals
       !!  "l"inear
       !!  "a"symmetric top
       !!  "s"ymmetric  top
-    character(1) :: ROTOR_ZAXIS
-      !! The molecular axis (a, b, or c) along which the z-axis is oriented
-      !! For asymmetric tops, this should be the main symmetry axis
-      !! For symmetric tops, this should be highest symmetry axis
+    character(1) :: RR_DIAG_AXIS
+      !! Rigid rotor diagonalization axis
+    character(1) :: SYMAXIS
+      !! The axis of highest symmetry: one of "A", "B", "C"
     character(1) :: SCATTERING_ZAXIS
       !! The z-axis of the scattering calculations: one of "A", "B", "C"
     character(1) :: SCATTERING_YAXIS
@@ -290,9 +309,13 @@ contains
     use rotex__arrays,     only: append, remove_value
     use rotex__system,     only: ds => directory_separator
     use rotex__constants,  only: au2invcm, au2ev, macheps => macheps_dp, au2cm, au2deb
+    use rotex__pointgroups, only: is_supported_pg, is_abelian_pg, is_subgroup, write_pg_table
     use rotex__characters, only: add_trailing, to_lower, lower
 
     implicit none (type, external)
+
+    logical :: dipole_abc_isgiven
+    real(dp),    parameter :: DEFAULT_DIPOLE = DEFAULT_REAL
 
     ! -- namelist: control
     integer :: Nmin
@@ -300,14 +323,14 @@ contains
     logical :: use_kmat
     logical :: use_CB
     logical :: symtop_reduce_projection = .true.
-    integer :: spin_isomer_kind = 0
+    logical :: enforce_spin_isomer = .false.
+    logical :: project_elecmat_onto_target_pg = .false.
     integer :: forbidden_states_kind = 0
     character(:), allocatable :: output_directory
     character(1) :: rotor_kind = DEFAULT_CHAR1
-    character(1) :: rotor_zaxis = DEFAULT_CHAR1
-    character(1) :: scattering_zaxis = DEFAULT_CHAR1  !TODO should not have to be set if it won't be used. if not set, then its fine ?
-    character(1) :: scattering_xaxis = DEFAULT_CHAR1  !TODO should not have to be set if it won't be used. if not set, then its fine ?
-    character(1) :: scattering_yaxis = DEFAULT_CHAR1  !TODO should not have to be set if it won't be used. if not set, then its fine ?
+    character(1) :: symaxis = DEFAULT_CHAR1
+    character(:), allocatable :: target_point_group
+    real(dp) :: c2prime_phi_deg = DEFAULT_REAL
     real(dp) :: abc(3) = 0.0_dp
     real(dp) :: B_rot = 0.0_dp
     real(dp) :: H_rot = 0.0_dp
@@ -341,13 +364,14 @@ contains
     integer, allocatable :: spinmults(:)
     real(dp), allocatable :: egrid_segs(:)
     real(dp) :: kmat_Ei = 0._dp, kmat_Ef = 0._dp
-    real(dp) :: post_rft_sincos2s_imag_tol = 1e-8_dp
     character(1) :: channel_energy_units_override = DEFAULT_CHAR1
     character(1) :: kmat_energy_units_override    = DEFAULT_CHAR1
+    character(1) :: scattering_zaxis = DEFAULT_CHAR1
+    character(1) :: scattering_xaxis = DEFAULT_CHAR1
+    character(1) :: scattering_yaxis = DEFAULT_CHAR1
     character(3) :: egrid_spacing
     character(7) :: kmat_output_type = "======="
     character(:), allocatable :: scattering_point_group
-    character(:), allocatable :: target_point_group
     character(:), allocatable :: kmat_dir
     character(:), allocatable :: channels_dir
 
@@ -366,8 +390,9 @@ contains
     real(dp) :: eta_thresh = 0.0_dp
     real(dp) :: Ef = 0.0_dp
     real(dp) :: Ei_xtrap = 0.0_dp
-    real(dp) :: cartesian_dipole_moments(3)
-    ! real(dp) :: cartesian_quadrupole_moments(6)
+    real(dp) :: dipole_abc(3) = DEFAULT_DIPOLE
+    ! real(dp) :: qudarupole_xyz(6)
+    ! real(dp) :: qudarupole_sph(6)
     real(dp) :: xs_zero_threshold = 0.0_dp   ! include all cross sections by default
     real(dp) :: kmat_energy_closest = 0.0_dp ! just take the first one
     character(1) :: egrid_xtrap_pre, egrid_xtrap_post
@@ -376,18 +401,19 @@ contains
     namelist / control_namelist /           &
       !! Contains parameters and values that are necessary to run the program
         output_directory                    &
-      , spin_isomer_kind                    &
       , forbidden_states_kind               &
       , symtop_reduce_projection            &
+      , target_point_group                  &
       , nmin                                &
       , nmax                                &
       , use_kmat                            &
       , use_cb                              &
-      , rotor_zaxis                         &
-      , scattering_zaxis                    &
+      , symaxis                             &
+      , enforce_spin_isomer                 &
       , rotor_kind                          &
       , targcharge                          &
       , abc                                 &
+      , c2prime_phi_deg                     &
       , B_rot                               &
       , D_rot                               &
       , H_rot                               &
@@ -402,23 +428,25 @@ contains
         kmat_dir                       &
       , channels_dir                   &
       , lmax_kmat                      &
-      , scattering_point_group         &
-      , target_point_group             &
       , num_egrid_segs                 &
       , num_egrid                      &
       , egrid_xtrap_pre                &
       , egrid_xtrap_post               &
+      , scattering_point_group         &
       , egrid_segs                     &
+      , project_elecmat_onto_target_pg      &
       , edft                           &
       , kmat_ei                        &
       , kmat_ef                        &
+      , scattering_zaxis               &
+      , scattering_xaxis               &
+      , scattering_yaxis               &
       , egrid_spacing                  &
       , spinmults                      &
       , kmat_output_type               &
       , kmat_energy_closest            &
       , real_spherical_harmonics       &
       , channel_energy_units_override  &
-      , post_rft_sincos2s_imag_tol     &
       , SJ_mode                        &
       , allow_edft_egrid_out_of_bounds &
       , edft_chunk_target_mb           &
@@ -436,8 +464,9 @@ contains
       , ne_xtrap                 &
       , do_xtrap                 &
       , ei_xtrap                 &
-      , cartesian_dipole_moments &
-      ! , cartesian_quadrupole_moments &
+      , dipole_abc               &
+      ! , quadrupole_xyz           &
+      ! , quadrupole_sph           &
       , do_dipole                &
       , do_quadrupole            &
       , analytic_total_cb        &
@@ -446,6 +475,7 @@ contains
 
     !!!!!!!!!!!!!!!!!!!!!! CONTROL_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     allocate(character(1000) :: output_directory)
+    allocate(character(10)   :: target_point_group)
     ! -- read
     read(stdin, control_namelist)
     ! -- check defaults
@@ -453,14 +483,17 @@ contains
     if(Nmax          .eq. DEFAULT_INT)   call die("Must specify NMAX in CONTROL_NAMELIST")
     if(rotor_kind    .eq. DEFAULT_CHAR1) call die("Must specify ROTOR_KIND in CONTROL_NAMELIST")
     if(targcharge .eq. DEFAULT_INT)   call die("Must specify TARGCHARGE in CONTROL_NAMELIST")
-    if(rotor_zaxis         .eq. DEFAULT_CHAR1) call die("Must specify ZAXIS in CONTROL_NAMELIST")
-    if(scattering_zaxis    .eq. DEFAULT_CHAR1) call die("Must specify scattering_zaxis in CONTROL_NAMELIST")
-    if(scattering_xaxis    .eq. DEFAULT_CHAR1) call die("Must specify scattering_xaxis in CONTROL_NAMELIST")
-    if(scattering_yaxis    .eq. DEFAULT_CHAR1) call die("Must specify scattering_yaxis in CONTROL_NAMELIST")
+    if(symaxis             .eq. DEFAULT_CHAR1) call die("Must specify SYMAXIS in CONTROL_NAMELIST")
     if(lower(rotor_kind) .eq. "l") then
       if(B_rot .le. 0.0_dp) call die("Must have a positive rotational constant B_rot for a linear molecule")
     else
       if(any(ABC .eq. 0.0_dp)) call die("Must specify nonzero rotational constants ABC in CONTROL_NAMELIST")
+    endif
+    call to_lower(target_point_group)
+    if(allocated(target_point_group)) target_point_group  = trim(target_point_group)
+    if(is_supported_pg(target_point_group) .eqv. .false.) then
+      call write_pg_table(stderr)
+      call die("Supplied TARGET_POINT_GROUP is not valid: " // target_point_group)
     endif
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -473,7 +506,6 @@ contains
       allocate(num_egrid(100))
       allocate(egrid_segs(101))
       allocate(character(10)   :: scattering_point_group)
-      allocate(character(10)   :: target_point_group)
       allocate(spinmults(10))
       spinmults = DEFAULT_INT
       kmat_dir(1:1)     = DEFAULT_CHAR1
@@ -499,6 +531,7 @@ contains
       end select
       ! -- check defaults
       if(kmat_dir(1:1) .eq. DEFAULT_CHAR1) call die("Must specify KMAT_DIR in KMAT_NAMELIST")
+      if(scattering_zaxis    .eq. DEFAULT_CHAR1) call die("Must specify scattering_zaxis in CONTROL_NAMELIST")
       if(lmax_kmat .eq. DEFAULT_INT .OR. lmax_kmat .lt. 0) &
         call die("LMAX_KMAT in KMAT_NAMELIST must be defined and be non-negative")
       call remove_value(spinmults, DEFAULT_INT)
@@ -506,11 +539,22 @@ contains
       if(     channels_dir(1:1) .eq. DEFAULT_CHAR1 &
         .AND. kmat_output_type  .eq. UKRMOLX) call die("Must specify CHANNELS_DIR in KMAT_NAMELIST with&
           & KMAT_OUPUT_TYPE = " // UKRMOLX)
+      if(is_supported_pg(scattering_point_group) .eqv. .false.) then
+        call write_pg_table(stderr)
+        call die("Supplied SCATTERING_POINT_GROUP is not valid: " // scattering_point_group)
+      elseif(is_subgroup(scattering_point_group, target_point_group) .eqv. .false.) then
+        call write_pg_table(stderr)
+        call die("SCATTERING_POINT_GROUP ("//scattering_point_group//") is not a valid subgroup&
+          & of TARGET_POINT_GROUP ("//target_point_group//")")
+      endif
     endif
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! COULOMB_NAMELIST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if(use_CB .eqv. .true.) then
+
+      dipole_abc_isgiven = .false.
+
       allocate(character(1000) :: cdms_file)
       ! -- prepare for reading
       cdms_file(1:1) = DEFAULT_CHAR1
@@ -522,7 +566,8 @@ contains
         if(CDMS_file(1:1) .eq. DEFAULT_CHAR1) call die("Must define CDMS_FILE in COULOMB_NAMELIST&
           & when USE_CDMS_EINSTA is .TRUE.")
       endif
-      if(do_dipole .eqv. .false.) call die("DO_DIPOLE in COULOMB_NAMELIST should not be set to .FALSE.; nothing would be done")
+      if(do_dipole .eqv. .false. .AND. do_quadrupole) call die("DO_DIPOLE and DO_QUADRUPOLE in COULOMB_NAMELIST should not both&
+        & be set to .FALSE.; nothing would be done")
       if(do_quadrupole) call die("DO_QUADRUPOLE in COULOMB_NAMELIST should not be set to true; it is not implemented")
       if(eta_thresh .eq. 0.0_dp) call die("eta_thresh in COULOMB_NAMELIST must be defined and be positive")
       if(Ef .eq. 0.0_dp) call die("EF in COULOMB_NAMELIST must be defined and be positive")
@@ -538,10 +583,13 @@ contains
           call die("EI_XTRAP in COULOMB_NAMELIST must be defined, and nonzero if DO_XTRAP is .TRUE.")
         endif
       endif
+      ! -- only exactly one of the following must be true
+      dipole_abc_isgiven = any(dipole_abc .ne. DEFAULT_DIPOLE)
+      if(dipole_abc_isgiven .eqv. .false.) call die("Please supply DIPOLE_ABC")
     endif
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    call to_lower(rotor_zaxis)
+    call to_lower(symaxis)
     call to_lower(scattering_zaxis)
     call to_lower(scattering_xaxis)
     call to_lower(scattering_yaxis)
@@ -560,13 +608,11 @@ contains
     ! -- convert to lower case
     call to_lower(rotor_kind)
     if(use_kmat .eqv. .true.) call to_lower(scattering_point_group)
-    if(use_kmat .eqv. .true.) call to_lower(target_point_group)
     call to_lower(kmat_energy_units_override)
     call to_lower(channel_energy_units_override)
 
     ! -- remove spaces
     if(allocated(scattering_point_group)) scattering_point_group = trim(scattering_point_group)
-    if(allocated(target_point_group))     target_point_group     = trim(target_point_group)
     if(allocated(kmat_dir))               kmat_dir               = trim(kmat_dir)
     if(allocated(channels_dir))           channels_dir           = trim(channels_dir)
     if(allocated(output_directory))       output_directory       = trim(output_directory)
@@ -598,12 +644,11 @@ contains
     G%NMAX                  = nmax
     G%USE_KMAT              = use_kmat
     G%USE_CB                = use_cb
-    G%SPIN_ISOMER_KIND      = spin_isomer_kind
     G%FORBIDDEN_STATES_KIND = forbidden_states_kind
     G%SYMTOP_REDUCE_PROJECTION = symtop_reduce_projection
     G%OUTPUT_DIRECTORY      = output_directory
     G%ROTOR_KIND            = rotor_kind
-    G%ROTOR_ZAXIS           = rotor_zaxis
+    G%SYMAXIS               = symaxis
     G%SCATTERING_ZAXIS      = scattering_zaxis
     G%SCATTERING_XAXIS      = scattering_xaxis
     G%SCATTERING_YAXIS      = scattering_yaxis
@@ -615,6 +660,9 @@ contains
     G%ADD_CD4               = add_cd4
     G%ADD_CD6               = add_cd6
     G%XS_ZERO_THRESHOLD     = xs_zero_threshold
+    G%TARGET_POINT_GROUP    = target_point_group
+    G%ENFORCE_SPIN_ISOMER   = enforce_spin_isomer
+    G%C2PRIME_PHI_DEG       = c2prime_phi_deg
     if(add_cd4 .eqv. .true.) then
       dn      = dn     / au2invcm
       dnk     = dnk    / au2invcm
@@ -646,7 +694,6 @@ contains
       G%CHANNELS_DIR                   = channels_dir
       G%LMAX_KMAT                      = lmax_kmat
       G%SCATTERING_POINT_GROUP         = scattering_point_group
-      G%target_POINT_GROUP             = target_point_group
       G%SPINMULTS                      = spinmults(:)
       G%NUM_EGRID_SEGS                 = num_egrid_segs
       G%NUM_EGRID                      = num_egrid(:)
@@ -662,9 +709,9 @@ contains
       G%KMAT_ENERGY_UNITS_OVERRIDE     = kmat_energy_units_override
       G%CHANNEL_ENERGY_UNITS_OVERRIDE  = channel_energy_units_override
       G%EDFT                           = edft
-      G%POST_RFT_SINCOS2S_IMAG_TOL     = post_rft_sincos2s_imag_tol
       G%ALLOW_EDFT_EGRID_OUT_OF_BOUNDS = ALLOW_EDFT_EGRID_OUT_OF_BOUNDS
       G%EDFT_CHUNK_TARGET_MB           = EDFT_CHUNK_TARGET_MB
+      G%PROJECT_ELECMAT_ONTO_TARGET_PG   = project_elecmat_onto_target_pg
     endif
 
     ! -- namelist: coulomb
@@ -675,22 +722,22 @@ contains
       if(use_cdms_einsta .eqv. .true.) call die("User requested use of CDMS data, but the code is&
         & not compiled with that capability. Build with 'USE_CDMSREADER=1' to change this.")
 #endif
-      G%USE_CDMS_EINSTA              = use_cdms_einsta
-      G%ANALYTIC_TOTAL_CB            = analytic_total_cb(:)
-      G%ETA_THRESH                   = eta_thresh
-      G%EF                           = ef
-      G%NE                           = ne
-      G%NE_XTRAP                     = ne_xtrap
-      G%EI_XTRAP                     = ei_xtrap
-      G%DO_XTRAP                     = do_xtrap
-      G%DO_DIPOLE                    = do_dipole
-      G%DO_QUADRUPOLE                = do_quadrupole
-      G%LMAX_PARTIAL                 = lmax_partial
-      G%LMAX_TOTAL                   = lmax_total
-      G%CARTESIAN_DIPOLE_MOMENTS     = cartesian_dipole_moments(:)     / au2deb
-      ! G%cartesian_quadrupole_moments = cartesian_quadrupole_moments(:) !/ au2deb
-      G%CDMS_FILE                    = cdms_file
-      G%ONLY_EINSTA                  = only_einsta
+      G%USE_CDMS_EINSTA   = use_cdms_einsta
+      G%ANALYTIC_TOTAL_CB = analytic_total_cb(:)
+      G%ETA_THRESH        = eta_thresh
+      G%EF                = ef
+      G%NE                = ne
+      G%NE_XTRAP          = ne_xtrap
+      G%EI_XTRAP          = ei_xtrap
+      G%DO_XTRAP          = do_xtrap
+      G%DO_DIPOLE         = do_dipole
+      G%DO_QUADRUPOLE     = do_quadrupole
+      G%LMAX_PARTIAL      = lmax_partial
+      G%LMAX_TOTAL        = lmax_total
+      G%DIPOLE_ABC        = dipole_abc / au2deb
+      G%CDMS_FILE         = cdms_file
+      G%ONLY_EINSTA       = only_einsta
+
     endif
 
     call read_info_namelist(stdin)
@@ -726,6 +773,33 @@ contains
     write(stdout, '(A)') "--------------------------------------------------------------------------------------------------------"
   end subroutine read_info_namelist
 
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function is_unset_i(i) result(res)
+    implicit none(type, external)
+    integer, intent(in) :: i
+    logical :: res
+    res = .true.
+    if(i .eq. DEFAULT_INT) return
+    res = .false.
+  end function is_unset_i
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function is_unset_r(x) result(res)
+    implicit none(type, external)
+    real(dp), intent(in) :: x
+    logical :: res
+    res = .true.
+    if(x .eq. DEFAULT_REAL) return
+    res = .false.
+  end function is_unset_r
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function is_unset_char(c) result(res)
+    implicit none(type, external)
+    character(*), intent(in) :: c
+    logical :: res
+    res = .true.
+    if(c .eq. DEFAULT_CHAR1) return
+    res = .false.
+  end function is_unset_char
 
 ! ================================================================================================================================ !
 end module rotex__globals

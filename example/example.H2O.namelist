@@ -11,7 +11,6 @@ $control_namelist
   targcharge = 0
   spin_isomer_kind = 0
   rotor_zaxis = "b"
-  rotor_c2axis = "b"
   ABC = 20.76492, 11.05564,7.21450 !! A,B,C (cm⁻¹) (Muller+2016)
   xs_zero_threshold = 1e-20
   ! -- 4th order centrifugal distortion (Muller+2016)

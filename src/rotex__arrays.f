@@ -25,11 +25,18 @@ module rotex__arrays
   public :: idx_binsearch
   public :: packmat
   public :: unpackmat
+  public :: unpackmat_ch
   public :: ij2k
   public :: nflat2n
   public :: linear_interpolation
   ! public :: vec2diag
   public :: interp_array_at_energy
+  public :: is_hermitian
+
+  interface is_hermitian
+    module procedure :: is_hermitian_r
+    module procedure :: is_hermitian_c
+  end interface is_hermitian
 
   interface linear_interpolation
     module procedure :: linear_interpolation_re_rs
@@ -111,7 +118,7 @@ contains
 ! ================================================================================================================================ !
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_elec_channel(arr, n)
+  pure subroutine realloc_1d_elec_channel(arr, n)
     use rotex__types, only: elec_channel_type
     implicit none (type, external)
     type(elec_channel_type), intent(inout), allocatable :: arr(:)
@@ -123,7 +130,7 @@ contains
     allocate(arr(n))
   end subroutine realloc_1d_elec_channel
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_elec_channel2(arr, dims)
+  pure subroutine realloc_1d_elec_channel2(arr, dims)
     use rotex__types, only: elec_channel_type
     implicit none (type, external)
     type(elec_channel_type), intent(inout), allocatable :: arr(:)
@@ -136,7 +143,7 @@ contains
   end subroutine realloc_1d_elec_channel2
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_int(arr, n)
+  pure subroutine realloc_1d_int(arr, n)
     implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:)
     integer, intent(in)                 :: n
@@ -147,7 +154,7 @@ contains
     allocate(arr(n))
   end subroutine realloc_1d_int
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_int2(arr, dims)
+  pure subroutine realloc_1d_int2(arr, dims)
     implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:)
     integer, intent(in)                 :: dims(1)
@@ -158,7 +165,7 @@ contains
     allocate(arr(dims(1)))
   end subroutine realloc_1d_int2
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_2d_int(arr, n1,n2)
+  pure subroutine realloc_2d_int(arr, n1,n2)
     implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:,:)
     integer, intent(in)                 :: n1,n2
@@ -169,7 +176,7 @@ contains
     allocate(arr(n1,n2))
   end subroutine realloc_2d_int
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_2d_int2(arr, dims)
+  pure subroutine realloc_2d_int2(arr, dims)
     implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:,:)
     integer, intent(in)                 :: dims(2)
@@ -180,7 +187,7 @@ contains
     allocate(arr(dims(1),dims(2)))
   end subroutine realloc_2d_int2
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_3d_int(arr, n1,n2,n3)
+  pure subroutine realloc_3d_int(arr, n1,n2,n3)
     implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:,:,:)
     integer, intent(in)                 :: n1,n2,n3
@@ -191,7 +198,7 @@ contains
     allocate(arr(n1,n2,n3))
   end subroutine realloc_3d_int
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_3d_int2(arr, dims)
+  pure subroutine realloc_3d_int2(arr, dims)
     implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:,:,:)
     integer, intent(in)                 :: dims(3)
@@ -203,7 +210,7 @@ contains
   end subroutine realloc_3d_int2
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_real(arr, n)
+  pure subroutine realloc_1d_real(arr, n)
     implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:)
     integer, intent(in)                 :: n
@@ -214,7 +221,7 @@ contains
     allocate(arr(n))
   end subroutine realloc_1d_real
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_real2(arr, dims)
+  pure subroutine realloc_1d_real2(arr, dims)
     implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:)
     integer, intent(in)                 :: dims(1)
@@ -225,7 +232,7 @@ contains
     allocate(arr(dims(1)))
   end subroutine realloc_1d_real2
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_2d_real(arr, n1,n2)
+  pure subroutine realloc_2d_real(arr, n1,n2)
     implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:,:)
     integer, intent(in)                 :: n1,n2
@@ -236,7 +243,7 @@ contains
     allocate(arr(n1,n2))
   end subroutine realloc_2d_real
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_2d_real2(arr, dims)
+  pure subroutine realloc_2d_real2(arr, dims)
     implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:,:)
     integer, intent(in)                 :: dims(2)
@@ -247,7 +254,7 @@ contains
     allocate(arr(dims(1),dims(2)))
   end subroutine realloc_2d_real2
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_3d_real(arr, n1,n2,n3)
+  pure subroutine realloc_3d_real(arr, n1,n2,n3)
     implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:,:,:)
     integer, intent(in)                 :: n1,n2,n3
@@ -258,7 +265,7 @@ contains
     allocate(arr(n1,n2,n3))
   end subroutine realloc_3d_real
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_3d_real2(arr, dims)
+  pure subroutine realloc_3d_real2(arr, dims)
     implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:,:,:)
     integer, intent(in)                 :: dims(3)
@@ -270,7 +277,7 @@ contains
   end subroutine realloc_3d_real2
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_complex(arr, n)
+  pure subroutine realloc_1d_complex(arr, n)
     implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:)
     integer, intent(in)                 :: n
@@ -281,7 +288,7 @@ contains
     allocate(arr(n))
   end subroutine realloc_1d_complex
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_1d_complex2(arr, dims)
+  pure subroutine realloc_1d_complex2(arr, dims)
     implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:)
     integer, intent(in)                 :: dims(1)
@@ -292,7 +299,7 @@ contains
     allocate(arr(dims(1)))
   end subroutine realloc_1d_complex2
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_2d_complex(arr, n1,n2)
+  pure subroutine realloc_2d_complex(arr, n1,n2)
     implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:,:)
     integer, intent(in)                 :: n1,n2
@@ -303,7 +310,7 @@ contains
     allocate(arr(n1,n2))
   end subroutine realloc_2d_complex
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_2d_complex2(arr, dims)
+  pure subroutine realloc_2d_complex2(arr, dims)
     implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:,:)
     integer, intent(in)                 :: dims(2)
@@ -314,7 +321,7 @@ contains
     allocate(arr(dims(1),dims(2)))
   end subroutine realloc_2d_complex2
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_3d_complex(arr, n1,n2,n3)
+  pure subroutine realloc_3d_complex(arr, n1,n2,n3)
     implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:,:,:)
     integer, intent(in)                 :: n1,n2,n3
@@ -325,7 +332,7 @@ contains
     allocate(arr(n1,n2,n3))
   end subroutine realloc_3d_complex
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine realloc_3d_complex2(arr, dims)
+  pure subroutine realloc_3d_complex2(arr, dims)
     implicit none (type, external)
     complex(dp), intent(inout), allocatable :: arr(:,:,:)
     integer, intent(in)                 :: dims(3)
@@ -337,7 +344,7 @@ contains
   end subroutine realloc_3d_complex2
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function norm_frob_i(A) result(res)
+  pure function norm_frob_i(A) result(res)
     !! Returns the Frobenius norm for a matrix A
     implicit none (type, external)
     integer, intent(in) :: A(:,:)
@@ -345,7 +352,7 @@ contains
     res = sqrt(real(sum(A*A), kind=dp))
   end function norm_frob_i
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function norm_frob_r(A) result(res)
+  pure function norm_frob_r(A) result(res)
     !! Returns the Frobenius norm for a matrix A
     implicit none (type, external)
     real(dp), intent(in) :: A(:,:)
@@ -353,7 +360,7 @@ contains
     res = sqrt(sum(A*A))
   end function norm_frob_r
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function norm_frob_c(A) result(res)
+  pure function norm_frob_c(A) result(res)
     !! Returns the Frobenius norm for a matrix A
     implicit none (type, external)
     complex(dp), intent(in) :: A(:,:)
@@ -362,7 +369,7 @@ contains
   end function norm_frob_c
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function adjoint_i(A) result(res)
+  pure function adjoint_i(A) result(res)
     !! Returns the adjoint of an integer-valued matrix
     implicit none (type, external)
     integer, intent(in) :: A(:,:)
@@ -370,7 +377,7 @@ contains
     res = transpose(A)
   end function adjoint_i
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function adjoint_r(A) result(res)
+  pure function adjoint_r(A) result(res)
     !! Returns the adjoint of a real-valued matrix
     implicit none (type, external)
     real(dp), intent(in) :: A(:,:)
@@ -378,7 +385,7 @@ contains
     res = transpose(A)
   end function adjoint_r
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function adjoint_c(A) result(res)
+  pure function adjoint_c(A) result(res)
     !! Returns the adjoint of a complex-valued matrix
     implicit none (type, external)
     complex(dp), intent(in) :: A(:,:)
@@ -505,7 +512,7 @@ contains
   end function is_symmetric
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function eye(n) result(res)
+  pure function eye(n) result(res)
     !! Return an n x n identity matrix
     integer, intent(in) :: n
     integer :: res(n,n)
@@ -518,7 +525,7 @@ contains
   end function eye
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine remove_value(arr, val)
+  pure subroutine remove_value(arr, val)
     !! Remove all instances of the value val from the array arr
     implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:)
@@ -553,7 +560,7 @@ contains
   end subroutine append_uniq_i
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine append_uniq_transition(old, new)
+  pure subroutine append_uniq_transition(old, new)
     !! Append unique element "new" to array "old"
     use rotex__types, only: asymtop_rot_transition_type
     use rotex__channel_ops, only: operator(.ne.), operator(.isin.)
@@ -599,7 +606,7 @@ contains
   end subroutine append_uniq_transition
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine append_i(arr, val)
+  pure subroutine append_i(arr, val)
     !! Append the value val to the array arr
     implicit none (type, external)
     integer, intent(inout), allocatable :: arr(:)
@@ -612,7 +619,7 @@ contains
     end select
   end subroutine append_i
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine append_r(arr, val)
+  pure subroutine append_r(arr, val)
     !! Append the value val to the array arr
     implicit none (type, external)
     real(dp), intent(inout), allocatable :: arr(:)
@@ -625,7 +632,7 @@ contains
     end select
   end subroutine append_r
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine append_rvector(arr, val)
+  pure subroutine append_rvector(arr, val)
     !! Append the value val to the array arr
     use rotex__types, only: rvector_type
     implicit none (type, external)
@@ -642,7 +649,7 @@ contains
     end select
   end subroutine append_rvector
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine append_asymtop_transition(arr, val)
+  pure subroutine append_asymtop_transition(arr, val)
     !! Append the value val to the array arr
     use rotex__types, only: asymtop_rot_transition_type
     implicit none (type, external)
@@ -656,7 +663,7 @@ contains
     end select
   end subroutine append_asymtop_transition
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure module subroutine append_elec_channel(channels, channel)
+  pure subroutine append_elec_channel(channels, channel)
     !! Append elec_channel to the array elec_channels
     use rotex__types, only: elec_channel_type
     implicit none (type, external)
@@ -668,7 +675,7 @@ contains
     end select
   end subroutine append_elec_channel
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure module subroutine append_elec_channels(channels, channels2)
+  pure subroutine append_elec_channels(channels, channels2)
     !! Append channels2 to the array channels
     use rotex__types, only: elec_channel_type
     implicit none (type, external)
@@ -680,7 +687,7 @@ contains
     end select
   end subroutine append_elec_channels
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure module subroutine append_asymtop_rot_channel(channels, channel)
+  pure subroutine append_asymtop_rot_channel(channels, channel)
     !! Append asymtop_rot_channel to the array asymtop_rot_channels
     use rotex__types, only: asymtop_rot_channel_type
     implicit none (type, external)
@@ -692,7 +699,7 @@ contains
     end select
   end subroutine append_asymtop_rot_channel
   ! ------------------------------------------------------------------------------------------------------------------------------- !
-  pure module subroutine append_asymtop_rot_channel_l(channels, channel)
+  pure subroutine append_asymtop_rot_channel_l(channels, channel)
     !! Append asymtop_rot_channel to the array asymtop_rot_channels
     use rotex__types, only: asymtop_rot_channel_l_type
     implicit none (type, external)
@@ -705,7 +712,7 @@ contains
   end subroutine append_asymtop_rot_channel_l
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine size_check_1d(arr, larr, name)
+  pure subroutine size_check_1d(arr, larr, name)
     !! Check that the size of the array arr is of length larr
     use rotex__characters, only: i2c => int2char
     implicit none (type, external)
@@ -716,7 +723,7 @@ contains
       call die("Array " // name // "(:) " // i2c(shape(arr)) // " must have the shape " // i2c([larr]))
   end subroutine size_check_1d
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine size_check_nd(arr, larr, name)
+  pure subroutine size_check_nd(arr, larr, name)
     !! Check that the size of the array arr is of length larr
     use rotex__characters, only: i2c => int2char
     implicit none (type, external)
@@ -734,7 +741,7 @@ contains
   end subroutine size_check_nd
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function uniq(arr) result(res)
+  pure function uniq(arr) result(res)
     !! Returns the unique elements of arr
     implicit none (type, external)
     integer, intent(in)  :: arr(:)
@@ -756,7 +763,7 @@ contains
   end function uniq
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine sort_index(vals, idx)
+  pure subroutine sort_index(vals, idx)
     !! Sort the array vals and return the permutation indices
     implicit none (type, external)
     real(dp),    intent(in)  :: vals(:)
@@ -783,8 +790,8 @@ contains
   end subroutine sort_index
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine unpackmat_r(flatmat, mat, UL)
-    !! Unpack the triangular matrix in flatmat to the full matrix mat
+  pure subroutine unpackmat_r(flatmat, mat, UL)
+    !! Unpack the symmetric triangular matrix in flatmat to the full matrix mat
     implicit none
     real(dp), intent(in) :: flatmat(:)
     real(dp), intent(out) :: mat(:,:)
@@ -847,8 +854,8 @@ contains
     end subroutine unpackmat_rb
   end subroutine unpackmat_r
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine unpackmat_c(flatmat, mat, UL)
-    !! Unpack the triangular matrix in flatmat to the full matrix mat
+  pure subroutine unpackmat_c(flatmat, mat, UL)
+    !! Unpack the symmetric triangular matrix in flatmat to the full matrix mat
     implicit none
     complex(dp), intent(in) :: flatmat(:)
     complex(dp), intent(out) :: mat(:,:)
@@ -912,7 +919,40 @@ contains
   end subroutine unpackmat_c
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine packmat_r(mat, flatmat, UL)
+  pure subroutine unpackmat_ch(flatmat, mat, triangle)
+    !! Unpack the Hermitian source matrix:
+    !!   mat(i,j) = flatmat(k), mat(j,i) = conjg(flatmat(k))
+    implicit none(type, external)
+    complex(dp), intent(in)  :: flatmat(:)
+    complex(dp), intent(out) :: mat(:,:)
+    character(1), intent(in) :: triangle
+    integer :: n, i, j, k
+    n = size(mat, 1)
+    k = 0
+    select case(triangle)
+    case('L','l')
+      do j = 1, n
+        do i = 1, j
+          k = k + 1
+          mat(i, j) = flatmat(k)
+          mat(j, i) = conjg(flatmat(k))   ! conjugate for Hermitian
+        enddo
+      enddo
+    case('U','u')
+      do i = 1, n
+        do j = 1, i
+          k = k + 1
+          mat(i, j) = flatmat(k)
+          mat(j, i) = conjg(flatmat(k))   ! conjugate for Hermitian
+        enddo
+      enddo
+    case default
+      call die("Cannot unpack the triangle "//triangle//". Please supply 'u'pper or 'l'ower")
+    end select
+  end subroutine
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure subroutine packmat_r(mat, flatmat, UL)
     !! Pack the symmetric matrix mat's upper or lower triangle into flatmat.
     implicit none
     real(dp),     intent(in)  :: mat(:,:)
@@ -945,7 +985,7 @@ contains
     end select
   end subroutine packmat_r
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine packmat_c(mat, flatmat, UL)
+  pure subroutine packmat_c(mat, flatmat, UL)
     !! Pack the symmetric matrix mat's upper or lower triangle into flatmat
     implicit none
     complex(dp),  intent(in)  :: mat(:,:)
@@ -979,7 +1019,7 @@ contains
   end subroutine packmat_c
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function ij2k(i, j) result(k)
+  pure function ij2k(i, j) result(k)
     !! Given a row i and column j of a symmetric matrix, return
     !! the flattened index k
     implicit none (type, external)
@@ -992,7 +1032,7 @@ contains
   end function ij2k
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure elemental module function nflat2n(nflat) result(n)
+  pure elemental function nflat2n(nflat) result(n)
     !! Given a number of flattened array elements nflat=n(n+1)/2,
     !! determine the number of array elements n
     implicit none (type, external)
@@ -1002,7 +1042,7 @@ contains
   end function nflat2n
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module function idx_binsearch(val, arr) result(res)
+  pure function idx_binsearch(val, arr) result(res)
     !! Returns the indices that define the interval in ARR in which VAL
     !! is contained. Assumes that ARR is sorted increasingly.
     !! Conventions:
@@ -1094,7 +1134,7 @@ contains
   end subroutine linear_interpolation_re_cs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine interp_cvector_at_energy(E, Egrid, Vgrid, V, aloob, aroob)
+  pure subroutine interp_cvector_at_energy(E, Egrid, Vgrid, V, aloob, aroob)
     implicit none (type, external)
     real(dp),    intent(in)  :: E, Egrid(:)
     complex(dp), intent(in)  :: Vgrid(:,:)
@@ -1134,7 +1174,7 @@ contains
   end subroutine interp_cvector_at_energy
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  pure module subroutine interp_cmatrix_at_energy(E, Egrid, Mgrid, M, aloob, aroob)
+  pure subroutine interp_cmatrix_at_energy(E, Egrid, Mgrid, M, aloob, aroob)
     implicit none (type, external)
     real(dp),    intent(in)  :: E, Egrid(:)
     complex(dp), intent(in)  :: Mgrid(:,:,:)
@@ -1173,6 +1213,25 @@ contains
       call die("Bad bracketing for indices in `interp_cvector_at_energy`")
     endif
   end subroutine interp_cmatrix_at_energy
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function is_hermitian_c(M, tol) result(res)
+    complex(dp), intent(in) :: M(:,:)
+    real(dp), optional, intent(in) :: tol
+    logical :: res
+    real(dp) :: t
+    t = 1e-10_dp; if(present(tol)) t = tol
+    res = all(abs(M - adjoint(M)) .lt. t)
+  end function is_hermitian_c
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure function is_hermitian_r(M, tol) result(res)
+    real(dp), intent(in) :: M(:,:)
+    real(dp), optional, intent(in) :: tol
+    logical :: res
+    real(dp) :: t
+    t = 1e-10_dp; if(present(tol)) t = tol
+    res = is_symmetric(M, t)
+  end function is_hermitian_r
 
 ! ================================================================================================================================ !
 end module rotex__arrays

@@ -17,6 +17,7 @@ module rotex__utils
   public :: isin
   public :: estimate_total_storage_size
   public :: bytes2human
+  public :: halfint_float_to_rational
 
   interface isint
     module procedure :: isint_r
@@ -389,6 +390,18 @@ contains
       units = "GB"
     endif
   end subroutine bytes2human_int64
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  pure elemental subroutine halfint_float_to_rational(x, numer, denom)
+    implicit none(type, external)
+    real(dp), intent(in) :: x
+    integer, intent(out) :: numer, denom
+    numer = nint(2.0_dp * x)
+    denom = 2
+    if(mod(numer, 2) .ne. 0) return
+    numer = numer / 2
+    denom = 1
+  end subroutine halfint_float_to_rational
 
 ! ================================================================================================================================ !
 end module rotex__utils

@@ -29,6 +29,7 @@ module rotex__types
   public :: cd6_type
   public :: prob_vector_type
   public :: xyz_type
+  public :: pg_info_type
 
   ! -- ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
   ! -- ↓↓↓↓↓↓↓↓ type definitions ↓↓↓↓↓↓↓↓
@@ -37,7 +38,21 @@ module rotex__types
   type xyz_type
     character(1) :: x, y, z
       !! Take the values "A", "B", or "C"
+    contains
+      procedure :: write_xyz
+      generic :: write(formatted) => write_xyz
   end type xyz_type
+
+  type pg_info_type
+    !! Poing Group information type
+    character(3) :: name                   !! Point group name
+    integer      :: nelem                  !! Point group size (number of group elements)
+    integer      :: nrot                   !! Order of  the principal C_n axis (1 for groups without)
+    integer      :: nrot_needed            !! n_rot needed for K-matrix projection to this group from max Abelian subgroup
+    character(3) :: req_scat_pg            !! Max Abelian subgroup that the scattering calculations must be computed in
+    logical      :: is_abelian             !! True if Abelian
+    character(3) :: irreps(8)              !! The irreps in the point group. Empty spaces for extra array elements.
+  end type pg_info_type
 
   type eigenH_type
     !! Contains the eigenvectors and eigenvalues of a hamiltonian
@@ -58,6 +73,10 @@ module rotex__types
       !! The projections Kc
     integer :: N
       !! Rotational quantum number
+    integer, allocatable :: rchar(:)
+      !! C₂' character of each rotational eigenstate, only used for symtops :
+      !!   +1: A₁
+      !!   -1: A₂
   end type N_states_type
 
   type, abstract :: channel_type
@@ -93,6 +112,8 @@ module rotex__types
       !! The projection Kc of N
     integer :: sym
       !! The nuclear spin symmetry
+    integer :: rchar = 0
+      !! The rotational C₂' character for symtops, 0 when not applicable
   end type asymtop_rot_channel_type
 
   type, extends(asymtop_rot_channel_type) :: asymtop_rot_channel_l_type
@@ -193,6 +214,22 @@ module rotex__types
     real(dp) :: etak
       !! ηK  [Nz⁴,   (J₊)²+(J₋)²]₊ / 2
   end type cd6_type
+
+! ================================================================================================================================ !
+contains
+! ================================================================================================================================ !
+
+  subroutine write_xyz(self, funit, iotype, v_list, iostat, iomsg)
+    implicit none(type, external)
+    class(xyz_type), intent(in)    :: self
+    integer,         intent(in)    :: funit
+    character(*),    intent(in)    :: iotype
+    integer,         intent(in)    :: v_list(:)
+    integer,         intent(out)   :: iostat
+    character(*),    intent(inout) :: iomsg
+    write(funit, '("XYZ FRAME: X=",A1,X,"Y=", A1,X, "Z=",A1)', iostat=iostat, iomsg=iomsg) &
+      self%x, self%y, self%z
+  end subroutine
 
 ! ================================================================================================================================ !
 end module rotex__types

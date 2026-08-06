@@ -9,7 +9,7 @@ program rotex
   use rotex__types,      only: eigenh_type, n_states_type, asymtop_rot_channel_l_type &
                              , asymtop_rot_channel_l_vector_type, cmatrix_type, rvector_type, asymtop_rot_transition_type
   use rotex__system,     only: mkdir, die, stdout
-  use rotex__hamilton,   only: h_asym, assign_projections
+  use rotex__hamilton,   only: h_asym, assign_projections, rotate_eigvecs, resolve_c2prime_phi, wangify_symtop_eigvecs
   use rotex__characters, only: lower
 
   implicit none (type, external)
@@ -22,7 +22,7 @@ program rotex
   integer, allocatable :: N_values(:)
     !! Contains the values of N to consider
 
-  real(dp) :: start, finish, Eground
+  real(dp) :: start, finish, Eground, c2phi
   real(dp), allocatable :: egrid_tot_smat(:)
     !! The total energy grid for the S-matrix calculations
 
@@ -44,6 +44,7 @@ program rotex
 
   call print_header()
   call read_namelists()
+  ! call validate_user_input(G)
   call make_output_directories(pcb_output_directory, tcb_output_directory, smat_output_directory)
 
   ! -- determine the (number of) N values
@@ -77,23 +78,45 @@ program rotex
   ! -- this array holds the information on the rotational states of the target
   allocate(N_states(num_N))
 
-  if(lower(G%ROTOR_KIND) .eq. "l") then
-
-    call print_dipole(G%CARTESIAN_DIPOLE_MOMENTS(3))
-
-  else
-
-    select case(G%ROTOR_ZAXIS)
-    case("a") ; call print_dipoles(x = "B", y = "C", z = "A")
-    case("b") ; call print_dipoles(x = "C", y = "A", z = "B")
-    case("c") ; call print_dipoles(x = "A", y = "B", z = "C")
-    end select
-
-  endif
+  select case(G%ROTOR_KIND)
+  case("l","L")
+    call print_dipole(G%DIPOLE_ABC(1))
+  case("a","A","s","S")
+    call print_dipoles
+  case default
+    call die("Unacceptable G%ROTOR_KIND: "//G%ROTOR_KIND)
+  end select
 
   ! -- diagonalize the hamiltonian and assign state labels for the rotational states that
   !    will be involved in the transitions/collisions
   call diagonalize_rotational_hamiltonian(num_N, N_values, N_states)
+
+  ! -- SYMTOPS ONLY: rotate exactly degenerate ±K pairs into a Wang basis and tag
+  !    each state with its C2' character. If USE_KMAT is false, φ is set to 0.0
+  select case(G%ROTOR_KIND)
+  case("s", "S")
+    if(lower(G%RR_DIAG_AXIS) .ne. lower(G%SYMAXIS)) then
+      call die("Wangify requires eigvecs that are already in the G%SYMAXIS frame.&
+        & G%RR_DIAG_AXIS does not agree ("//G%RR_DIAG_AXIS//"). Not carrying out&
+        & the RFT on this.")
+    endif
+    c2phi = resolve_c2prime_phi(G%USE_KMAT, G%C2PRIME_PHI_DEG)
+    write(stdout, '("Wang basis: rotating degenerate ±K pairs, C2prime azimuthal φ = ", F8.5, " rad")') c2phi
+    do i_n = 1, num_n
+      call wangify_symtop_eigvecs(               &
+          N       = N_states(i_n)%N              &
+        , eigvecs = N_states(i_n)%eigenH%eigvecs &
+        , irchar  = N_states(i_n)%rchar          &
+        , phi     = c2phi                        &
+      )
+      ! -- check rchar. The N=0 rotational function is constant, so it's
+      !    invariant under any rotation, so its C₂' character must be +1 regardless of
+      !    which C₂' axis (any φ) was chosen. Failure implies that the wangify routine
+      !    is not consistent and that nothing that follows is coherent
+      if(N_states(i_n)%N .ne. 0) cycle
+      if(N_states(i_n)%rchar(1) .ne. +1) call die("rchar convention check failed: N=0 must have rchar=+1")
+    enddo
+  end select
 
   if(G%use_CB .eqv. .true.) then
     call do_coulomb_born_approx( &
@@ -117,6 +140,22 @@ program rotex
     write(stdout, '(A)') "Switching to K-matrix data"
     write(stdout, '(A)') "--------------------------"
     write(stdout, *)
+
+    ! -- ensure that the rigid rotor eigenvectors are in the SYMAXIS frame
+    if(lower(G%RR_DIAG_AXIS) .eq. lower(G%SYMAXIS)) then
+      write(stdout, '("No eigenvector rotation needed. SYMAXIS AND RR_DIAG_AXIS are the same: ",A)') G%SYMAXIS
+    else
+      write(stdout, '("Rotating rigid-rotor eigenvectors from RR_DIAG_AXIS to SYMAXIS", A, " --> ", A)') &
+        G%RR_DIAG_AXIS, G%SYMAXIS
+      do i_n=1,  num_n
+        call rotate_eigvecs(                         &
+            N         = N_states(i_n)%N              &
+          , from_axis = G%RR_DIAG_AXIS               &
+          , to_axis   = G%SYMAXIS                    &
+          , eigvecs   = N_states(i_n)%eigenH%eigvecs &
+        )
+      enddo
+    endif
 
     ! -- make the total energy grid for the K/S-matrix cross sections
     eground = n_states(1) % eigenh % eigvals(1)
@@ -235,18 +274,18 @@ contains
     write(stdout, '(A)') "Rotational target states"
     write(stdout, '(A)') "⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻⁻"
     select case(G%ROTOR_KIND)
-    case("s")
+    case("s","S")
       write(stdout, '(4X, 2A5, A14)') "N", "K", "E (meV)"
       do i=1, size(N_states, 1)
         n = n_states(i)%n
         do j=1,2*n+1
-          select case(G%ROTOR_ZAXIS)
+          select case(G%SYMAXIS)
           case("a", "A")
             k = n_states(i)%ka(j)
           case("c", "C")
             k = n_states(i)%kc(j)
           case default
-            call die("Unacceptable G%ROTOR_ZAXIS in print_rot_targ_states")
+            call die("Unacceptable G%SYMAXIS in print_rot_targ_states")
           end select
           ! -- print |K| only
           if(k.lt.0) cycle
@@ -260,7 +299,7 @@ contains
           write(stdout, fmt) n, k, e
         enddo
       enddo
-    case("a")
+    case("a","A")
       write(stdout, '(4X, 3A5, A14)') "N", "Ka", "Kc", "E (meV)"
       do i=1, size(N_states, 1)
         n = n_states(i)%n
@@ -303,20 +342,47 @@ contains
     implicit none
     real(dp),     intent(in) :: dipole
     write(stdout, '("Permanent dipole moment: ")')
-    write(stdout, '("μ(z): ", F7.4, " Debye")') dipole*au2deb
+    write(stdout, '("μ: ", F7.4, " Debye")') dipole*au2deb
   end subroutine print_dipole
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine print_dipoles(x, y, z)
+  subroutine print_dipoles
     !! Print the dipole components in the determined ABC frame
     use rotex__system,    only: stdout
     use rotex__constants, only: au2deb
     implicit none
-    character(1), intent(in) :: x, y, z
-    write(stdout, '("Cartesian dipole moments  in the inertial frame ABC:")')
-    write(stdout, '("μ(", A1, "): ", F7.4, " Debye")') x, G%CARTESIAN_DIPOLE_MOMENTS(1)*au2deb
-    write(stdout, '("μ(", A1, "): ", F7.4, " Debye")') y, G%CARTESIAN_DIPOLE_MOMENTS(2)*au2deb
-    write(stdout, '("μ(", A1, "): ", F7.4, " Debye")') z, G%CARTESIAN_DIPOLE_MOMENTS(3)*au2deb
+    write(stdout, '("Cartesian dipole moments in the inertial frame ABC:")')
+    write(stdout, '("μ(A): ", F7.4, " Debye")') G%DIPOLE_ABC(1)*au2deb
+    write(stdout, '("μ(B): ", F7.4, " Debye")') G%DIPOLE_ABC(2)*au2deb
+    write(stdout, '("μ(C): ", F7.4, " Debye")') G%DIPOLE_ABC(3)*au2deb
   end subroutine print_dipoles
+
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine print_datetime(funit)
+    implicit none(type, external)
+    integer, intent(in) :: funit
+    character(5)  :: zone
+    integer :: values(8)
+    call date_and_time(zone=zone, values=values)
+    write(funit,*)
+    write(funit, '("Date [ymd]: ", I4.4,"-",I2.2,"-",I2.2)') values(1:3)
+    write(funit, '("Time [hms]: ", I4.2,"-",I2.2,"-",I2.2)') values(5:7)
+    write(funit, '("Time zone: ", A)') zone
+    write(funit,*)
+  end subroutine print_datetime
+
+
+  ! ! ------------------------------------------------------------------------------------------------------------------------------ !
+  ! subroutine validate_user_input
+  !   !! Validates the  G global config
+  !   implicit none(type, external)
+  !   stop "VALIDATE ROUTINE"
+  !     ! if(is_supported_pg(target_point_group) .eqv. .false.) call die("Invalid TARGET_POINT_GROUP: "//target_point_group)
+  !     ! if(is_supported_pg(scattering_point_group) .eqv. .false.) &
+  !     !   call die("Invalid SCATTERING_POINT_GROUP: "//target_point_group)
+  !     ! if(is_abelian_pg(scattering_point_group) .eqv. .false.) &
+  !     !   call die("SCATTERING POINT GROUP "//scattering_point_group//" is not Abelian. I don't believe you !&
+  !     ! & (please supply the scattering point group that was used for the scattering calculation)")
+  ! end subroutine validate_user_input
 
 ! ================================================================================================================================ !
 end program rotex

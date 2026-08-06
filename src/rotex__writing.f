@@ -4,6 +4,7 @@ module rotex__writing
 
   use rotex__kinds,   only: dp
   use rotex__globals, only: G
+  use rotex__system,  only: stderr, die, warn, mkdir
 
   implicit none (type, external)
 
@@ -18,6 +19,12 @@ module rotex__writing
   public :: write_elec_mat_elems_to_file
 
   character(*), parameter :: ENERGY_XS_WRITE_FMT = '(2X, 2E30.20)'
+
+  interface write_xs_header
+    module procedure :: write_xs_header_asymtop
+    module procedure :: write_xs_header_symtop
+    module procedure :: write_xs_header_linear
+  end interface write_xs_header
 
 ! ================================================================================================================================ !
 contains
@@ -49,8 +56,14 @@ contains
     nc = maxval(N_states(:) % N) + 1
 
     ! -- write file header
-    write(funit, '("# The z-axis is aligned with the ", A, " axis")') G%ROTOR_ZAXIS
-    write(funit, '("# ", 3A6, 2A16)') "N", "Ka", "Kc", "energy (meV)", "lifetime (s)"
+    select case(G%ROTOR_KIND)
+    case("a","A")
+      write(funit, '("# ", 3A6, 2A16)') "N", "Ka", "Kc", "energy (meV)", "lifetime (s)"
+    case("s","S")
+      write(funit, '("# ", 2A6, 2A16)') "N", "K", "energy (meV)", "lifetime (s)"
+    case("l","L")
+      write(funit, '("# ", A6,  2A16)') "N", "energy (meV)", "lifetime (s)"
+    end select
 
     do inlo = 1, size(N_states, 1)
 
@@ -73,7 +86,21 @@ contains
           if(lifetime .lt. 1e-2 .OR. lifetime .gt. 9.9e5 ) write(lifetime_char, '(E15.6)') lifetime
         endif
 
-        write(funit, '(2X, 3I6)', advance = "no") N, Ka, Kc
+        select case(G%ROTOR_KIND)
+        case("a","A")
+          write(funit, '(2X, 3I6)', advance = "no") N, Ka, Kc
+        case("s","S")
+          select case(G%SYMAXIS)
+          case("a","A")
+            write(funit, '(2X, 2I6)', advance = "no") N, Ka
+          case("c","C")
+            write(funit, '(2X, 2I6)', advance = "no") N, Kc
+          case("b","B")
+            write(funit, '(2X, I6, A6)', advance = "no") N, "X"
+          end select
+        case("l","L")
+          write(funit, '(2X, I6)', advance = "no") N
+        end select
         fmt    = '(X,F15.6)'
         if(E .ne. 0 .AND. E .lt. 1e-2) fmt  = '(X,E15.6)'
         write(funit, fmt, advance = "no") E
@@ -181,12 +208,12 @@ contains
     )
     !! Writes an S-matrix (+CB) cross section to a file whos name and file header
     !! carry information about the state symmetry
-    use rotex__types,      only: rvector_type, asymtop_rot_transition_type,  asymtop_rot_channel_type
-    use rotex__arrays,     only: size_check
-    use rotex__system,     only: die, warn, mkdir
-    use rotex__characters, only: add_trailing, sub, sup, i2c => int2char
-    use rotex__constants,  only: au2eV, au2cm, pi
-    use rotex__functions,  only: logrange
+    use rotex__types,       only: rvector_type, asymtop_rot_transition_type,  asymtop_rot_channel_type
+    use rotex__arrays,      only: size_check
+    use rotex__characters,  only: add_trailing, sub, sup, i2c => int2char, state_label, lower
+    use rotex__constants,   only: au2eV, au2cm, pi
+    use rotex__functions,   only: logrange
+    use rotex__channel_ops, only: assert_channel_validity
 
     implicit none (type, external)
 
@@ -207,11 +234,10 @@ contains
 
     integer :: ie, iemin
     integer :: ne
-    integer :: nlo, nup, kalo, kclo, kaup, kcup
+    integer :: nlo, nup, kalo, kclo, kaup, kcup, ksymup, ksymlo, rchar
     integer :: funit_ex, funit_dex
     real(dp) :: Elo, Eup, Eel_ex, Eel_dex, sigmaup, sigmadown
-    character(:), allocatable :: state_name1
-    character(:), allocatable :: state_name2
+    character(:), allocatable :: state_name1, state_name2
     character(:), allocatable :: filename_ex, filename_dex
     character(:), allocatable :: prefix_local
     type(asymtop_rot_channel_type) :: lo, up
@@ -227,28 +253,41 @@ contains
     call mkdir(output_directory)
 
     lo = transition % lo
+    call assert_channel_validity(lo, G%ROTOR_KIND, "write_smat_xs_to_file (lo)")
     up = transition % up
+    call assert_channel_validity(up, G%ROTOR_KIND, "write_smat_xs_to_file (up)")
 
     ! -- filenames
-    nlo  = lo % n
-    nup  = up % n
-    kalo = lo % ka
-    kclo = lo % kc
-    kaup = up % ka
-    kcup = up % kc
-    if(allocated(state_name1)) deallocate(state_name1)
-    if(allocated(state_name2)) deallocate(state_name2)
-    allocate(character(10) :: state_name1)
-    allocate(character(10) :: state_name2)
-    write(state_name1, '(I0, "_", I0, "_", I0)') Nlo,  Kalo,  Kclo
-    write(state_name2, '(I0, "_", I0, "_", I0)') Nup,  Kaup,  Kcup
-    state_name1 = trim(state_name1)
-    state_name2 = trim(state_name2)
+    nlo   = lo % n
+    nup   = up % n
+    kalo  = lo % ka
+    kclo  = lo % kc
+    kaup  = up % ka
+    kcup  = up % kc
+    rchar = lo % rchar
 
     ! -- get upper and lower channel energy
     Elo = lo % E
     Eup = up % E
 
+    select case(G%ROTOR_KIND)
+    case("a","A")
+      state_name1 = state_label(nlo, kalo, kclo, sepstr="_")
+      state_name2 = state_label(nup, kaup, kcup, sepstr="_")
+    case("s","S")
+      if(lo % rchar .ne. up % rchar .AND. (G%SYMTOP_REDUCE_PROJECTION .eqv. .false.)) then
+        write(stderr, *) "lo: ", lo
+        write(stderr, *) "up: ", up
+        call die("Different rchars detected in this transition. Something has gone wrong !")
+      endif
+      ksymlo = merge(Kalo, Kclo, lower(G%SYMAXIS) .eq. "a")
+      ksymup = merge(Kaup, Kcup, lower(G%SYMAXIS) .eq. "a")
+      state_name1 = state_label(nlo, ksymlo, sepstr="_")
+      state_name2 = state_label(nup, ksymup, sepstr="_")
+    case("l","L")
+      state_name1 = state_label(nlo)
+      state_name2 = state_label(nup)
+    end select
     ! -- write (de-)excitation data
     filename_ex  = output_directory // prefix_local // state_name1 // "." // state_name2 // ".dat"
     filename_dex = output_directory // prefix_local // state_name2 // "." // state_name1 // ".dat"
@@ -258,8 +297,17 @@ contains
     open(newunit = funit_ex,  file = filename_ex)
     open(newunit = funit_dex, file = filename_dex)
 
-    call write_xs_header(funit_ex,  Nlo, Kalo, Kclo, Nup, Kaup, Kcup, "S-matrix", i2c(lmax))
-    call write_xs_header(funit_dex, Nup, Kaup, Kcup, Nlo, Kalo, Kclo, "S-matrix", i2c(lmax))
+    select case(G%ROTOR_KIND)
+    case("a","A")
+      call write_xs_header(funit_ex,  Nlo, Kalo, Kclo, Nup, Kaup, Kcup, "S-matrix", i2c(lmax))
+      call write_xs_header(funit_dex, Nup, Kaup, Kcup, Nlo, Kalo, Kclo, "S-matrix", i2c(lmax))
+    case("s", "S")
+      call write_xs_header(funit_ex,  Nlo, Ksymlo, Nup, Ksymup, rchar, "S-matrix", i2c(lmax))
+      call write_xs_header(funit_dex, Nup, Ksymup, Nlo, Ksymlo, rchar, "S-matrix", i2c(lmax))
+    case("l","L")
+      call write_xs_header(funit_ex,  Nlo, Nup, "S-matrix", i2c(lmax))
+      call write_xs_header(funit_dex, Nup, Nlo, "S-matrix", i2c(lmax))
+    end select
 
     do ie = iemin, ne
       sigmaup   = exxs(ie)
@@ -291,7 +339,6 @@ contains
     use rotex__types,      only: asymtop_rot_transition_type, asymtop_rot_channel_type
     use rotex__characters, only: add_trailing, i2c => int2char
     use rotex__arrays,     only: size_check
-    use rotex__system,     only: mkdir
     use rotex__constants,  only: au2ev, au2cm
 
     implicit none (type, external)
@@ -386,12 +433,11 @@ contains
   ! end function xtrap_xs
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
-  subroutine write_xs_header(funit, N, Ka, Kc, Np, kaup, kcup, xs_type, lmax, lmax2)
-    use rotex__characters, only: ndigits, i2c => int2char
+  subroutine write_xs_header_linear(funit, N, Np, xs_type, lmax, lmax2)
+    use rotex__characters, only: ndigits, i2c => int2char, state_label
     implicit none (type, external)
     integer, intent(in) :: funit
-    integer, intent(in) :: N, Ka, Kc, Np, kaup, kcup
-    character(:), allocatable :: fmt, fmtp
+    integer, intent(in) :: N, Np
     character(:), allocatable :: nc, ncp
     character(*), intent(in) :: xs_type
     character(*), intent(in) :: lmax
@@ -406,18 +452,81 @@ contains
     else
       write(funit, '("# lmax: ", A)') lmax
     endif
-    write(funit,   '("# The z-axis is aligned with the ", A, " axis")') G%ROTOR_ZAXIS
-    write(funit, '("# ", 2(A' // nc  // ',","), A' // nc  // ')',  advance = "no") "N", "Ka", "Kc"
-    write(funit, '(2X,A)',                                                advance = "no") "-->"
-    write(funit, '(2(A'   // ncp // ',","), A' // ncp // ')')                    "N", "Ka", "Kc"
-    fmt  = '(2(I' // nc  // ', ","), I' // nc  // ',)'
-    fmtp = '(2(I' // ncp // ', ","), I' // ncp // ',)'
-    write(funit, '(A)',     advance = "no") "# "
-    write(funit, fmt,       advance = "no") N, Ka, Kc
+    write(funit, '("# ", A' // nc  // ')',  advance = "no") "N"
+    write(funit, '(2X,A)',                  advance = "no") "-->"
+    write(funit, '(A'   // ncp // ')')                      "N'"
+    write(funit, '(A)',    advance = "no") "# "
+    write(funit, '(2X, A)',    advance = "no") state_label(N)
     write(funit, '(2X,A)', advance = "no") "-->"
-    write(funit, fmtp)                      Np, kaup, kcup
+    write(funit, '(1X, A)')                    state_label(Np)
     write(funit, '("# ", 2(A30))') "scattering energy (eV)", "cross section (cm²)"
-  end subroutine write_xs_header
+  end subroutine write_xs_header_linear
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine write_xs_header_symtop(funit, N, K, Np, Kp, rchar, xs_type, lmax, lmax2)
+    use rotex__characters,  only: ndigits, i2c => int2char, state_label
+    use rotex__pointgroups, only: pg_nrot
+    implicit none (type, external)
+    integer, intent(in) :: funit
+    integer, intent(in) :: N, K, Np, Kp, rchar
+    character(:), allocatable :: nc, ncp
+    character(*), intent(in) :: xs_type
+    character(*), intent(in) :: lmax
+    character(*), intent(in), optional :: lmax2
+    ! -- determine how many characters to take up for N, Ka, and and values
+    nc  = i2c(max(ndigits(N),  2) + 1)
+    ncp = i2c(max(ndigits(Np), 2) + 1)
+    write(funit, '("# Cross section type: ", A)') xs_type
+    if(present(lmax2)) then
+      write(funit, '("# S-matrix: l = 0 – ", A)') lmax
+      write(funit, '("# Coulomb-Born correction: l = ", A, "..", A)') achar(ichar(lmax) + 1), lmax2
+    else
+      write(funit, '("# lmax: ", A)') lmax
+    endif
+    write(funit,   '("# The z-axis is aligned with the ", A, " axis")') G%SYMAXIS
+    if(G%SYMTOP_REDUCE_PROJECTION .AND. modulo(K, pg_nrot(G%TARGET_POINT_GROUP)) .ne. 0) then
+      write(funit, '("# Rotational character w.r.t. C2prime axis: n/a (±K folded)")')
+    else
+      write(funit, '("# Rotational character w.r.t. C2prime axis: ", I2)') rchar
+    endif
+    write(funit, '("# ", A' // nc  // ',",", A' // nc  // ')',  advance = "no") "N", "K"
+    write(funit, '(2X,A)',                                         advance = "no") "-->"
+    write(funit, '(A'   // ncp // ',",", A' // ncp // ')')                      "N'", "K'"
+    write(funit, '(A)',    advance = "no") "# "
+    write(funit, '(2X,A)',    advance = "no") state_label(N, K, sepstr=",  ")
+    write(funit, '(2X,A)', advance = "no") "-->"
+    write(funit, '(1X,A)')                    state_label(Np, Kp, sepstr=",  ")
+    write(funit, '("# ", 2(A30))') "scattering energy (eV)", "cross section (cm²)"
+  end subroutine write_xs_header_symtop
+  ! ------------------------------------------------------------------------------------------------------------------------------ !
+  subroutine write_xs_header_asymtop(funit, N, Ka, Kc, Np, Kap, Kcp, xs_type, lmax, lmax2)
+    use rotex__characters, only: ndigits, i2c => int2char, state_label
+    implicit none (type, external)
+    integer, intent(in) :: funit
+    integer, intent(in) :: N, Ka, Kc, Np, Kap, Kcp
+    character(:), allocatable :: nc, ncp
+    character(*), intent(in) :: xs_type
+    character(*), intent(in) :: lmax
+    character(*), intent(in), optional :: lmax2
+    ! -- determine how many characters to take up for N, Ka, and and values
+    nc  = i2c(max(ndigits(N),  2) + 1)
+    ncp = i2c(max(ndigits(Np), 2) + 1)
+    write(funit, '("# Cross section type: ", A)') xs_type
+    if(present(lmax2)) then
+      write(funit, '("# S-matrix: l = 0 – ", A)') lmax
+      write(funit, '("# Coulomb-Born correction: l = ", A, "..", A)') achar(ichar(lmax) + 1), lmax2
+    else
+      write(funit, '("# lmax: ", A)') lmax
+    endif
+    write(funit,   '("# The z-axis is aligned with the ", A, " axis")') G%SYMAXIS
+    write(funit, '("# ", 2(A' // nc  // ',","), A' // nc  // ')',  advance = "no") "N", "Ka", "Kc"
+    write(funit, '(2X,A)',                                         advance = "no") "-->"
+    write(funit, '(2(A'   // ncp // ',","), A' // ncp // ')')                      "N'", "Ka'", "Kc'"
+    write(funit, '(A)',    advance = "no") "# "
+    write(funit, '(2X,A)',    advance = "no") state_label(N, Ka, Kc, sepstr=",  ")
+    write(funit, '(2X,A)', advance = "no") "-->"
+    write(funit, '(1X,A)')                    state_label(Np, Kap, Kcp, sepstr=",  ")
+    write(funit, '("# ", 2(A30))') "scattering energy (eV)", "cross section (cm²)"
+  end subroutine write_xs_header_asymtop
 
   ! ------------------------------------------------------------------------------------------------------------------------------ !
   module subroutine write_channels_to_file( &
@@ -448,12 +557,19 @@ contains
     type(asymtop_rot_channel_type) :: channel_without_l
     logical, allocatable :: jtest(:)
     integer  :: funit, nchans, j
-    integer  :: in, n, itau, ka, kc, sym
+    integer  :: in, n, itau, ka, kc, sym, ksym
     integer, allocatable :: lvals(:), jvals(:)
     real(dp) :: e
     nchans = size(channels_l, 1)
     open(newunit = funit, file = filename)
-    write(funit, '("# ", 3(A7), A15, A7, 3X, A4, A7)') "N", "Ka", "Kc", "E (meV)", "sym", "l", "J"
+    select case(G%ROTOR_KIND)
+    case("a","A")
+      write(funit, '("# ", 3(A7), A15, A7, 3X, A4, A7)') "N", "Ka", "Kc", "E (meV)", "sym", "l", "J"
+    case("s","S")
+      write(funit, '("# ", 2(A7), A15, A7, 3X, A4, A7)') "N", "K", "E (meV)", "sym", "l", "J"
+    case("l","L")
+      write(funit, '("# ", (A7), A15, A7, 3X, A4, A7)') "N", "E (meV)", "sym", "l", "J"
+    end select
     do in=1, size(n_states, 1)
       n  = n_states(in) % n
       do itau=1, 2*n+1
@@ -462,17 +578,37 @@ contains
         ka = 0 ; if(allocated(n_states(in) % ka)) ka = n_states(in) % ka(itau)
         kc = 0 ; if(allocated(n_states(in) % kc)) kc = n_states(in) % kc(itau)
 
+        if(any(G%ROTOR_KIND .eq. ["s","S"])) then
+          select case(G%SYMAXIS)
+          case("a","A")
+            Ksym = Ka
+          case("c","C")
+            Ksym = Kc
+          end select
+        endif
+
         e  = n_states(in) % eigenh % eigvals(itau)
         sym = spin_symmetry(n, ka, kc)
         channel_without_l = asymtop_rot_channel_type(nelec=1, e=e, n=n, ka=ka, kc=kc, sym=sym)
+
         ! -- which l values are inlcuded ?
         lvals = channels_l % l
         lvals = pack(lvals, channels_l(:) .eq. channel_without_l)
+
         ! -- which J values are included ?
         jtest = [(any(channels_l_j(j) % channels(:) .eq. channel_without_l), j=jmin, jmax)]
         jvals = pack([(j, j=jmin, jmax)], jtest)
+
         ! -- N, Ka, Kc, E
-        write(funit, '(2X, 3(I7), F15.8, I7)', advance="no") n, ka, kc, e*au2ev*1000, sym
+        select case(G%ROTOR_KIND)
+        case("a","A")
+          write(funit, '(2X, 3(I7), F15.8, I7)', advance="no") n, ka,   kc, e*au2ev*1000, sym
+        case("s","S")
+          write(funit, '(2X, 2(I7), F15.8, I7)', advance="no") n, ksym,     e*au2ev*1000, sym
+        case("l","L")
+          write(funit, '(2X, I7, F15.8, I7)',    advance="no") n,           e*au2ev*1000, sym
+        end select
+
         ! -- l
         write(funit, '(I4)', advance="no") minval(lvals)
         if(size(lvals, 1) .gt. 2) then
@@ -480,7 +616,8 @@ contains
         elseif(size(lvals, 1) .eq. 2) then
           write(funit, '(A1,I0)', advance="no") ",", maxval(lvals)
         endif
-        ! -- j
+
+        ! -- J
         write(funit, '(I4)', advance="no") minval(jvals)
         if(size(jvals, 1) .gt. 2) then
           write(funit, '(A2,I0)', advance="no") "..", maxval(jvals)
@@ -488,6 +625,7 @@ contains
           write(funit, '(A1,I0)', advance="no") ",", maxval(jvals)
         endif
         write(funit, *)
+
       enddo
     enddo
     close(funit)
@@ -510,7 +648,6 @@ contains
     use rotex__constants,  only: au2ev
     use rotex__characters, only: i2c => int2char
     use rotex__arrays,     only: size_check
-    use rotex__system, only: mkdir
 
     implicit none (type, external)
 
@@ -614,7 +751,6 @@ contains
     use rotex__constants,  only: au2ev
     use rotex__globals,    only: spinmult_names
     use rotex__characters, only: i2c => int2char
-    use rotex__system,     only: mkdir
 
     implicit none (type, external)
 
