@@ -422,7 +422,6 @@ contains
     if(jchan .lt. lbound(channels, 1) .OR. jchan .gt. ubound(channels, 1)) call die("Trying to swap channels,&
       & but one of the indices exceeds the bounds of the channel array")
     allocate(tmp, source = channels(ichan))
-    tmp = channels(ichan)
     channels(ichan) = channels(jchan)
     channels(jchan) = tmp
     deallocate(tmp)
